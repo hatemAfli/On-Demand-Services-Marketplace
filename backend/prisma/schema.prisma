@@ -1,0 +1,157 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DIRECT_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Enums
+enum UserRole {
+  CLIENT
+  PROVIDER
+  COMPANY_ADMIN
+  PLATFORM_ADMIN
+}
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUSPENDED
+  DELETED
+}
+enum ProviderType {
+  INDEPENDENT
+  EMPLOYEE
+}
+
+// User Model (synced with Supabase Auth)
+model User {
+  id                String        @id @db.Uuid
+  email             String        @unique
+  phoneNumber       String?       @unique @map("phone_number")
+  firstName         String        @map("first_name")
+  lastName          String        @map("last_name")
+  role              UserRole      @default(CLIENT)
+  status            AccountStatus @default(PENDING)
+  isEmailVerified   Boolean       @default(false) @map("is_email_verified")
+  isPhoneVerified   Boolean       @default(false) @map("is_phone_verified")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  /// Relations
+  client            Client?
+  provider          Provider?
+  companyAdmin      CompanyAdmin?
+  platformAdmin     PlatformAdmin?
+
+  @@map("users")
+}
+
+
+// Client Model 
+model Client {
+  id         String   @id @db.Uuid
+
+  city       String
+  address    String?
+  latitude   Float?
+  longitude  Float?
+
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  /// Relations
+  user       User     @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  @@map("clients")
+}
+
+// Provider-specific details
+//add qualificationDocuments  String[]     @map("qualification_documents")
+model Provider {
+  id                      String       @id @db.Uuid
+  
+  type             ProviderType @default(INDEPENDENT)
+  city             String
+  address          String?
+  latitude         Float?
+  longitude        Float?
+  photoUrl         String?       @map("photo_url")
+  averageRating           Decimal?     @default(0) @db.Decimal(3, 2)
+  totalReviews            Int          @default(0) @map("total_reviews")
+  cancellationRate        Decimal?     @default(0) @db.Decimal(5, 2)
+  averageResponseTime     Decimal?     @map("average_response_time") @db.Decimal(10, 2)
+  isTopProvider           Boolean      @default(false) @map("is_top_provider")
+  companyId               String?      @map("company_id") @db.Uuid
+  createdAt               DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  user    User            @relation(fields: [id], references: [id], onDelete: Cascade)
+  company Company? @relation("CompanyProviders", fields: [companyId], references: [id])
+
+  @@map("providers")
+}
+
+// company Admin model
+model CompanyAdmin {
+  id                String   @id @db.Uuid
+  companyId         String @unique  @map("company_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user      User              @relation(fields: [id], references: [id], onDelete: Cascade)
+  company   Company?   @relation
+
+  @@map("company_admins")
+}
+
+// Company-specific details
+// add legalDocuments, employees, calendar
+model Company {
+  id                String   @id @default(uuid()) @db.Uuid
+  adminId   String    @unique  @db.Uuid
+  
+  legalName         String   @map("legal_name")
+  commercialName    String   @map("commercial_name")
+  photoUrl         String?  @map("photo_url")
+  city             String
+  address          String?
+  latitude         Float?
+  longitude        Float?
+  serviceZones      String[] @map("service_zones")
+  mainContact       String   @map("main_contact")
+  averageRating     Decimal? @default(0) @db.Decimal(3, 2)
+  totalReviews      Int      @default(0) @map("total_reviews")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  providers Provider[] @relation("CompanyProviders")
+  admin     CompanyAdmin @relation(fields: [adminId], references: [id]) 
+
+  @@map("companies")
+}
+
+// Platform Admins model
+model PlatformAdmin {
+  id        String   @id @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  permissions String[] @map("permissions")
+
+  // Relations
+  user      User     @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  @@map("platform_admins")
+}
