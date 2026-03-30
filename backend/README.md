@@ -12,7 +12,7 @@
 
 ---
 
-## ✅ Completed Phase 1: Authentication Foundation
+##  Completed Phase 1: Authentication Foundation ..
 
 ### - Backend Setup -
 
