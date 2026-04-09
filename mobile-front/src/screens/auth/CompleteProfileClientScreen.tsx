@@ -11,7 +11,9 @@ import {
   Alert,
   TouchableOpacity,
   StatusBar,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
@@ -19,6 +21,12 @@ import { Button, Input, LanguageSwitcher } from "../../components/common";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { supabase } from "../../services/supabase";
+import {
+  requestPhotoLibraryPermission,
+  uploadClientProfileAvatar,
+} from "../../services/clientAvatarUpload";
+import { COLORS } from "../../constants";
 
 const ACCENT = "#E8C97A";
 
@@ -29,7 +37,7 @@ interface CompleteProfileClientScreenProps {
 export const CompleteProfileClientScreen: React.FC<
   CompleteProfileClientScreenProps
 > = ({ navigation }) => {
-  const { completeRegistration, isLoading } = useAuth();
+  const { completeRegistration } = useAuth();
   const { t, isRTL } = useAppTranslation();
   const insets = useSafeAreaInsets();
 
@@ -39,12 +47,16 @@ export const CompleteProfileClientScreen: React.FC<
     lastName: "",
     city: "",
     address: "",
-    latitude: "",
-    longitude: "",
   });
 
+  /** Local preview + MIME from picker (used for format when uploading). */
+  const [pickedPhoto, setPickedPhoto] = useState<{
+    uri: string;
+    mimeType?: string | null;
+  } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [currentStep, setCurrentStep] = useState(1);
 
   const updateField = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -53,7 +65,7 @@ export const CompleteProfileClientScreen: React.FC<
     }
   };
 
-  const validateStep1 = (): boolean => {
+  const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
 
     if (!formData.firstName.trim()) {
@@ -72,40 +84,44 @@ export const CompleteProfileClientScreen: React.FC<
       newErrors.phoneNumber = t("validation.phoneInvalid");
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const validateStep2 = (): boolean => {
-    const newErrors: { [key: string]: string } = {};
-
     if (!formData.city.trim()) {
       newErrors.city = t("validation.cityRequired");
     }
 
-    if (formData.latitude && isNaN(Number(formData.latitude))) {
-      newErrors.latitude = t("validation.latitudeInvalid");
-    }
-
-    if (formData.longitude && isNaN(Number(formData.longitude))) {
-      newErrors.longitude = t("validation.longitudeInvalid");
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleNext = () => {
-    if (currentStep === 1) {
-      if (validateStep1()) {
-        setCurrentStep(2);
+  const handlePickPhoto = async () => {
+    try {
+      const ok = await requestPhotoLibraryPermission();
+      if (!ok) {
+        Alert.alert(
+          t("common.error"),
+          t("completeProfile.photoPermissionDenied"),
+        );
+        return;
       }
-    }
-  };
-
-  const handleStepBack = () => {
-    if (currentStep === 2) {
-      setCurrentStep(1);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        const asset = result.assets[0];
+        setPickedPhoto({
+          uri: asset.uri,
+          mimeType: asset.mimeType ?? undefined,
+        });
+      }
+    } catch (e: unknown) {
+      Alert.alert(
+        t("common.error"),
+        e instanceof Error
+          ? e.message
+          : t("completeProfile.photoPermissionDenied"),
+      );
     }
   };
 
@@ -118,171 +134,73 @@ export const CompleteProfileClientScreen: React.FC<
   };
 
   const handleSubmit = async () => {
-    if (!validateStep2()) return;
+    if (!validateForm()) return;
 
+    setIsSubmitting(true);
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        throw new Error("Not signed in");
+      }
+
+      let imageUrl: string | undefined;
+      if (pickedPhoto) {
+        try {
+          imageUrl = await uploadClientProfileAvatar(
+            session.user.id,
+            pickedPhoto.uri,
+            { mimeType: pickedPhoto.mimeType },
+          );
+        } catch (uploadErr: unknown) {
+          const msg =
+            uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+          throw new Error(
+            `${t("completeProfile.uploadPhotoFailedPrefix")} ${msg}`,
+          );
+        }
+      }
+
       const profileData = {
         phoneNumber: formData.phoneNumber || undefined,
         firstName: formData.firstName,
         lastName: formData.lastName,
-        role: "CLIENT",
+        role: "CLIENT" as const,
         client: {
           city: formData.city,
           address: formData.address || undefined,
-          latitude: formData.latitude ? Number(formData.latitude) : undefined,
-          longitude: formData.longitude
-            ? Number(formData.longitude)
-            : undefined,
+          imageUrl,
         },
       };
 
-      await completeRegistration(profileData);
-    } catch (error: any) {
+      try {
+        await completeRegistration(profileData);
+      } catch (apiErr: unknown) {
+        const msg = apiErr instanceof Error ? apiErr.message : String(apiErr);
+        throw new Error(
+          `${t("completeProfile.registrationFailedPrefix")} ${msg}`,
+        );
+      }
+    } catch (error: unknown) {
       Alert.alert(
         t("common.error"),
-        error.message || t("completeProfile.submitError"),
+        error instanceof Error
+          ? error.message
+          : t("completeProfile.submitError"),
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const renderProgressBar = () => (
-    <View style={styles.progressContainer}>
-      <View style={styles.progressBar}>
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${(currentStep / 2) * 100}%` },
-          ]}
-        />
-      </View>
-      <Text style={[styles.progressText, isRTL && styles.rtlText]}>
-        {t("completeProfile.stepProgress", { current: currentStep, total: 2 })}
-      </Text>
-    </View>
-  );
-
-  const renderStep1 = () => (
-    <View style={styles.stepContainer}>
-      <View style={styles.stepHeader}>
-        <Ionicons name="person-circle-outline" size={56} color={ACCENT} />
-        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.step1Title")}
-        </Text>
-        <Text style={[styles.stepSubtitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.step1Subtitle")}
-        </Text>
-      </View>
-
-      <View style={styles.form}>
-        <Input
-          label={t("completeProfile.firstNameLabel")}
-          placeholder={t("completeProfile.firstNamePlaceholder")}
-          value={formData.firstName}
-          onChangeText={(value) => updateField("firstName", value)}
-          leftIcon="person-outline"
-          error={errors.firstName}
-          autoCapitalize="words"
-        />
-
-        <Input
-          label={t("completeProfile.lastNameLabel")}
-          placeholder={t("completeProfile.lastNamePlaceholder")}
-          value={formData.lastName}
-          onChangeText={(value) => updateField("lastName", value)}
-          leftIcon="person-outline"
-          error={errors.lastName}
-          autoCapitalize="words"
-        />
-
-        <Input
-          label={t("completeProfile.phoneLabel")}
-          placeholder={t("completeProfile.phonePlaceholder")}
-          value={formData.phoneNumber}
-          onChangeText={(value) => updateField("phoneNumber", value)}
-          leftIcon="call-outline"
-          keyboardType="phone-pad"
-          error={errors.phoneNumber}
-        />
-      </View>
-    </View>
-  );
-
-  const renderStep2 = () => (
-    <View style={styles.stepContainer}>
-      <View style={styles.stepHeader}>
-        <Ionicons name="location-outline" size={56} color={ACCENT} />
-        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.step2Title")}
-        </Text>
-        <Text style={[styles.stepSubtitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.step2Subtitle")}
-        </Text>
-      </View>
-
-      <View style={styles.form}>
-        <Input
-          label={t("completeProfile.cityLabel")}
-          placeholder={t("completeProfile.cityPlaceholder")}
-          value={formData.city}
-          onChangeText={(value) => updateField("city", value)}
-          leftIcon="business-outline"
-          error={errors.city}
-          autoCapitalize="words"
-        />
-
-        <Input
-          label={t("completeProfile.addressLabel")}
-          placeholder={t("completeProfile.addressPlaceholder")}
-          value={formData.address}
-          onChangeText={(value) => updateField("address", value)}
-          leftIcon="home-outline"
-          multiline
-          numberOfLines={2}
-        />
-
-        <View style={styles.coordinatesContainer}>
-          <View style={styles.coordinateInput}>
-            <Input
-              label={t("completeProfile.latitudeLabel")}
-              placeholder={t("completeProfile.latitudePlaceholder")}
-              value={formData.latitude}
-              onChangeText={(value) => updateField("latitude", value)}
-              leftIcon="navigate-outline"
-              keyboardType="decimal-pad"
-              error={errors.latitude}
-            />
-          </View>
-
-          <View style={styles.coordinateInput}>
-            <Input
-              label={t("completeProfile.longitudeLabel")}
-              placeholder={t("completeProfile.longitudePlaceholder")}
-              value={formData.longitude}
-              onChangeText={(value) => updateField("longitude", value)}
-              leftIcon="navigate-outline"
-              keyboardType="decimal-pad"
-              error={errors.longitude}
-            />
-          </View>
-        </View>
-
-        <View style={styles.locationTip}>
-          <Ionicons
-            name="information-circle-outline"
-            size={20}
-            color={ACCENT}
-          />
-          <Text style={[styles.locationTipText, isRTL && styles.rtlText]}>
-            {t("completeProfile.locationTip")}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar
+        barStyle="light-content"
+        translucent
+        backgroundColor="transparent"
+      />
       <LinearGradient
         colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
         locations={[0, 0.35, 0.7, 1]}
@@ -324,8 +242,100 @@ export const CompleteProfileClientScreen: React.FC<
           </View>
 
           <View style={styles.panel}>
-            {renderProgressBar()}
-            {currentStep === 1 ? renderStep1() : renderStep2()}
+            <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
+              {t("completeProfile.step1Title")}
+            </Text>
+
+            <View style={styles.photoBlock}>
+              <Text style={[styles.photoLabel, isRTL && styles.rtlText]}>
+                {t("completeProfile.profilePhotoLabel")}
+              </Text>
+              <TouchableOpacity
+                style={styles.photoCircle}
+                onPress={handlePickPhoto}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={t("completeProfile.tapToChoosePhoto")}
+              >
+                {pickedPhoto ? (
+                  <Image
+                    source={{ uri: pickedPhoto.uri }}
+                    style={styles.photoImage}
+                  />
+                ) : (
+                  <Ionicons name="camera-outline" size={36} color={ACCENT} />
+                )}
+                <View style={styles.photoBadge}>
+                  <Ionicons name="add" size={18} color="#0b1020" />
+                </View>
+              </TouchableOpacity>
+              <Text style={[styles.photoHint, isRTL && styles.rtlText]}>
+                {t("completeProfile.profilePhotoHint")}
+              </Text>
+            </View>
+
+            <View style={styles.form}>
+              <Input
+                label={t("completeProfile.firstNameLabel")}
+                placeholder={t("completeProfile.firstNamePlaceholder")}
+                value={formData.firstName}
+                onChangeText={(value) => updateField("firstName", value)}
+                leftIcon="person-outline"
+                error={errors.firstName}
+                autoCapitalize="words"
+              />
+
+              <Input
+                label={t("completeProfile.lastNameLabel")}
+                placeholder={t("completeProfile.lastNamePlaceholder")}
+                value={formData.lastName}
+                onChangeText={(value) => updateField("lastName", value)}
+                leftIcon="person-outline"
+                error={errors.lastName}
+                autoCapitalize="words"
+              />
+
+              <Input
+                label={t("completeProfile.phoneLabel")}
+                placeholder={t("completeProfile.phonePlaceholder")}
+                value={formData.phoneNumber}
+                onChangeText={(value) => updateField("phoneNumber", value)}
+                leftIcon="call-outline"
+                keyboardType="phone-pad"
+                error={errors.phoneNumber}
+              />
+
+              <Input
+                label={t("completeProfile.cityLabel")}
+                placeholder={t("completeProfile.cityPlaceholder")}
+                value={formData.city}
+                onChangeText={(value) => updateField("city", value)}
+                leftIcon="business-outline"
+                error={errors.city}
+                autoCapitalize="words"
+              />
+
+              <Input
+                label={t("completeProfile.addressLabel")}
+                placeholder={t("completeProfile.addressPlaceholder")}
+                value={formData.address}
+                onChangeText={(value) => updateField("address", value)}
+                leftIcon="home-outline"
+                multiline
+                numberOfLines={2}
+              />
+            </View>
+
+            <View style={styles.locationTip}>
+              <Ionicons
+                name="information-circle-outline"
+                size={20}
+                color={ACCENT}
+              />
+              <Text style={[styles.locationTipText, isRTL && styles.rtlText]}>
+                {t("completeProfile.locationTip")}
+              </Text>
+            </View>
           </View>
         </ScrollView>
 
@@ -335,30 +345,12 @@ export const CompleteProfileClientScreen: React.FC<
             { paddingBottom: 16 + insets.bottom, paddingTop: 16 },
           ]}
         >
-          {currentStep === 2 && (
-            <Button
-              title={t("completeProfile.previousStep")}
-              onPress={handleStepBack}
-              variant="outline"
-              fullWidth={false}
-              style={styles.footerBackButton}
-              textStyle={styles.footerOutlineText}
-            />
-          )}
-
           <Button
-            title={
-              currentStep === 1
-                ? t("common.next")
-                : t("completeProfile.completeButton")
-            }
-            onPress={currentStep === 1 ? handleNext : handleSubmit}
-            loading={isLoading}
-            fullWidth={false}
-            style={{
-              ...styles.submitButton,
-              flex: currentStep === 2 ? 2 : 1,
-            }}
+            title={t("completeProfile.completeButton")}
+            onPress={handleSubmit}
+            loading={isSubmitting}
+            fullWidth
+            style={styles.submitButton}
           />
         </View>
       </KeyboardAvoidingView>
@@ -415,53 +407,61 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.07)",
     padding: 16,
   },
-  progressContainer: {
-    marginBottom: 24,
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 16,
   },
-  progressBar: {
-    height: 6,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderRadius: 3,
+  photoBlock: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  photoLabel: {
+    alignSelf: "stretch",
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.white,
+    marginBottom: 10,
+  },
+  photoCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 2,
+    borderColor: "rgba(232,201,122,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
     overflow: "hidden",
-    marginBottom: 8,
   },
-  progressFill: {
+  photoImage: {
+    width: "100%",
     height: "100%",
-    backgroundColor: ACCENT,
-    borderRadius: 3,
+    borderRadius: 60,
   },
-  progressText: {
+  photoBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: ACCENT,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#0A0E1A",
+  },
+  photoHint: {
+    marginTop: 10,
     fontSize: 13,
     color: "#B5B8C9",
     textAlign: "center",
-  },
-  stepContainer: {
-    marginBottom: 8,
-  },
-  stepHeader: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  stepTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    marginTop: 12,
-    marginBottom: 6,
-  },
-  stepSubtitle: {
-    fontSize: 14,
-    color: "#B5B8C9",
+    paddingHorizontal: 8,
   },
   form: {
     gap: 8,
-  },
-  coordinatesContainer: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  coordinateInput: {
-    flex: 1,
   },
   locationTip: {
     flexDirection: "row",
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     gap: 10,
-    marginTop: 4,
+    marginTop: 12,
     borderWidth: 1,
     borderColor: "rgba(232,201,122,0.22)",
   },
@@ -489,16 +489,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10,14,26,0.94)",
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.10)",
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "stretch",
-  },
-  footerBackButton: {
-    flex: 1,
-    borderColor: ACCENT,
-  },
-  footerOutlineText: {
-    color: ACCENT,
   },
   submitButton: {
     minWidth: 0,

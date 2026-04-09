@@ -18,6 +18,7 @@ export class AuthService {
     userId: string,
     data: {
       email: string;
+      isEmailVerified?: boolean;
       phoneNumber?: string;
       firstName: string;
       lastName: string;
@@ -26,8 +27,7 @@ export class AuthService {
       client?: {
         city: string;
         address?: string;
-        latitude?: number;
-        longitude?: number;
+        imageUrl?: string;
       };
 
       provider?: {
@@ -78,7 +78,8 @@ export class AuthService {
         lastName: data.lastName,
         role: data.role,
         status: status,
-        isEmailVerified: false, // Will be updated by Supabase webhook
+        // Persist verification state from the validated Supabase JWT payload.
+        isEmailVerified: data.isEmailVerified === true,
       },
     });
 
@@ -89,8 +90,7 @@ export class AuthService {
           id: user.id,
           city: data.client.city,
           address: data.client.address,
-          latitude: data.client.latitude,
-          longitude: data.client.longitude,
+          imageUrl: data.client.imageUrl,
         },
       });
     }
@@ -128,8 +128,18 @@ export class AuthService {
       },
     });
 
+    const userWithRelations = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      include: {
+        client: true,
+        provider: true,
+        companyAdmin: true,
+        platformAdmin: true,
+      },
+    });
+
     return {
-      user,
+      user: userWithRelations ?? user,
       message:
         status === AccountStatus.PENDING
           ? 'Registration completed. Your account is pending admin validation.'
@@ -137,15 +147,33 @@ export class AuthService {
     };
   }
 
-  async getCurrentUser(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        client: true,
-        provider: true,
-        companyAdmin: true,
-      },
+  /**
+   * Resolves the DB user for GET /auth/me. Pass the full object from JwtStrategy
+   * so we can fall back to email when the JWT `sub` does not match `users.id`
+   * (e.g. re-seeded DB vs existing Supabase user).
+   */
+  async getCurrentUser(jwtUser: {
+    id: string;
+    email?: string | null;
+  }) {
+    const include = {
+      client: true,
+      provider: true,
+      companyAdmin: true,
+      platformAdmin: true,
+    } as const;
+
+    let user = await this.prisma.user.findUnique({
+      where: { id: jwtUser.id },
+      include,
     });
+
+    if (!user && jwtUser.email) {
+      user = await this.prisma.user.findUnique({
+        where: { email: jwtUser.email },
+        include,
+      });
+    }
 
     if (!user) {
       throw new BadRequestException('User not found');

@@ -10,3 +10,30 @@ export type AuthStackParamList = {
   OTPVerification: { phone: string; role: UserRole };
   CompleteProfile: { role: UserRole };
 };
+
+export type ClientStackParamList = {
+  ClientHome: undefined;
+  ClientSearchProvider: undefined;
+  ClientMessages: undefined;
+  ClientReclamation: undefined;
+  ClientReservation: undefined;
+  ClientFavorites: undefined;
+  ClientNotifications: undefined;
+  ClientProfile: undefined;
+  ClientSettings: undefined;
+};
+
+export type ProviderStackParamList = {
+  ProviderHome: undefined;
+  ProviderDashboard: undefined;
+  ProviderServices: undefined;
+  ProviderMessages: undefined;
+  ProviderNotifications: undefined;
+  ProviderReclamations: undefined;
+  ProviderOrders: undefined;
+  ProviderSchedule: undefined;
+  ProviderGallery: undefined;
+  ProviderRatings: undefined;
+  ProviderProfile: undefined;
+  ProviderSettings: undefined;
+};

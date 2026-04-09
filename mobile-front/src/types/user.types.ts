@@ -38,8 +38,7 @@ export interface ClientProfile {
   id: string;
   city: string;
   address?: string;
-  latitude?: number;
-  longitude?: number;
+  imageUrl?: string;
 }
 
 export interface ProviderProfile {
@@ -72,6 +71,13 @@ export interface CompanyProfile {
   totalReviews: number;
 }
 
+export interface PlatformAdminProfile {
+  id: string;
+  permissions: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UserWithProfile extends User {
   client?: ClientProfile;
   provider?: ProviderProfile;
@@ -80,4 +86,5 @@ export interface UserWithProfile extends User {
     companyId: string;
     company?: CompanyProfile;
   };
+  platformAdmin?: PlatformAdminProfile;
 }

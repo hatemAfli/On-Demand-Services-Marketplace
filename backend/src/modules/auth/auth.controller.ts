@@ -21,8 +21,7 @@ export class AuthController {
       client?: {
         city: string;
         address?: string;
-        latitude?: number;
-        longitude?: number;
+        imageUrl?: string;
       };
       provider?: {
         type?: ProviderType;
@@ -43,6 +42,7 @@ export class AuthController {
     console.log('   Body:', body);
     return this.authService.completeRegistration(user.id, {
       email: user.email,
+      isEmailVerified: user?.isEmailVerified === true,
       ...body,
     });
   }
@@ -52,7 +52,10 @@ export class AuthController {
   async getCurrentUser(@CurrentUser() user: any) {
     console.log('\n✅ Controller - getCurrentUser() reached');
     console.log('   User:', user);
-    return this.authService.getCurrentUser(user.id);
+    return this.authService.getCurrentUser({
+      id: user.id,
+      email: user.email,
+    });
   }
 
   @Post('verify-token')

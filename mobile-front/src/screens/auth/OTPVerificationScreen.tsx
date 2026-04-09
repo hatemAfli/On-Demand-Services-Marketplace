@@ -5,22 +5,29 @@ import {
   View,
   Text,
   StyleSheet,
+  ScrollView,
   TextInput,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
-import { Button, LanguageSwitcher } from "../../components/common";
-import { COLORS } from "../../constants";
+import {
+  AuthNoticeModal,
+  Button,
+  LanguageSwitcher,
+} from "../../components/common";
+
 import { UserRole } from "../../types";
 import type { AuthStackParamList } from "../../navigation/types";
 import * as SecureStore from "expo-secure-store";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface OTPVerificationScreenProps {
   navigation: NativeStackNavigationProp<any>;
@@ -32,6 +39,7 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   route,
 }) => {
   const { t, isRTL } = useAppTranslation();
+  const insets = useSafeAreaInsets();
   const phone = route.params?.phone ?? "";
   const role = route.params?.role ?? UserRole.CLIENT;
   const { verifyOTP, isLoading, signUpWithPhone } = useAuth();
@@ -39,6 +47,11 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [canResend, setCanResend] = useState(false);
   const [countdown, setCountdown] = useState(60);
+  const [noticeModal, setNoticeModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+  }>({ visible: false, title: "", message: "" });
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
@@ -77,7 +90,11 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
     const otpCode = otp.join("");
 
     if (otpCode.length !== 6) {
-      Alert.alert(t("common.error"), t("validation.otpInvalid"));
+      setNoticeModal({
+        visible: true,
+        title: t("common.error"),
+        message: t("validation.otpInvalid"),
+      });
       return;
     }
 
@@ -87,7 +104,11 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
       // Navigate to profile completion
       navigation.replace("CompleteProfile", { role });
     } catch (error: any) {
-      Alert.alert(t("common.error"), error.message || "Invalid OTP code");
+      setNoticeModal({
+        visible: true,
+        title: t("common.error"),
+        message: error?.message || t("validation.otpInvalid"),
+      });
       // Clear OTP inputs
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
@@ -98,220 +119,279 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
     try {
       const password = (await SecureStore.getItemAsync("tempPassword")) ?? "";
       if (!password) {
-        Alert.alert(
-          t("common.error"),
-          "Session expired. Go back and start sign up again.",
-        );
+        setNoticeModal({
+          visible: true,
+          title: t("common.error"),
+          message: t("auth.otpSessionExpired"),
+        });
         return;
       }
       await signUpWithPhone(phone, password, role);
 
-      Alert.alert(t("common.success"), "OTP sent to your phone");
+      setNoticeModal({
+        visible: true,
+        title: t("common.success"),
+        message: t("auth.otpSentSuccess"),
+      });
       setCanResend(false);
       setCountdown(60);
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } catch (error: any) {
-      Alert.alert(t("common.error"), error.message);
+      setNoticeModal({
+        visible: true,
+        title: t("common.error"),
+        message: error?.message || "An error occurred",
+      });
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={styles.langSwitchRow}>
-        <LanguageSwitcher />
-      </View>
-      <View style={styles.content}>
-        {/* Icon */}
-        <View style={styles.iconContainer}>
-          <Ionicons name="chatbox-outline" size={80} color={COLORS.primary} />
-        </View>
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <LinearGradient
+        colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
+        locations={[0, 0.35, 0.7, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
 
-        {/* Title */}
-        <Text style={[styles.title, isRTL && styles.rtlText]}>{t("auth.enterOtp")}</Text>
-
-        {/* Description */}
-        <Text style={styles.description}>{t("auth.sentOtpTo")}</Text>
-        <Text style={styles.phone}>{phone}</Text>
-
-        {/* OTP Inputs */}
-        <View style={styles.otpContainer}>
-          {otp.map((digit, index) => (
-            <TextInput
-              key={index}
-              ref={(ref) => {
-                inputRefs.current[index] = ref;
-              }}
-              style={[styles.otpInput, digit && styles.otpInputFilled]}
-              value={digit}
-              onChangeText={(value) => handleOtpChange(value, index)}
-              onKeyPress={(e) => handleKeyPress(e, index)}
-              keyboardType="number-pad"
-              maxLength={1}
-              selectTextOnFocus
-            />
-          ))}
-        </View>
-
-        {/* Verify Button */}
-        <Button
-          title={t("auth.verifyOtp")}
-          onPress={handleVerifyOTP}
-          loading={isLoading}
-          style={styles.button}
-        />
-
-        {/* Resend OTP */}
-        <View style={styles.resendContainer}>
-          <Text style={styles.resendText}>{t("auth.didNotReceiveCode")}</Text>
-
-          {canResend ? (
-            <TouchableOpacity onPress={handleResendOTP}>
-              <Text style={styles.resendLink}>{t("auth.resendOtp")}</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={styles.countdown}>{t("auth.resendIn", { count: countdown })}</Text>
-          )}
-        </View>
-
-        {/* Tips */}
-        <View style={styles.tipsContainer}>
-          <Text style={styles.tipsTitle}>Tips:</Text>
-          <Text style={styles.tip}>• Check your SMS messages</Text>
-          <Text style={styles.tip}>• The code expires in 10 minutes</Text>
-          <Text style={styles.tip}>• Make sure {phone} is correct</Text>
-        </View>
-      </View>
-
-      {/* Back Button */}
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <Text style={styles.backText}>{t("auth.changePhone")}</Text>
-      </TouchableOpacity>
-    </KeyboardAvoidingView>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: insets.top + 18,
+              paddingBottom: Math.max(insets.bottom, 12) + 24,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.topRow}>
+            <TouchableOpacity
+              style={styles.backButtonInline}
+              onPress={() => navigation.goBack()}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.backInlineText}>← {t("auth.changePhone")}</Text>
+            </TouchableOpacity>
+            <LanguageSwitcher />
+          </View>
+
+          <View style={styles.panel}>
+            <View style={styles.iconWrap}>
+              <Ionicons name="chatbubble-ellipses-outline" size={42} color="#E8C97A" />
+            </View>
+
+            <Text style={[styles.title, isRTL && styles.rtlText]}>
+              {t("auth.enterOtp")}
+            </Text>
+            <Text style={[styles.description, isRTL && styles.rtlText]}>
+              {t("auth.sentOtpTo")}
+            </Text>
+            <Text style={[styles.phone, isRTL && styles.rtlText]}>{phone}</Text>
+
+            <View style={styles.otpContainer}>
+              {otp.map((digit, index) => (
+                <TextInput
+                  key={index}
+                  ref={(ref) => {
+                    inputRefs.current[index] = ref;
+                  }}
+                  style={[styles.otpInput, digit && styles.otpInputFilled]}
+                  value={digit}
+                  onChangeText={(value) => handleOtpChange(value, index)}
+                  onKeyPress={(e) => handleKeyPress(e, index)}
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  selectTextOnFocus
+                />
+              ))}
+            </View>
+
+            <Button
+              title={t("auth.verifyOtp")}
+              onPress={handleVerifyOTP}
+              loading={isLoading}
+              style={styles.button}
+            />
+
+            <View style={styles.resendContainer}>
+              <Text style={[styles.resendText, isRTL && styles.rtlText]}>
+                {t("auth.didNotReceiveCode")}
+              </Text>
+              {canResend ? (
+                <TouchableOpacity onPress={handleResendOTP}>
+                  <Text style={styles.resendLink}>{t("auth.resendOtp")}</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.countdown}>
+                  {t("auth.resendIn", { count: countdown })}
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.tipCard}>
+              <Text style={styles.tipTitle}>{t("auth.tipsTitle")}</Text>
+              <Text style={styles.tipText}>{t("auth.otpTipSms")}</Text>
+              <Text style={styles.tipText}>{t("auth.otpTipExpiry")}</Text>
+              <Text style={styles.tipText}>{t("auth.otpTipPhone", { phone })}</Text>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      <AuthNoticeModal
+        visible={noticeModal.visible}
+        onClose={() =>
+          setNoticeModal({ visible: false, title: "", message: "" })
+        }
+        title={noticeModal.title}
+        message={noticeModal.message}
+        primaryLabel={t("common.close")}
+        onPrimary={() =>
+          setNoticeModal({ visible: false, title: "", message: "" })
+        }
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "#0A0E1A",
+  },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-    padding: 24,
   },
-  langSwitchRow: {
-    alignItems: "flex-end",
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
   },
-  content: {
-    flex: 1,
-    justifyContent: "center",
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 16,
   },
-  iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: COLORS.primary + "20",
+  backButtonInline: {
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  backInlineText: {
+    color: "#E8C97A",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  panel: {
+    borderRadius: 18,
+    borderWidth: 1.2,
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    padding: 18,
+  },
+  iconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "rgba(232,201,122,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(232,201,122,0.32)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 32,
+    marginBottom: 18,
+    alignSelf: "center",
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: COLORS.text.primary,
-    marginBottom: 16,
+    fontSize: 30,
+    fontWeight: "700",
+    color: "#FFFFFF",
     textAlign: "center",
+    marginBottom: 10,
   },
   description: {
     fontSize: 16,
-    color: COLORS.text.secondary,
+    color: "#B5B8C9",
     textAlign: "center",
     marginBottom: 8,
   },
   phone: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
-    color: COLORS.primary,
-    marginBottom: 40,
+    color: "#E8C97A",
+    marginBottom: 22,
     textAlign: "center",
   },
   otpContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 12,
-    marginBottom: 40,
+    gap: 8,
+    marginBottom: 24,
   },
   otpInput: {
-    width: 48,
+    width: 46,
     height: 56,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.white,
-    fontSize: 24,
+    borderRadius: 10,
+    borderWidth: 1.6,
+    borderColor: "rgba(255,255,255,0.24)",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    fontSize: 23,
     fontWeight: "600",
     textAlign: "center",
-    color: COLORS.text.primary,
+    color: "#FFFFFF",
   },
   otpInputFilled: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + "10",
+    borderColor: "#E8C97A",
+    backgroundColor: "rgba(232,201,122,0.16)",
   },
   button: {
-    marginBottom: 24,
-    width: "100%",
+    marginBottom: 18,
   },
   resendContainer: {
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: 18,
   },
   resendText: {
     fontSize: 14,
-    color: COLORS.text.secondary,
+    color: "#B5B8C9",
     marginBottom: 8,
   },
   resendLink: {
     fontSize: 14,
-    color: COLORS.primary,
+    color: "#E8C97A",
     fontWeight: "600",
   },
   countdown: {
     fontSize: 14,
-    color: COLORS.text.tertiary,
+    color: "#9BA3BD",
   },
-  tipsContainer: {
-    backgroundColor: COLORS.info + "10",
+  tipCard: {
+    backgroundColor: "rgba(12, 26, 56, 0.6)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
     padding: 16,
     borderRadius: 12,
-    width: "100%",
   },
-  tipsTitle: {
+  tipTitle: {
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.text.primary,
+    color: "#FFFFFF",
     marginBottom: 8,
   },
-  tip: {
+  tipText: {
     fontSize: 13,
-    color: COLORS.text.secondary,
+    color: "#C7CBDA",
     marginBottom: 4,
-  },
-  backButton: {
-    alignSelf: "center",
-    paddingVertical: 12,
-  },
-  backText: {
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: "600",
   },
   rtlText: {
     textAlign: "right",
     writingDirection: "rtl",
   },
 });
+

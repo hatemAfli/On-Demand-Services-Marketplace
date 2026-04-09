@@ -87,6 +87,11 @@ export const api = {
   updateProfile: (data: any) => apiClient.put("/users/me", data),
   deleteAccount: () => apiClient.delete("/users/me"),
 
+  // Client endpoints (role CLIENT)
+  getClientMe: () => apiClient.get("/clients/me"),
+  updateClientMe: (data: Record<string, unknown>) =>
+    apiClient.patch("/clients/me", data),
+
   // Provider endpoints
   getProviderProfile: () => apiClient.get("/providers/me"),
   updateProviderProfile: (data: any) => apiClient.put("/providers/me", data),

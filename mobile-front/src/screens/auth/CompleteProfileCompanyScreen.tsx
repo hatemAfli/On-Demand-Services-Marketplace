@@ -10,12 +10,17 @@ import {
   Platform,
   Alert,
   TouchableOpacity,
+  StatusBar,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
-import { Button, Input } from "../../components/common";
-import { COLORS } from "../../constants";
+import { Button, Input, LanguageSwitcher } from "../../components/common";
+import { useAppTranslation } from "../../hooks/useAppTranslation";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const ACCENT = "#E8C97A";
 
 interface CompleteProfileCompanyScreenProps {
   navigation: NativeStackNavigationProp<any>;
@@ -25,6 +30,8 @@ export const CompleteProfileCompanyScreen: React.FC<
   CompleteProfileCompanyScreenProps
 > = ({ navigation }) => {
   const { completeRegistration, isLoading } = useAuth();
+  const { t, isRTL } = useAppTranslation();
+  const insets = useSafeAreaInsets();
 
   const [formData, setFormData] = useState({
     // Admin personal info
@@ -59,15 +66,19 @@ export const CompleteProfileCompanyScreen: React.FC<
     const newErrors: { [key: string]: string } = {};
 
     if (!formData.firstName.trim()) {
-      newErrors.firstName = "First name is required";
+      newErrors.firstName = t("validation.firstNameRequired");
+    } else if (formData.firstName.length < 2) {
+      newErrors.firstName = t("validation.firstNameMin");
     }
 
     if (!formData.lastName.trim()) {
-      newErrors.lastName = "Last name is required";
+      newErrors.lastName = t("validation.lastNameRequired");
+    } else if (formData.lastName.length < 2) {
+      newErrors.lastName = t("validation.lastNameMin");
     }
 
     if (formData.phoneNumber && !/^\+?[\d\s-()]+$/.test(formData.phoneNumber)) {
-      newErrors.phoneNumber = "Invalid phone number format";
+      newErrors.phoneNumber = t("validation.phoneInvalid");
     }
 
     setErrors(newErrors);
@@ -78,19 +89,19 @@ export const CompleteProfileCompanyScreen: React.FC<
     const newErrors: { [key: string]: string } = {};
 
     if (!formData.legalName.trim()) {
-      newErrors.legalName = "Legal name is required";
+      newErrors.legalName = t("validation.companyLegalNameRequired");
     }
 
     if (!formData.commercialName.trim()) {
-      newErrors.commercialName = "Commercial name is required";
+      newErrors.commercialName = t("validation.companyCommercialNameRequired");
     }
 
     if (!formData.companyId.trim()) {
-      newErrors.companyId = "Company ID is required";
+      newErrors.companyId = t("validation.companyIdRequired");
     }
 
     if (!formData.mainContact.trim()) {
-      newErrors.mainContact = "Main contact is required";
+      newErrors.mainContact = t("validation.mainContactRequired");
     }
 
     setErrors(newErrors);
@@ -101,11 +112,19 @@ export const CompleteProfileCompanyScreen: React.FC<
     const newErrors: { [key: string]: string } = {};
 
     if (!formData.city.trim()) {
-      newErrors.city = "City is required";
+      newErrors.city = t("validation.cityRequired");
     }
 
     if (!formData.serviceZone1.trim()) {
-      newErrors.serviceZone1 = "At least one service zone is required";
+      newErrors.serviceZone1 = t("validation.serviceZoneRequired");
+    }
+
+    if (formData.latitude && isNaN(Number(formData.latitude))) {
+      newErrors.latitude = t("validation.latitudeInvalid");
+    }
+
+    if (formData.longitude && isNaN(Number(formData.longitude))) {
+      newErrors.longitude = t("validation.longitudeInvalid");
     }
 
     setErrors(newErrors);
@@ -126,6 +145,14 @@ export const CompleteProfileCompanyScreen: React.FC<
     }
   };
 
+  const handleNavigateBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("Welcome");
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validateStep3()) return;
 
@@ -141,24 +168,17 @@ export const CompleteProfileCompanyScreen: React.FC<
         firstName: formData.firstName,
         lastName: formData.lastName,
         role: "COMPANY_ADMIN",
-        companyData: {
+        companyAdmin: {
           companyId: formData.companyId.trim(),
-          legalName: formData.legalName,
-          commercialName: formData.commercialName,
-          city: formData.city,
-          address: formData.address || undefined,
-          latitude: formData.latitude ? Number(formData.latitude) : undefined,
-          longitude: formData.longitude
-            ? Number(formData.longitude)
-            : undefined,
-          serviceZones,
-          mainContact: formData.mainContact,
         },
       };
 
       await completeRegistration(profileData);
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to complete profile");
+      Alert.alert(
+        t("common.error"),
+        error.message || t("completeProfile.submitError"),
+      );
     }
   };
 
@@ -172,26 +192,28 @@ export const CompleteProfileCompanyScreen: React.FC<
           ]}
         />
       </View>
-      <Text style={styles.progressText}>Step {currentStep} of 3</Text>
+      <Text style={[styles.progressText, isRTL && styles.rtlText]}>
+        {t("completeProfile.stepProgress", { current: currentStep, total: 3 })}
+      </Text>
     </View>
   );
 
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
       <View style={styles.stepHeader}>
-        <Ionicons
-          name="person-circle-outline"
-          size={60}
-          color={COLORS.roles.company}
-        />
-        <Text style={styles.stepTitle}>Admin Information</Text>
-        <Text style={styles.stepSubtitle}>Your personal details</Text>
+        <Ionicons name="person-circle-outline" size={60} color={ACCENT} />
+        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
+          {t("completeProfile.companyStep1Title")}
+        </Text>
+        <Text style={[styles.stepSubtitle, isRTL && styles.rtlText]}>
+          {t("completeProfile.companyStep1Subtitle")}
+        </Text>
       </View>
 
       <View style={styles.form}>
         <Input
-          label="First Name *"
-          placeholder="Enter your first name"
+          label={t("completeProfile.firstNameLabel")}
+          placeholder={t("completeProfile.firstNamePlaceholder")}
           value={formData.firstName}
           onChangeText={(value) => updateField("firstName", value)}
           leftIcon="person-outline"
@@ -200,8 +222,8 @@ export const CompleteProfileCompanyScreen: React.FC<
         />
 
         <Input
-          label="Last Name *"
-          placeholder="Enter your last name"
+          label={t("completeProfile.lastNameLabel")}
+          placeholder={t("completeProfile.lastNamePlaceholder")}
           value={formData.lastName}
           onChangeText={(value) => updateField("lastName", value)}
           leftIcon="person-outline"
@@ -210,8 +232,8 @@ export const CompleteProfileCompanyScreen: React.FC<
         />
 
         <Input
-          label="Phone Number (Optional)"
-          placeholder="+216 12 345 678"
+          label={t("completeProfile.phoneLabel")}
+          placeholder={t("completeProfile.phonePlaceholder")}
           value={formData.phoneNumber}
           onChangeText={(value) => updateField("phoneNumber", value)}
           leftIcon="call-outline"
@@ -225,19 +247,19 @@ export const CompleteProfileCompanyScreen: React.FC<
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
       <View style={styles.stepHeader}>
-        <Ionicons
-          name="business-outline"
-          size={60}
-          color={COLORS.roles.company}
-        />
-        <Text style={styles.stepTitle}>Company Information</Text>
-        <Text style={styles.stepSubtitle}>Legal and business details</Text>
+        <Ionicons name="business-outline" size={60} color={ACCENT} />
+        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
+          {t("completeProfile.companyStep2Title")}
+        </Text>
+        <Text style={[styles.stepSubtitle, isRTL && styles.rtlText]}>
+          {t("completeProfile.companyStep2Subtitle")}
+        </Text>
       </View>
 
       <View style={styles.form}>
         <Input
-          label="Legal Name *"
-          placeholder="Official registered name"
+          label={t("completeProfile.companyLegalNameLabel")}
+          placeholder={t("completeProfile.companyLegalNamePlaceholder")}
           value={formData.legalName}
           onChangeText={(value) => updateField("legalName", value)}
           leftIcon="document-text-outline"
@@ -245,8 +267,8 @@ export const CompleteProfileCompanyScreen: React.FC<
         />
 
         <Input
-          label="Commercial Name *"
-          placeholder="Business/trade name"
+          label={t("completeProfile.companyCommercialNameLabel")}
+          placeholder={t("completeProfile.companyCommercialNamePlaceholder")}
           value={formData.commercialName}
           onChangeText={(value) => updateField("commercialName", value)}
           leftIcon="storefront-outline"
@@ -254,8 +276,8 @@ export const CompleteProfileCompanyScreen: React.FC<
         />
 
         <Input
-          label="Company ID *"
-          placeholder="UUID from your organization"
+          label={t("completeProfile.companyIdLabel")}
+          placeholder={t("completeProfile.companyIdPlaceholder")}
           value={formData.companyId}
           onChangeText={(value) => updateField("companyId", value)}
           leftIcon="key-outline"
@@ -264,8 +286,8 @@ export const CompleteProfileCompanyScreen: React.FC<
         />
 
         <Input
-          label="Main Contact *"
-          placeholder="Primary contact person"
+          label={t("completeProfile.companyMainContactLabel")}
+          placeholder={t("completeProfile.companyMainContactPlaceholder")}
           value={formData.mainContact}
           onChangeText={(value) => updateField("mainContact", value)}
           leftIcon="person-outline"
@@ -278,15 +300,19 @@ export const CompleteProfileCompanyScreen: React.FC<
   const renderStep3 = () => (
     <View style={styles.stepContainer}>
       <View style={styles.stepHeader}>
-        <Ionicons name="map-outline" size={60} color={COLORS.roles.company} />
-        <Text style={styles.stepTitle}>Location & Coverage</Text>
-        <Text style={styles.stepSubtitle}>Where you operate</Text>
+        <Ionicons name="map-outline" size={60} color={ACCENT} />
+        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
+          {t("completeProfile.companyStep3Title")}
+        </Text>
+        <Text style={[styles.stepSubtitle, isRTL && styles.rtlText]}>
+          {t("completeProfile.companyStep3Subtitle")}
+        </Text>
       </View>
 
       <View style={styles.form}>
         <Input
-          label="City *"
-          placeholder="e.g., Tunis"
+          label={t("completeProfile.cityLabel")}
+          placeholder={t("completeProfile.cityPlaceholder")}
           value={formData.city}
           onChangeText={(value) => updateField("city", value)}
           leftIcon="business-outline"
@@ -295,8 +321,8 @@ export const CompleteProfileCompanyScreen: React.FC<
         />
 
         <Input
-          label="Address (Optional)"
-          placeholder="Office address"
+          label={t("completeProfile.addressLabel")}
+          placeholder={t("completeProfile.addressPlaceholder")}
           value={formData.address}
           onChangeText={(value) => updateField("address", value)}
           leftIcon="home-outline"
@@ -307,36 +333,40 @@ export const CompleteProfileCompanyScreen: React.FC<
         <View style={styles.coordinatesContainer}>
           <View style={styles.coordinateInput}>
             <Input
-              label="Latitude"
-              placeholder="36.8065"
+              label={t("completeProfile.latitudeLabel")}
+              placeholder={t("completeProfile.latitudePlaceholder")}
               value={formData.latitude}
               onChangeText={(value) => updateField("latitude", value)}
               leftIcon="navigate-outline"
               keyboardType="decimal-pad"
+              error={errors.latitude}
             />
           </View>
 
           <View style={styles.coordinateInput}>
             <Input
-              label="Longitude"
-              placeholder="10.1815"
+              label={t("completeProfile.longitudeLabel")}
+              placeholder={t("completeProfile.longitudePlaceholder")}
               value={formData.longitude}
               onChangeText={(value) => updateField("longitude", value)}
               leftIcon="navigate-outline"
               keyboardType="decimal-pad"
+              error={errors.longitude}
             />
           </View>
         </View>
 
         <View style={styles.serviceZonesSection}>
-          <Text style={styles.serviceZonesTitle}>Service Zones</Text>
-          <Text style={styles.serviceZonesSubtitle}>
-            Areas where your company provides services
+          <Text style={[styles.serviceZonesTitle, isRTL && styles.rtlText]}>
+            {t("completeProfile.companyZonesTitle")}
+          </Text>
+          <Text style={[styles.serviceZonesSubtitle, isRTL && styles.rtlText]}>
+            {t("completeProfile.companyZonesSubtitle")}
           </Text>
 
           <Input
-            label="Zone 1 *"
-            placeholder="e.g., Tunis, Ariana"
+            label={t("completeProfile.companyZone1Label")}
+            placeholder={t("completeProfile.companyZone1Placeholder")}
             value={formData.serviceZone1}
             onChangeText={(value) => updateField("serviceZone1", value)}
             leftIcon="location-outline"
@@ -344,16 +374,16 @@ export const CompleteProfileCompanyScreen: React.FC<
           />
 
           <Input
-            label="Zone 2 (Optional)"
-            placeholder="e.g., Sousse, Monastir"
+            label={t("completeProfile.companyZone2Label")}
+            placeholder={t("completeProfile.companyZone2Placeholder")}
             value={formData.serviceZone2}
             onChangeText={(value) => updateField("serviceZone2", value)}
             leftIcon="location-outline"
           />
 
           <Input
-            label="Zone 3 (Optional)"
-            placeholder="e.g., Sfax, Mahdia"
+            label={t("completeProfile.companyZone3Label")}
+            placeholder={t("completeProfile.companyZone3Placeholder")}
             value={formData.serviceZone3}
             onChangeText={(value) => updateField("serviceZone3", value)}
             leftIcon="location-outline"
@@ -361,18 +391,15 @@ export const CompleteProfileCompanyScreen: React.FC<
         </View>
 
         <View style={styles.pendingNotice}>
-          <Ionicons
-            name="shield-checkmark-outline"
-            size={24}
-            color={COLORS.warning}
-          />
+          <Ionicons name="shield-checkmark-outline" size={22} color={ACCENT} />
           <View style={styles.pendingNoticeText}>
-            <Text style={styles.pendingNoticeTitle}>
-              Admin Verification Required
+            <Text style={[styles.pendingNoticeTitle, isRTL && styles.rtlText]}>
+              {t("completeProfile.companyPendingTitle")}
             </Text>
-            <Text style={styles.pendingNoticeDescription}>
-              Your company will be verified by our team. Legal documents may be
-              requested.
+            <Text
+              style={[styles.pendingNoticeDescription, isRTL && styles.rtlText]}
+            >
+              {t("completeProfile.companyPendingDescription")}
             </Text>
           </View>
         </View>
@@ -381,109 +408,184 @@ export const CompleteProfileCompanyScreen: React.FC<
   );
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+    <View style={styles.root}>
+      <StatusBar
+        barStyle="light-content"
+        translucent
+        backgroundColor="transparent"
+      />
+      <LinearGradient
+        colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
+        locations={[0, 0.35, 0.7, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Company Registration</Text>
-          <Text style={styles.subtitle}>Complete your company profile</Text>
-        </View>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: insets.top + 20,
+              paddingBottom: 120 + insets.bottom,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.topRow}>
+            <TouchableOpacity
+              style={styles.navBackButton}
+              onPress={handleNavigateBack}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.navBackText}>← {t("common.back")}</Text>
+            </TouchableOpacity>
+            <LanguageSwitcher />
+          </View>
 
-        {renderProgressBar()}
+          <View style={styles.pageHeader}>
+            <Text style={[styles.title, isRTL && styles.rtlText]}>
+              {t("completeProfile.companyTitle")}
+            </Text>
+            <Text style={[styles.subtitle, isRTL && styles.rtlText]}>
+              {t("completeProfile.companySubtitle")}
+            </Text>
+          </View>
 
-        {currentStep === 1 && renderStep1()}
-        {currentStep === 2 && renderStep2()}
-        {currentStep === 3 && renderStep3()}
-      </ScrollView>
+          <View style={styles.panel}>
+            {renderProgressBar()}
 
-      <View style={styles.footer}>
-        {currentStep > 1 && (
+            {currentStep === 1 && renderStep1()}
+            {currentStep === 2 && renderStep2()}
+            {currentStep === 3 && renderStep3()}
+          </View>
+        </ScrollView>
+
+        <View
+          style={[
+            styles.footer,
+            { paddingBottom: 16 + insets.bottom, paddingTop: 16 },
+          ]}
+        >
+          {currentStep > 1 && (
+            <Button
+              title={t("completeProfile.previousStep")}
+              onPress={handleBack}
+              variant="outline"
+              fullWidth={false}
+              style={styles.footerBackButton}
+              textStyle={styles.footerOutlineText}
+            />
+          )}
+
           <Button
-            title="Back"
-            onPress={handleBack}
-            variant="outline"
-            style={styles.backButton}
+            title={
+              currentStep === 3
+                ? t("completeProfile.completeButton")
+                : t("common.next")
+            }
+            onPress={currentStep === 3 ? handleSubmit : handleNext}
+            loading={isLoading}
+            fullWidth={false}
+            style={{
+              ...styles.submitButton,
+              flex: currentStep > 1 ? 2 : 1,
+            }}
           />
-        )}
-
-        <Button
-          title={currentStep === 3 ? "Complete Registration" : "Next"}
-          onPress={currentStep === 3 ? handleSubmit : handleNext}
-          loading={isLoading}
-          style={styles.submitButton}
-        />
-      </View>
-    </KeyboardAvoidingView>
+        </View>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "#0A0E1A",
+  },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 24,
-    paddingBottom: 100,
+    paddingHorizontal: 24,
   },
-  header: {
-    marginBottom: 24,
-    marginTop: 20,
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  navBackButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  navBackText: {
+    color: ACCENT,
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  pageHeader: {
+    marginBottom: 20,
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: COLORS.text.primary,
+    color: "#FFFFFF",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: COLORS.text.secondary,
+    color: "#B5B8C9",
+  },
+  panel: {
+    borderRadius: 18,
+    borderWidth: 1.2,
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    padding: 16,
   },
   progressContainer: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   progressBar: {
     height: 6,
-    backgroundColor: COLORS.gray[200],
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderRadius: 3,
     overflow: "hidden",
     marginBottom: 8,
   },
   progressFill: {
     height: "100%",
-    backgroundColor: COLORS.roles.company,
+    backgroundColor: ACCENT,
     borderRadius: 3,
   },
   progressText: {
-    fontSize: 12,
-    color: COLORS.text.secondary,
+    fontSize: 13,
+    color: "#B5B8C9",
     textAlign: "center",
   },
   stepContainer: {
-    marginBottom: 24,
+    marginBottom: 8,
   },
   stepHeader: {
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: 24,
   },
   stepTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "600",
-    color: COLORS.text.primary,
-    marginTop: 16,
-    marginBottom: 8,
+    color: "#FFFFFF",
+    marginTop: 12,
+    marginBottom: 6,
   },
   stepSubtitle: {
     fontSize: 14,
-    color: COLORS.text.secondary,
+    color: "#B5B8C9",
   },
   form: {
     gap: 8,
@@ -496,64 +598,74 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   serviceZonesSection: {
-    marginTop: 16,
+    marginTop: 8,
     padding: 16,
-    backgroundColor: COLORS.white,
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "rgba(255,255,255,0.16)",
   },
   serviceZonesTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: COLORS.text.primary,
+    color: "#FFFFFF",
     marginBottom: 4,
   },
   serviceZonesSubtitle: {
-    fontSize: 12,
-    color: COLORS.text.secondary,
+    fontSize: 13,
+    color: "#B5B8C9",
     marginBottom: 16,
   },
   pendingNotice: {
     flexDirection: "row",
-    backgroundColor: COLORS.warning + "10",
-    padding: 16,
+    alignItems: "flex-start",
+    backgroundColor: "rgba(232,201,122,0.10)",
+    padding: 12,
     borderRadius: 12,
-    gap: 12,
-    marginTop: 16,
+    gap: 10,
+    marginTop: 4,
     borderWidth: 1,
-    borderColor: COLORS.warning + "30",
+    borderColor: "rgba(232,201,122,0.22)",
   },
   pendingNoticeText: {
     flex: 1,
   },
   pendingNoticeTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.text.primary,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#F3E5B8",
     marginBottom: 4,
   },
   pendingNoticeDescription: {
     fontSize: 12,
-    color: COLORS.text.secondary,
-    lineHeight: 16,
+    color: "#E8E6F0",
+    lineHeight: 17,
   },
   footer: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 24,
-    backgroundColor: COLORS.white,
+    paddingHorizontal: 24,
+    backgroundColor: "rgba(10,14,26,0.94)",
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: "rgba(255,255,255,0.10)",
     flexDirection: "row",
     gap: 12,
+    alignItems: "stretch",
   },
-  backButton: {
+  footerBackButton: {
     flex: 1,
+    borderColor: ACCENT,
+  },
+  footerOutlineText: {
+    color: ACCENT,
   },
   submitButton: {
-    flex: 2,
+    minWidth: 0,
+  },
+  rtlText: {
+    textAlign: "right",
+    writingDirection: "rtl",
   },
 });

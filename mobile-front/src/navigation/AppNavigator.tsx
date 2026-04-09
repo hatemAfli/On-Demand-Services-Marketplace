@@ -5,17 +5,23 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { useAuth, getRoleFromSession } from "../context/AuthContext";
 import { AuthNavigator } from "./AuthNavigator";
-import { ClientDashboardScreen } from "../screens/client/ClientDashboardScreen";
-import { ProviderDashboardScreen } from "../screens/provider/ProviderDashboardScreen";
+import { ClientOverlayNavigator } from "./ClientOverlayNavigator";
+import { ProviderSpaceRouter } from "./ProviderSpaceRouter";
 import { CompanyDashboardScreen } from "../screens/company/CompanyDashboardScreen";
+import { AdminPlatformDashboardScreen } from "../screens/admin";
 import { UserRole } from "../types";
 import { COLORS } from "../constants";
 
 export const AppNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading, user, session, needsProfileCompletion } =
-    useAuth();
+  const {
+    isAuthenticated,
+    isInitializing,
+    user,
+    session,
+    needsProfileCompletion,
+  } = useAuth();
 
-  if (isLoading) {
+  if (isInitializing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -28,44 +34,41 @@ export const AppNavigator: React.FC = () => {
 
     switch (user.role) {
       case UserRole.CLIENT:
-        return <ClientDashboardScreen />;
+        return <ClientOverlayNavigator />;
       case UserRole.PROVIDER:
-        return <ProviderDashboardScreen />;
+        return <ProviderSpaceRouter />;
       case UserRole.COMPANY_ADMIN:
         return <CompanyDashboardScreen />;
+      case UserRole.PLATFORM_ADMIN:
+        return <AdminPlatformDashboardScreen />;
       default:
-        return <ClientDashboardScreen />;
+        return <ClientOverlayNavigator />;
     }
   };
 
-  const navKey = isAuthenticated
-    ? "main"
-    : needsProfileCompletion
-      ? "complete-profile"
-      : "auth";
+  /** Only two top-level keys so a brief session/user mismatch does not remount the whole tree. */
+  const rootNavKey = isAuthenticated ? "main" : "auth";
 
   const completeProfileRole = getRoleFromSession(session);
 
   return (
-    <NavigationContainer key={navKey}>
+    <NavigationContainer key={rootNavKey}>
       {isAuthenticated ? (
         renderDashboard()
       ) : (
         <AuthNavigator
+          key={needsProfileCompletion ? "stack-profile" : "stack-guest"}
           initialRouteName={
             needsProfileCompletion ? "CompleteProfile" : "Welcome"
           }
           completeProfileInitialParams={
-            needsProfileCompletion
-              ? { role: completeProfileRole }
-              : undefined
+            needsProfileCompletion ? { role: completeProfileRole } : undefined
           }
         />
       )}
     </NavigationContainer>
   );
 };
-
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,

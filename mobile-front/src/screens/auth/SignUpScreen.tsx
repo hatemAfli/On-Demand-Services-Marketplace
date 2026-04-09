@@ -9,12 +9,17 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   StatusBar,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useAuth } from "../../context/AuthContext";
-import { AuthNoticeModal, Button, Input, LanguageSwitcher } from "../../components/common";
+import { useAuth, getRoleFromSession } from "../../context/AuthContext";
+import {
+  AuthNoticeModal,
+  Button,
+  Input,
+  LanguageSwitcher,
+  PasswordStrengthIndicator,
+} from "../../components/common";
 import { COLORS } from "../../constants";
 import { UserRole } from "../../types";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
@@ -28,8 +33,12 @@ interface SignUpScreenProps {
 }
 
 export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
-  const { signUpWithEmail, signUpWithPhone, isLoading, syncSessionFromSupabase } =
-    useAuth();
+  const {
+    signUpWithEmail,
+    signUpWithPhone,
+    isLoading,
+    syncSessionFromSupabase,
+  } = useAuth();
   const { t, isRTL } = useAppTranslation();
   const insets = useSafeAreaInsets();
 
@@ -52,6 +61,10 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
     visible: boolean;
     variant: "use_login" | "wrong_password";
   }>({ visible: false, variant: "use_login" });
+  const [errorModal, setErrorModal] = useState<{
+    visible: boolean;
+    message: string;
+  }>({ visible: false, message: "" });
 
   const validate = (): boolean => {
     const newErrors: typeof errors = {};
@@ -102,6 +115,15 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         const result = await signUpWithEmail(email, password, selectedRole!);
 
         if (result.outcome === "resumeProfile") {
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: "CompleteProfile",
+                params: { role: getRoleFromSession(result.session) },
+              },
+            ],
+          });
           return;
         }
 
@@ -134,7 +156,10 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         });
       }
     } catch (error: any) {
-      Alert.alert(t("common.error"), error.message || "An error occurred");
+      setErrorModal({
+        visible: true,
+        message: error?.message || "An error occurred",
+      });
     }
   };
 
@@ -161,7 +186,11 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar
+        barStyle="light-content"
+        translucent
+        backgroundColor="transparent"
+      />
       <LinearGradient
         colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
         locations={[0, 0.35, 0.7, 1]}
@@ -193,8 +222,12 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
               </TouchableOpacity>
               <LanguageSwitcher />
             </View>
-            <Text style={[styles.title, isRTL && styles.rtlText]}>{t("auth.createAccount")}</Text>
-            <Text style={[styles.subtitle, isRTL && styles.rtlText]}>{t("auth.joinToday")}</Text>
+            <Text style={[styles.title, isRTL && styles.rtlText]}>
+              {t("auth.createAccount")}
+            </Text>
+            <Text style={[styles.subtitle, isRTL && styles.rtlText]}>
+              {t("auth.joinToday")}
+            </Text>
           </View>
 
           <View style={styles.panel}>
@@ -269,6 +302,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                 secureTextEntry
                 error={errors.password}
               />
+              <PasswordStrengthIndicator password={password} />
 
               <Input
                 label={t("common.confirmPassword")}
@@ -286,7 +320,9 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
               <Text style={[styles.roleTitle, isRTL && styles.rtlText]}>
                 {t("auth.roleSectionTitle")}
               </Text>
-              {errors.role && <Text style={styles.roleError}>{errors.role}</Text>}
+              {errors.role && (
+                <Text style={styles.roleError}>{errors.role}</Text>
+              )}
 
               <View style={styles.roleOptions}>
                 {roleOptions.map((role) => (
@@ -310,7 +346,8 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                     <Text
                       style={[
                         styles.roleDescription,
-                        selectedRole === role.value && styles.roleDescriptionActive,
+                        selectedRole === role.value &&
+                          styles.roleDescriptionActive,
                       ]}
                     >
                       {role.description}
@@ -326,11 +363,17 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
-            <Button title={t("common.next")} onPress={handleSignUp} loading={isLoading} />
+            <Button
+              title={t("common.next")}
+              onPress={handleSignUp}
+              loading={isLoading}
+            />
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>{t("auth.alreadyHaveAccount")} </Text>
+            <Text style={styles.footerText}>
+              {t("auth.alreadyHaveAccount")}{" "}
+            </Text>
             <TouchableOpacity onPress={() => navigation.navigate("Login")}>
               <Text style={styles.footerLink}>{t("common.login")}</Text>
             </TouchableOpacity>
@@ -349,6 +392,15 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         }
         primaryLabel={t("auth.goToLogin")}
         onPrimary={() => navigation.navigate("Login")}
+      />
+
+      <AuthNoticeModal
+        visible={errorModal.visible}
+        onClose={() => setErrorModal({ visible: false, message: "" })}
+        title={t("common.error")}
+        message={errorModal.message}
+        primaryLabel={t("common.close")}
+        onPrimary={() => setErrorModal({ visible: false, message: "" })}
       />
     </View>
   );

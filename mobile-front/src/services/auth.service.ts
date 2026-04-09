@@ -1,7 +1,7 @@
 // src/services/auth.service.ts
 
-import type { Session } from "@supabase/supabase-js";
-import { supabase } from "./supabase";
+import type { Session, User } from "@supabase/supabase-js";
+import { getAuthRedirectUrl, supabase } from "./supabase";
 import * as SecureStore from "expo-secure-store";
 import { api } from "./api";
 import { UserRole, UserWithProfile } from "../types";
@@ -21,8 +21,7 @@ function mapCompleteRegistrationBody(profileData: {
   client?: {
     city: string;
     address?: string;
-    latitude?: number;
-    longitude?: number;
+    imageUrl?: string;
   };
   provider?: {
     type?: string;
@@ -111,6 +110,21 @@ function isEmailAlreadyRegisteredError(error: {
     msg.includes("already been registered") ||
     msg.includes("user already registered")
   );
+}
+
+/**
+ * With "Confirm email" (and related settings) enabled, Supabase does not return an error
+ * for duplicate signups — it returns success + no session + an obfuscated user whose
+ * `identities` array is empty (no new identity created). Real first-time signups always
+ * include at least one identity when a user object is returned.
+ */
+function isDuplicateSignupObfuscatedResponse(
+  user: User | null | undefined,
+  session: Session | null | undefined,
+): boolean {
+  if (!user || session) return false;
+  const ids = user.identities;
+  return Array.isArray(ids) && ids.length === 0;
 }
 
 type SignInProfileKind = "full" | "incomplete" | "signin_failed";
@@ -251,10 +265,12 @@ export const authService = {
     password: string,
     role: UserRole,
   ): Promise<EmailSignUpResult> {
+    const emailRedirectTo = getAuthRedirectUrl();
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo,
         data: {
           selected_role: role,
         },
@@ -274,6 +290,18 @@ export const authService = {
         return { outcome: "resumeProfile", session: classified.session! };
       }
       throw new Error(error.message || "Signup failed");
+    }
+
+    if (isDuplicateSignupObfuscatedResponse(data.user, data.session)) {
+      const classified = await signInAndClassifyProfile(email, password);
+      if (classified.kind === "signin_failed") {
+        return { outcome: "existingAccount", variant: "wrong_password" };
+      }
+      if (classified.kind === "full") {
+        await clearLocalAuthState();
+        return { outcome: "existingAccount", variant: "use_login" };
+      }
+      return { outcome: "resumeProfile", session: classified.session! };
     }
 
     if (data.session) {

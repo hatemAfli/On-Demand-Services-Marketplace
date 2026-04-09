@@ -1,5 +1,4 @@
-import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 import { UpdateUserIdentityDto } from '../../accounts/dto/update-user-identity.dto';
 
 export class UpdateClientDto extends UpdateUserIdentityDto {
@@ -12,13 +11,7 @@ export class UpdateClientDto extends UpdateUserIdentityDto {
   address?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  latitude?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  longitude?: number;
+  @IsString()
+  imageUrl?: string;
 }
 

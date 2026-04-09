@@ -6,27 +6,37 @@ import React, {
   useContext,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import * as SecureStore from "expo-secure-store";
+import * as Linking from "expo-linking";
 import { authService } from "../services/auth.service";
-import { supabase } from "../services/supabase";
+import { handleAuthDeepLink, supabase } from "../services/supabase";
 import { UserRole, UserWithProfile } from "../types";
 import type { EmailSignUpResult } from "../types/auth.types";
 import type { Session } from "@supabase/supabase-js";
 
 const USER_KEY = "user";
 
+/** Returned after login so screens can navigate to CompleteProfile when backend has no row yet. */
+export type LoginResult = {
+  needsProfileCompletion: boolean;
+  session: Session | null;
+};
+
 interface AuthContextType {
   user: UserWithProfile | null;
   session: Session | null;
+  /** True only until first session/profile bootstrap finishes (keeps NavigationContainer mounted). */
+  isInitializing: boolean;
   isLoading: boolean;
   /** True when Supabase session exists and backend profile is loaded */
   isAuthenticated: boolean;
   /** True when signed in with Supabase but backend profile is missing */
   needsProfileCompletion: boolean;
 
-  loginWithEmail: (email: string, password: string) => Promise<void>;
-  loginWithPhone: (phone: string, password: string) => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<LoginResult>;
+  loginWithPhone: (phone: string, password: string) => Promise<LoginResult>;
 
   signUpWithEmail: (
     email: string,
@@ -55,7 +65,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function getRoleFromSession(s: Session | null): UserRole {
   const raw = s?.user?.user_metadata?.selected_role as string | undefined;
-  if (raw === UserRole.PROVIDER || raw === UserRole.COMPANY_ADMIN) {
+  if (
+    raw === UserRole.PROVIDER ||
+    raw === UserRole.COMPANY_ADMIN ||
+    raw === UserRole.PLATFORM_ADMIN
+  ) {
     return raw;
   }
   return UserRole.CLIENT;
@@ -66,7 +80,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<UserWithProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+
+  /**
+   * During loginWithEmail / loginWithPhone / signUpWithEmail, Supabase emits
+   * SIGNED_IN (and sometimes TOKEN_REFRESHED) before our code runs setUser().
+   * If we apply setSession() from those listeners first, React briefly has
+   * session + user=null → needsProfileCompletion → nav remounts to CompleteProfile.
+   * While this ref is true, ignore listener-driven session updates; the call site
+   * sets session + user together.
+   */
+  const suppressExternalAuthSyncRef = useRef(false);
 
   const forceLogoutAndClear = useCallback(async () => {
     try {
@@ -111,10 +136,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           await forceLogoutAndClear();
           return;
         }
+        // Backend row missing but Supabase user exists → complete registration flow.
+        setUser(null);
+        await authService.clearStoredProfile();
+        return;
       }
 
-      setUser(null);
-      await authService.clearStoredProfile();
+      // Network / 5xx / other: do not clear an already-loaded profile — avoids a flash of
+      // Complete Profile after login when SIGNED_IN triggers a duplicate refresh that fails.
+      console.warn(
+        "refreshUser: non-fatal error, keeping existing user if any:",
+        error?.message ?? error,
+      );
     }
   }, []);
 
@@ -176,15 +209,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       } catch (error) {
         console.error("Auth initialization error:", error);
       } finally {
-        setIsLoading(false);
+        setIsInitializing(false);
       }
     };
 
     void initializeAuth();
 
+    const processIncomingUrl = async (url: string | null | undefined) => {
+      if (!url) return;
+      const consumed = await handleAuthDeepLink(url);
+      if (!consumed) return;
+      const s = await authService.getSession();
+      if (!s) return;
+      setSession(s);
+      await authService.persistSessionTokens(s);
+      await refreshUser();
+    };
+
+    void Linking.getInitialURL().then(processIncomingUrl);
+    const urlSubscription = Linking.addEventListener("url", ({ url }: { url: string }) => {
+      void processIncomingUrl(url);
+    });
+
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         if (event === "SIGNED_IN" && newSession) {
+          if (suppressExternalAuthSyncRef.current) {
+            return;
+          }
           setSession(newSession);
           await authService.persistSessionTokens(newSession);
           await refreshUser();
@@ -192,9 +244,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           setSession(null);
           setUser(null);
         } else if (event === "TOKEN_REFRESHED" && newSession) {
+          if (suppressExternalAuthSyncRef.current) {
+            return;
+          }
           setSession(newSession);
           await authService.persistSessionTokens(newSession);
         } else if (event === "USER_UPDATED" && newSession) {
+          if (suppressExternalAuthSyncRef.current) {
+            return;
+          }
           setSession(newSession);
         }
       },
@@ -202,35 +260,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     return () => {
       authListener?.subscription.unsubscribe();
+      urlSubscription.remove();
     };
   }, [refreshUser]);
 
   const loginWithEmail = async (email: string, password: string) => {
+    suppressExternalAuthSyncRef.current = true;
     setIsLoading(true);
     try {
       const { session: newSession, user: profile } =
         await authService.loginWithEmail(email, password);
       setSession(newSession);
       setUser(profile);
+      const incomplete =
+        !!newSession &&
+        !profile &&
+        getRoleFromSession(newSession) !== UserRole.PLATFORM_ADMIN;
+      return {
+        needsProfileCompletion: incomplete,
+        session: newSession,
+      };
     } catch (error: unknown) {
+      // Invalid credentials should never redirect to profile completion.
+      setSession(null);
+      setUser(null);
+      await authService.clearStoredProfile();
       console.error("Login error:", error);
       throw error;
     } finally {
+      suppressExternalAuthSyncRef.current = false;
       setIsLoading(false);
     }
   };
 
   const loginWithPhone = async (phone: string, password: string) => {
+    suppressExternalAuthSyncRef.current = true;
     setIsLoading(true);
     try {
       const { session: newSession, user: profile } =
         await authService.loginWithPhone(phone, password);
       setSession(newSession);
       setUser(profile);
+      const incomplete =
+        !!newSession &&
+        !profile &&
+        getRoleFromSession(newSession) !== UserRole.PLATFORM_ADMIN;
+      return {
+        needsProfileCompletion: incomplete,
+        session: newSession,
+      };
     } catch (error: unknown) {
+      // Invalid credentials should never redirect to profile completion.
+      setSession(null);
+      setUser(null);
+      await authService.clearStoredProfile();
       console.error("Login error:", error);
       throw error;
     } finally {
+      suppressExternalAuthSyncRef.current = false;
       setIsLoading(false);
     }
   };
@@ -240,6 +327,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     password: string,
     role: UserRole,
   ) => {
+    suppressExternalAuthSyncRef.current = true;
     setIsLoading(true);
     try {
       const result = await authService.signUpWithEmail(email, password, role);
@@ -252,6 +340,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       console.error("Signup error:", error);
       throw error;
     } finally {
+      suppressExternalAuthSyncRef.current = false;
       setIsLoading(false);
     }
   };
@@ -318,12 +407,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const needsProfileCompletion = !!session && !user;
+  /** Platform admins are provisioned in DB by staff — never the self-serve wizard. */
+  const needsProfileCompletion =
+    !!session &&
+    !user &&
+    getRoleFromSession(session) !== UserRole.PLATFORM_ADMIN;
   const isAuthenticated = !!session && !!user;
 
   const value: AuthContextType = {
     user,
     session,
+    isInitializing,
     isLoading,
     isAuthenticated,
     needsProfileCompletion,

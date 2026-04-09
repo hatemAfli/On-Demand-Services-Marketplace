@@ -3,6 +3,7 @@
 import "react-native-url-polyfill/auto";
 import { createClient } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
+import * as Linking from "expo-linking";
 import { CONFIG } from "../constants";
 
 // Custom storage implementation using Expo SecureStore
@@ -44,6 +45,50 @@ export const supabase = createClient(
     },
   },
 );
+
+export const getAuthRedirectUrl = () => Linking.createURL("auth/callback");
+
+function getParamsFromUrl(url: string): URLSearchParams {
+  const query = url.includes("?") ? url.split("?")[1].split("#")[0] : "";
+  const hash = url.includes("#") ? url.split("#")[1] : "";
+  const merged = [query, hash].filter(Boolean).join("&");
+  return new URLSearchParams(merged);
+}
+
+export const handleAuthDeepLink = async (url: string): Promise<boolean> => {
+  try {
+    const params = getParamsFromUrl(url);
+    const code = params.get("code");
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) {
+        console.error("Deep link code exchange failed:", error.message);
+        return false;
+      }
+      return true;
+    }
+
+    if (accessToken && refreshToken) {
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (error) {
+        console.error("Deep link setSession failed:", error.message);
+        return false;
+      }
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error("Deep link handler failed:", error);
+    return false;
+  }
+};
 
 // Helper function to test connection
 export const testSupabaseConnection = async () => {

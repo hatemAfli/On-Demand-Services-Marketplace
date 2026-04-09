@@ -9,12 +9,16 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   StatusBar,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useAuth } from "../../context/AuthContext";
-import { Button, Input, LanguageSwitcher } from "../../components/common";
+import { useAuth, getRoleFromSession } from "../../context/AuthContext";
+import {
+  AuthNoticeModal,
+  Button,
+  Input,
+  LanguageSwitcher,
+} from "../../components/common";
 import { COLORS } from "../../constants";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { LinearGradient } from "expo-linear-gradient";
@@ -40,6 +44,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     phone?: string;
     password?: string;
   }>({});
+  const [errorModal, setErrorModal] = useState<{
+    visible: boolean;
+    message: string;
+  }>({ visible: false, message: "" });
 
   const validate = (): boolean => {
     const newErrors: typeof errors = {};
@@ -73,19 +81,53 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
     try {
       if (mode === "email") {
-        await loginWithEmail(email, password);
+        const { needsProfileCompletion, session: s } = await loginWithEmail(
+          email,
+          password,
+        );
+        if (needsProfileCompletion && s) {
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: "CompleteProfile",
+                params: { role: getRoleFromSession(s) },
+              },
+            ],
+          });
+        }
       } else {
-        await loginWithPhone(phone, password);
+        const { needsProfileCompletion, session: s } = await loginWithPhone(
+          phone,
+          password,
+        );
+        if (needsProfileCompletion && s) {
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: "CompleteProfile",
+                params: { role: getRoleFromSession(s) },
+              },
+            ],
+          });
+        }
       }
-      // Navigation handled by AuthContext
     } catch (error: any) {
-      Alert.alert(t("common.error"), error.message || "An error occurred");
+      setErrorModal({
+        visible: true,
+        message: error?.message || "An error occurred",
+      });
     }
   };
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar
+        barStyle="light-content"
+        translucent
+        backgroundColor="transparent"
+      />
       <LinearGradient
         colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
         locations={[0, 0.35, 0.7, 1]}
@@ -116,7 +158,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               </TouchableOpacity>
               <LanguageSwitcher />
             </View>
-            <Text style={[styles.title, isRTL && styles.rtlText]}>{t("auth.welcomeBack")}</Text>
+            <Text style={[styles.title, isRTL && styles.rtlText]}>
+              {t("auth.welcomeBack")}
+            </Text>
             <Text style={[styles.subtitle, isRTL && styles.rtlText]}>
               {t("auth.signInContinue")}
             </Text>
@@ -196,11 +240,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               />
 
               <TouchableOpacity style={styles.forgotPassword}>
-                <Text style={styles.forgotPasswordText}>{t("auth.forgotPassword")}</Text>
+                <Text style={styles.forgotPasswordText}>
+                  {t("auth.forgotPassword")}
+                </Text>
               </TouchableOpacity>
             </View>
 
-            <Button title={t("common.login")} onPress={handleLogin} loading={isLoading} />
+            <Button
+              title={t("common.login")}
+              onPress={handleLogin}
+              loading={isLoading}
+            />
           </View>
 
           <View style={styles.footer}>
@@ -211,6 +261,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <AuthNoticeModal
+        visible={errorModal.visible}
+        onClose={() => setErrorModal({ visible: false, message: "" })}
+        title={t("common.error")}
+        message={errorModal.message}
+        primaryLabel={t("common.close")}
+        onPrimary={() => setErrorModal({ visible: false, message: "" })}
+      />
     </View>
   );
 };

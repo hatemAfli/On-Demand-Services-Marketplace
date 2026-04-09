@@ -14,6 +14,11 @@ const en = {
     success: "Success",
     next: "Next",
     close: "Close",
+    retry: "Retry",
+  },
+  app: {
+    launchTagline: "Premium On-Demand Services",
+    launchLoading: "Getting things ready…",
   },
   welcome: {
     tagline: "Premium On-Demand Services",
@@ -66,6 +71,7 @@ const en = {
       "This email is already registered with a complete profile. Sign in to continue.",
     duplicateAccountWrongPassword:
       "This email is already registered. Sign in with your password, or reset it from the login screen if you forgot it.",
+    emailAlreadyUsed: "This email is already used.",
     goToLogin: "Go to login",
     roleSectionTitle: "I am a...",
     roleClientLabel: "Client",
@@ -74,6 +80,27 @@ const en = {
     roleProviderDesc: "I provide services",
     roleCompanyLabel: "Company",
     roleCompanyDesc: "I manage a company",
+    passwordStrengthLabel: "Password strength",
+    passwordStrengthWeak: "Weak",
+    passwordStrengthFair: "Fair",
+    passwordStrengthGood: "Good",
+    passwordStrengthStrong: "Strong",
+    passwordStrengthHint:
+      "Tip: use 8+ characters with upper & lower case, a number, and a symbol.",
+    emailVerifyInstruction:
+      "Click the link in your email to verify your account and continue.",
+    emailVerifyNeedReopen:
+      "Please check your email and click the verification link, then reopen the app.",
+    verificationEmailSent: "Verification email sent!",
+    otpSentSuccess: "OTP sent to your phone",
+    otpSessionExpired: "Session expired. Go back and start sign up again.",
+    tipsTitle: "Tips",
+    emailTipSpam: "• Check your spam or junk folder",
+    emailTipAddress: "• Make sure {{email}} is correct",
+    emailTipExpiry: "• The verification link expires in 24 hours",
+    otpTipSms: "• Check your SMS messages",
+    otpTipExpiry: "• The code expires in 10 minutes",
+    otpTipPhone: "• Make sure {{phone}} is correct",
   },
   completeProfile: {
     title: "Complete Your Profile",
@@ -97,10 +124,224 @@ const en = {
     latitudePlaceholder: "36.8065",
     longitudeLabel: "Longitude (optional)",
     longitudePlaceholder: "10.1815",
-    locationTip: "GPS coordinates help us show you nearby services",
+    clientImageUrlLabel: "Profile image URL (optional)",
+    clientImageUrlPlaceholder: "https://example.com/photo.jpg",
+    profilePhotoLabel: "Profile photo",
+    profilePhotoHint: "Optional — tap to choose from your gallery",
+    tapToChoosePhoto: "Choose photo",
+    photoPermissionDenied:
+      "Photo library access is required to choose a profile picture.",
+    locationTip:
+      "City helps us match services near you. Add an optional profile photo.",
     completeButton: "Complete profile",
     previousStep: "Back",
     submitError: "Failed to complete profile",
+    uploadPhotoFailedPrefix: "Could not upload your photo.",
+    registrationFailedPrefix: "Could not save your profile.",
+    providerTitle: "Complete your provider profile",
+    providerSubtitle: "Set up your professional account",
+    providerStep1Title: "Provider information",
+    providerStep1Subtitle: "Tell us about yourself",
+    providerStep2Title: "Service location",
+    providerStep2Subtitle: "Where do you provide services?",
+    mapLocationTitle: "Location on map",
+    mapLocationHint:
+      "Tap the map or drag the pin to set your position. Use the target button for your current GPS location.",
+    mapOsmExpoGoHint:
+      "OpenStreetMap preview in Expo Go (Android). For Google Maps tiles, use a development build with your API key configured.",
+    useMyLocation: "Use my location",
+    locationLoading: "Getting location…",
+    locationPermissionDenied:
+      "Location permission is needed to use your current position on the map.",
+    coordinatesReadout: "Latitude: {{lat}} · Longitude: {{lng}}",
+    providerPendingTitle: "Pending validation",
+    providerPendingDescription:
+      "Your provider account will be reviewed by our admin team. We will notify you once it is approved.",
+    companyTitle: "Company registration",
+    companySubtitle: "Complete your company profile",
+    companyStep1Title: "Admin information",
+    companyStep1Subtitle: "Your personal details",
+    companyStep2Title: "Company information",
+    companyStep2Subtitle: "Legal and business details",
+    companyStep3Title: "Location and coverage",
+    companyStep3Subtitle: "Where your company operates",
+    companyLegalNameLabel: "Legal name *",
+    companyLegalNamePlaceholder: "Official registered name",
+    companyCommercialNameLabel: "Commercial name *",
+    companyCommercialNamePlaceholder: "Business or trade name",
+    companyIdLabel: "Company ID *",
+    companyIdPlaceholder: "UUID from your organization",
+    companyMainContactLabel: "Main contact *",
+    companyMainContactPlaceholder: "Primary contact person",
+    companyZonesTitle: "Service zones",
+    companyZonesSubtitle: "Areas where your company provides services",
+    companyZone1Label: "Zone 1 *",
+    companyZone1Placeholder: "e.g., Tunis, Ariana",
+    companyZone2Label: "Zone 2 (optional)",
+    companyZone2Placeholder: "e.g., Sousse, Monastir",
+    companyZone3Label: "Zone 3 (optional)",
+    companyZone3Placeholder: "e.g., Sfax, Mahdia",
+    companyPendingTitle: "Admin verification required",
+    companyPendingDescription:
+      "Your company will be reviewed by our team. Legal documents may be requested before approval.",
+  },
+  client: {
+    placeholderHint: "This section is a placeholder for future features.",
+    screenTitles: {
+      ClientHome: "Home",
+      ClientSearchProvider: "Search provider",
+      ClientMessages: "Messages",
+      ClientReclamation: "Reclamation",
+      ClientReservation: "Reservation",
+      ClientFavorites: "Favorites",
+      ClientNotifications: "Notifications",
+      ClientProfile: "Profile",
+      ClientSettings: "Setting",
+    },
+    sidebar: {
+      mySpace: "My space",
+      logout: "Logout",
+      statusClient: "Client",
+      close: "Close",
+      menu: {
+        home: "Home",
+        searchProvider: "Search provider",
+        messages: "Messages",
+        reclamation: "Reclamation",
+        reservation: "Reservation",
+        favorites: "Favorites",
+        notifications: "Notifications",
+        profile: "Profile",
+        settings: "Setting",
+      },
+    },
+    a11y: {
+      openMenu: "Open menu",
+      closeSidebar: "Close menu",
+    },
+    profile: {
+      subtitle: "Manage your personal details and location",
+      loadError: "Could not load your profile",
+      saveError: "Could not save changes",
+      saveSuccessTitle: "Profile updated",
+      saveSuccessMessage: "Your changes have been saved.",
+      saveButton: "Save changes",
+      changePhoto: "Change photo",
+      photoHint: "Tap the photo to update (optional)",
+      accountSection: "Account",
+      locationSection: "Location",
+      noChanges: "Nothing to save. Update your details or photo first.",
+    },
+  },
+  provider: {
+    screens: {
+      ProviderHome:
+        "Your provider home will show a snapshot of activity and shortcuts. Coming soon.",
+      ProviderDashboard:
+        "Analytics and KPIs for your services will appear here. Coming soon.",
+      ProviderServices:
+        "Manage the services you offer, pricing, and availability. Coming soon.",
+      ProviderMessages:
+        "Conversations with clients will be listed here. Coming soon.",
+      ProviderNotifications:
+        "Alerts about bookings, reviews, and platform updates will show here. Coming soon.",
+      ProviderReclamations:
+        "Track and respond to reclamations from clients. Coming soon.",
+      ProviderOrders:
+        "View and manage your orders and job requests. Coming soon.",
+      ProviderSchedule:
+        "Your calendar and time slots will be configured here. Coming soon.",
+      ProviderGallery:
+        "Showcase photos and portfolio work to clients. Coming soon.",
+      ProviderRatings:
+        "Reviews and ratings you receive will be summarized here. Coming soon.",
+      ProviderProfile:
+        "Edit your public provider profile and professional details. Coming soon.",
+      ProviderSettings:
+        "App preferences, notifications, and account options. Coming soon.",
+    },
+    screenTitles: {
+      ProviderHome: "Home",
+      ProviderDashboard: "Dashboard",
+      ProviderServices: "Services",
+      ProviderMessages: "Messages",
+      ProviderNotifications: "Notifications",
+      ProviderReclamations: "Reclamations",
+      ProviderOrders: "Orders",
+      ProviderSchedule: "Schedule",
+      ProviderGallery: "Gallery",
+      ProviderRatings: "Ratings",
+      ProviderProfile: "Profile",
+      ProviderSettings: "Setting",
+    },
+    sidebar: {
+      mySpace: "My space",
+      statusProvider: "Provider",
+      menu: {
+        home: "Home",
+        dashboard: "Dashboard",
+        services: "Services",
+        messages: "Messages",
+        notifications: "Notifications",
+        reclamations: "Reclamations",
+        orders: "Orders",
+        schedule: "Schedule",
+        gallery: "Gallery",
+        ratings: "Ratings",
+        profile: "Profile",
+        settings: "Setting",
+      },
+    },
+    type: {
+      INDEPENDENT: "Independent provider",
+      EMPLOYEE: "Company employee",
+      unknown: "Provider",
+    },
+    status: {
+      pendingTitle: "Application under review",
+      pendingMessage:
+        "Thank you for registering. Our administrators will review your account soon. You will be notified by email when a decision is made.",
+      rejectedTitle: "Application not approved",
+      rejectedMessage:
+        "Your provider account was not approved. If you believe this is a mistake, please contact support.",
+      suspendedTitle: "Account temporarily suspended",
+      suspendedMessage:
+        "Your account is suspended while we complete a review. Please check back soon or contact support if you need help.",
+      deletedTitle: "Account removed",
+      deletedMessage:
+        "Your provider account is no longer active. The reason will be communicated by our team when available.",
+      unknownTitle: "Account unavailable",
+      unknownMessage:
+        "Your provider account cannot be used in the app right now. Please contact support.",
+      signedInAs: "Signed in as {{email}}",
+    },
+  },
+  admin: {
+    platform: {
+      badge: "Platform admin",
+      title: "Administration",
+      subtitle:
+        "Overview and controls for the marketplace. Additional modules will appear here.",
+      roleLabel: "Role",
+      statusLabel: "Status",
+      accountSection: "Account",
+      phoneLabel: "Phone",
+      userIdLabel: "User ID",
+      emailVerified: "Email verified",
+      phoneVerified: "Phone verified",
+      platformAccessSection: "Platform access",
+      noPermissions:
+        "No permission tags on this record yet. Defaults may still apply.",
+      adminSince: "Admin record created",
+      recordUpdated: "Admin record updated",
+      toolsSection: "Tools",
+      toolUsers: "Users",
+      toolAnalytics: "Analytics",
+      toolSettings: "Settings",
+      soon: "Soon",
+      comingSoon:
+        "More features are on the way: user management, reports, and platform configuration.",
+    },
   },
   validation: {
     emailRequired: "Email is required",
@@ -120,6 +361,12 @@ const en = {
     cityRequired: "City is required",
     latitudeInvalid: "Latitude must be a number",
     longitudeInvalid: "Longitude must be a number",
+    imageUrlInvalid: "Enter a valid http(s) URL",
+    companyLegalNameRequired: "Legal name is required",
+    companyCommercialNameRequired: "Commercial name is required",
+    companyIdRequired: "Company ID is required",
+    mainContactRequired: "Main contact is required",
+    serviceZoneRequired: "At least one service zone is required",
   },
 };
 

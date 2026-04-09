@@ -71,8 +71,7 @@ export class ClientsService {
           id: userId,
           city: dto.city,
           address: dto.address,
-          latitude: dto.latitude,
-          longitude: dto.longitude,
+          imageUrl: dto.imageUrl,
         },
       });
 
@@ -106,8 +105,7 @@ export class ClientsService {
 
     if (dto.city !== undefined) clientUpdateData.city = dto.city;
     if (dto.address !== undefined) clientUpdateData.address = dto.address;
-    if (dto.latitude !== undefined) clientUpdateData.latitude = dto.latitude;
-    if (dto.longitude !== undefined) clientUpdateData.longitude = dto.longitude;
+    if (dto.imageUrl !== undefined) clientUpdateData.imageUrl = dto.imageUrl;
 
     if (
       Object.keys(userUpdateData).length === 0 &&

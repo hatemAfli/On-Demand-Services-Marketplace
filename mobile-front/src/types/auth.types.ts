@@ -37,29 +37,19 @@ export interface CompleteRegistrationData {
   firstName: string;
   lastName: string;
   role: UserRole;
-  clientData?: {
+  client: {
+    city: string;
+    address?: string;
+    imageUrl?: string;
+  };
+  provider?: {
     city: string;
     address?: string;
     latitude?: number;
     longitude?: number;
   };
-  providerData?: {
-    city: string;
-    address?: string;
-    latitude?: number;
-    longitude?: number;
-  };
-  companyData?: {
-    /** Existing company row UUID (required by backend for company admin) */
+  companyAdmin?: {
     companyId: string;
-    legalName: string;
-    commercialName: string;
-    city: string;
-    address?: string;
-    latitude?: number;
-    longitude?: number;
-    serviceZones: string[];
-    mainContact: string;
   };
 }
 

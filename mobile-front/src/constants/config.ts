@@ -6,8 +6,7 @@ export const CONFIG = {
     anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
   },
   api: {
-    baseUrl:
-      process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000/api",
+    baseUrl: process.env.EXPO_PUBLIC_API_URL || "http://172.28.224.32:3000/api",
   },
   app: {
     name: process.env.EXPO_PUBLIC_APP_NAME || "Service Platform",
