@@ -13,6 +13,8 @@ export type AuthStackParamList = {
 
 export type ClientStackParamList = {
   ClientHome: undefined;
+  /** Marketplace services listed under one category (from home grid). */
+  ClientCategoryServices: { categoryId: string; categoryName: string };
   ClientSearchProvider: undefined;
   ClientMessages: undefined;
   ClientReclamation: undefined;

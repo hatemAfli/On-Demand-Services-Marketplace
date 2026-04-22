@@ -23,7 +23,6 @@ import {
 import { COLORS } from "../../constants";
 import { UserRole } from "../../types";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type SignUpMode = "email" | "phone";
@@ -187,14 +186,9 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   return (
     <View style={styles.root}>
       <StatusBar
-        barStyle="light-content"
+        barStyle="dark-content"
         translucent
         backgroundColor="transparent"
-      />
-      <LinearGradient
-        colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
-        locations={[0, 0.35, 0.7, 1]}
-        style={StyleSheet.absoluteFillObject}
       />
       <KeyboardAvoidingView
         style={styles.container}
@@ -222,12 +216,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
               </TouchableOpacity>
               <LanguageSwitcher />
             </View>
-            <Text style={[styles.title, isRTL && styles.rtlText]}>
-              {t("auth.createAccount")}
-            </Text>
-            <Text style={[styles.subtitle, isRTL && styles.rtlText]}>
-              {t("auth.joinToday")}
-            </Text>
           </View>
 
           <View style={styles.panel}>
@@ -334,24 +322,31 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                     ]}
                     onPress={() => setSelectedRole(role.value)}
                   >
-                    <Text style={styles.roleIcon}>{role.icon}</Text>
-                    <Text
-                      style={[
-                        styles.roleLabel,
-                        selectedRole === role.value && styles.roleLabelActive,
-                      ]}
-                    >
-                      {role.label}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.roleDescription,
-                        selectedRole === role.value &&
-                          styles.roleDescriptionActive,
-                      ]}
-                    >
-                      {role.description}
-                    </Text>
+                    <View style={styles.roleCardRow}>
+                      <Text style={styles.roleIcon}>{role.icon}</Text>
+                      <View style={styles.roleTexts}>
+                        <Text
+                          style={[
+                            styles.roleLabel,
+                            selectedRole === role.value &&
+                              styles.roleLabelActive,
+                            isRTL && styles.rtlText,
+                          ]}
+                        >
+                          {role.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.roleDescription,
+                            selectedRole === role.value &&
+                              styles.roleDescriptionActive,
+                            isRTL && styles.rtlText,
+                          ]}
+                        >
+                          {role.description}
+                        </Text>
+                      </View>
+                    </View>
 
                     {selectedRole === role.value && (
                       <View style={styles.checkmark}>
@@ -392,6 +387,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         }
         primaryLabel={t("auth.goToLogin")}
         onPrimary={() => navigation.navigate("Login")}
+        showDismissLink
       />
 
       <AuthNoticeModal
@@ -409,7 +405,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#0A0E1A",
+    backgroundColor: "#FFFFFF",
   },
   container: {
     flex: 1,
@@ -417,15 +413,22 @@ const styles = StyleSheet.create({
   panel: {
     borderRadius: 18,
     borderWidth: 1.2,
-    borderColor: "rgba(255,255,255,0.16)",
-    backgroundColor: "rgba(255,255,255,0.07)",
-    padding: 16,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    padding: 10,
+    marginTop: 0,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
   },
   header: {
+    minHeight: 64,
     marginBottom: 18,
   },
   topRow: {
@@ -441,23 +444,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   backText: {
-    color: "#E8C97A",
+    color: "#C9A84C",
     fontSize: 17,
     fontWeight: "600",
   },
-  title: {
-    fontSize: 34,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#B5B8C9",
-  },
   modeToggle: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "#F3F4F6",
     borderRadius: 12,
     padding: 4,
     marginBottom: 24,
@@ -469,18 +462,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   modeButtonActive: {
-    backgroundColor: "rgba(232,201,122,0.16)",
+    backgroundColor: "#FEF3C7",
   },
   modeText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#C2C6D8",
+    color: "#6B7280",
   },
   modeTextActive: {
-    color: "#E8C97A",
+    color: "#92400E",
   },
   form: {
     marginBottom: 24,
+    marginTop: 8,
   },
   roleSection: {
     marginBottom: 32,
@@ -488,7 +482,7 @@ const styles = StyleSheet.create({
   roleTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: "#111827",
     marginBottom: 16,
   },
   roleError: {
@@ -500,50 +494,60 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   roleCard: {
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "#F9FAFB",
     borderRadius: 16,
     padding: 20,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.16)",
+    borderColor: "#E5E7EB",
     position: "relative",
   },
   roleCardActive: {
-    borderColor: "#E8C97A",
-    backgroundColor: "rgba(232,201,122,0.14)",
+    borderColor: "#C9A84C",
+    backgroundColor: "#FEF3C7",
+  },
+  roleCardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingEnd: 36,
+  },
+  roleTexts: {
+    flex: 1,
+    minWidth: 0,
   },
   roleIcon: {
     fontSize: 32,
-    marginBottom: 12,
+    lineHeight: 40,
+    marginEnd: 14,
   },
   roleLabel: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#FFFFFF",
-    marginBottom: 4,
+    color: "#111827",
+    marginBottom: 2,
   },
   roleLabelActive: {
-    color: "#E8C97A",
+    color: "#92400E",
   },
   roleDescription: {
     fontSize: 14,
-    color: "#B5B8C9",
+    color: "#4B5563",
   },
   roleDescriptionActive: {
-    color: "#FFFFFF",
+    color: "#111827",
   },
   checkmark: {
     position: "absolute",
     top: 12,
-    right: 12,
+    end: 12,
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#E8C97A",
+    backgroundColor: "#C9A84C",
     alignItems: "center",
     justifyContent: "center",
   },
   checkmarkText: {
-    color: "#1A102E",
+    color: "#111827",
     fontSize: 14,
     fontWeight: "bold",
   },
@@ -556,11 +560,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: "#B5B8C9",
+    color: "#6B7280",
   },
   footerLink: {
     fontSize: 14,
-    color: "#E8C97A",
+    color: "#C9A84C",
     fontWeight: "600",
   },
   rtlText: {

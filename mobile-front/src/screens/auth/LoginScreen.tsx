@@ -21,7 +21,6 @@ import {
 } from "../../components/common";
 import { COLORS } from "../../constants";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type LoginMode = "email" | "phone";
@@ -32,7 +31,7 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const { loginWithEmail, loginWithPhone, isLoading } = useAuth();
-  const { t, isRTL } = useAppTranslation();
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
 
   const [mode, setMode] = useState<LoginMode>("email");
@@ -124,14 +123,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   return (
     <View style={styles.root}>
       <StatusBar
-        barStyle="light-content"
+        barStyle="dark-content"
         translucent
         backgroundColor="transparent"
-      />
-      <LinearGradient
-        colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
-        locations={[0, 0.35, 0.7, 1]}
-        style={StyleSheet.absoluteFillObject}
       />
       <KeyboardAvoidingView
         style={styles.container}
@@ -158,12 +152,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               </TouchableOpacity>
               <LanguageSwitcher />
             </View>
-            <Text style={[styles.title, isRTL && styles.rtlText]}>
-              {t("auth.welcomeBack")}
-            </Text>
-            <Text style={[styles.subtitle, isRTL && styles.rtlText]}>
-              {t("auth.signInContinue")}
-            </Text>
           </View>
 
           <View style={styles.panel}>
@@ -256,7 +244,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           <View style={styles.footer}>
             <Text style={styles.footerText}>{t("auth.noAccount")} </Text>
             <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
-              <Text style={styles.footerLink}>{t("auth.createAccount")}</Text>
+              <Text style={styles.footerLink}>{t("common.register")}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -277,7 +265,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#0A0E1A",
+    backgroundColor: "#FFFFFF",
   },
   container: {
     flex: 1,
@@ -285,9 +273,15 @@ const styles = StyleSheet.create({
   panel: {
     borderRadius: 18,
     borderWidth: 1.2,
-    borderColor: "rgba(255,255,255,0.16)",
-    backgroundColor: "rgba(255,255,255,0.07)",
-    padding: 16,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    padding: 10,
+    marginTop: 50,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   scrollContent: {
     flexGrow: 1,
@@ -295,6 +289,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   header: {
+    minHeight: 64,
     marginBottom: 20,
   },
   topRow: {
@@ -310,23 +305,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   backText: {
-    color: "#E8C97A",
+    color: "#C9A84C",
     fontSize: 17,
     fontWeight: "600",
   },
-  title: {
-    fontSize: 34,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#B5B8C9",
-  },
   modeToggle: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "#F3F4F6",
     borderRadius: 12,
     padding: 4,
     marginBottom: 20,
@@ -338,18 +323,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   modeButtonActive: {
-    backgroundColor: "rgba(232,201,122,0.16)",
+    backgroundColor: "#FEF3C7",
   },
   modeText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#C2C6D8",
+    color: "#6B7280",
   },
   modeTextActive: {
-    color: "#E8C97A",
+    color: "#92400E",
   },
   form: {
     marginBottom: 24,
+    marginTop: 8,
   },
   forgotPassword: {
     alignSelf: "flex-end",
@@ -358,7 +344,7 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 14,
-    color: "#E8C97A",
+    color: "#C9A84C",
     fontWeight: "600",
   },
   footer: {
@@ -368,15 +354,11 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: "#B5B8C9",
+    color: "#6B7280",
   },
   footerLink: {
     fontSize: 14,
-    color: "#E8C97A",
+    color: "#C9A84C",
     fontWeight: "600",
-  },
-  rtlText: {
-    textAlign: "right",
-    writingDirection: "rtl",
   },
 });

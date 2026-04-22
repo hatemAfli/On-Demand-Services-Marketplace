@@ -39,6 +39,8 @@ export const ProviderOverlayNavigator: React.FC = () => {
   );
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [currentRouteName, setCurrentRouteName] =
+    useState<keyof ProviderStackParamList>("ProviderHome");
 
   const anim = useRef(new Animated.Value(0)).current;
 
@@ -65,6 +67,16 @@ export const ProviderOverlayNavigator: React.FC = () => {
     <React.Fragment>
       <Stack.Navigator
         initialRouteName="ProviderHome"
+        screenListeners={{
+          state: (e) => {
+            const state = e.data.state;
+            const next = state.routes[state.index]
+              ?.name as keyof ProviderStackParamList;
+            if (next) {
+              setCurrentRouteName(next);
+            }
+          },
+        }}
         screenOptions={({ route }) => ({
           headerShown: true,
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
@@ -162,6 +174,7 @@ export const ProviderOverlayNavigator: React.FC = () => {
         <ProviderSidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
+          currentRouteName={currentRouteName}
         />
       </Animated.View>
     </React.Fragment>

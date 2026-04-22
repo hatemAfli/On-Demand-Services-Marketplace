@@ -5,13 +5,22 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../config/prisma.config';
 import { SupabaseService } from '../../config/supabase.config';
-import { UserRole, ProviderType, AccountStatus } from '@prisma/client';
+import {
+  UserRole,
+  ProviderType,
+  AccountStatus,
+  OwnerType,
+  ReviewStatus,
+  DocumentType,
+} from '@prisma/client';
+import { GivenServiceService } from '../given-service/given-service.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private supabase: SupabaseService,
+    private readonly givenServiceService: GivenServiceService,
   ) {}
 
   async completeRegistration(
@@ -38,10 +47,33 @@ export class AuthService {
         longitude?: number;
         photoUrl?: string;
         companyId?: string;
+        /** One verification request with multiple documents + one service. */
+        verification?: {
+          serviceId: string;
+          documents: Array<{
+            type: DocumentType;
+            fichierUrl: string;
+          }>;
+        };
       };
 
       companyAdmin?: {
-        companyId: string;
+        company: {
+          companyName: string;
+          taxId: string;
+          city: string;
+          address?: string;
+          latitude?: number;
+          longitude?: number;
+          serviceZones?: string[];
+          logo?: string;
+        };
+        verification: {
+          documents: Array<{
+            type: DocumentType;
+            fichierUrl: string;
+          }>;
+        };
       };
     },
   ) {
@@ -59,6 +91,48 @@ export class AuthService {
       throw new ConflictException('User profile already exists');
     }
 
+    if (data.role === UserRole.PROVIDER && data.provider) {
+      const v = data.provider.verification;
+      if (
+        !v?.serviceId?.trim() ||
+        !Array.isArray(v.documents) ||
+        v.documents.length === 0
+      ) {
+        throw new BadRequestException(
+          'Provider registration requires a service and at least one verification document',
+        );
+      }
+      for (const d of v.documents) {
+        if (!d.fichierUrl?.trim()) {
+          throw new BadRequestException(
+            'Each verification document must include a file URL',
+          );
+        }
+      }
+    }
+
+    if (data.role === UserRole.COMPANY_ADMIN && data.companyAdmin) {
+      const c = data.companyAdmin.company;
+      const v = data.companyAdmin.verification;
+      if (!c?.companyName?.trim() || !c?.taxId?.trim() || !c?.city?.trim()) {
+        throw new BadRequestException(
+          'Company registration requires company name, tax ID, and city',
+        );
+      }
+      if (!Array.isArray(v?.documents) || v.documents.length === 0) {
+        throw new BadRequestException(
+          'Company registration requires at least one verification document',
+        );
+      }
+      for (const d of v!.documents) {
+        if (!d.fichierUrl?.trim()) {
+          throw new BadRequestException(
+            'Each verification document must include a file URL',
+          );
+        }
+      }
+    }
+
     // Determine account status based on role
     let status: AccountStatus = AccountStatus.ACTIVE;
     if (
@@ -68,56 +142,143 @@ export class AuthService {
       status = AccountStatus.PENDING; // Needs admin validation
     }
 
-    // Create user profile
-    const user = await this.prisma.user.create({
-      data: {
-        id: userId,
-        email: data.email,
-        phoneNumber: data.phoneNumber,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        role: data.role,
-        status: status,
-        // Persist verification state from the validated Supabase JWT payload.
-        isEmailVerified: data.isEmailVerified === true,
-      },
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          id: userId,
+          email: data.email,
+          phoneNumber: data.phoneNumber,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          role: data.role,
+          status: status,
+          isEmailVerified: data.isEmailVerified === true,
+        },
+      });
+
+      if (data.role === UserRole.CLIENT && data.client) {
+        await tx.client.create({
+          data: {
+            id: created.id,
+            city: data.client.city,
+            address: data.client.address,
+            imageUrl: data.client.imageUrl,
+          },
+        });
+      }
+
+      if (data.role === UserRole.PROVIDER && data.provider) {
+        await tx.provider.create({
+          data: {
+            id: created.id,
+            type: data.provider.type ?? ProviderType.INDEPENDENT,
+            city: data.provider.city,
+            address: data.provider.address,
+            latitude: data.provider.latitude,
+            longitude: data.provider.longitude,
+            photoUrl: data.provider.photoUrl,
+            companyId: data.provider.companyId,
+          },
+        });
+
+        const v = data.provider.verification!;
+        const service = await tx.service.findUnique({
+          where: { id: v.serviceId.trim() },
+        });
+        if (!service) {
+          throw new BadRequestException('Invalid service id');
+        }
+
+        const verificationRequest = await tx.verificationProfilRequest.create({
+          data: {
+            userId,
+            ownerType: OwnerType.PROVIDER,
+            serviceId: v.serviceId.trim(),
+            requestStatus: ReviewStatus.PENDING,
+          },
+        });
+
+        await this.givenServiceService.createPendingForOwner(
+          {
+            ownerType: OwnerType.PROVIDER,
+            ownerId: userId,
+            serviceId: v.serviceId.trim(),
+          },
+          tx,
+        );
+
+        for (const doc of v.documents) {
+          await tx.document.create({
+            data: {
+              ownerUserId: userId,
+              verificationRequestId: verificationRequest.id,
+              type: doc.type,
+              fichierUrl: doc.fichierUrl.trim(),
+            },
+          });
+        }
+      }
+
+      if (data.role === UserRole.COMPANY_ADMIN && data.companyAdmin) {
+        const ca = data.companyAdmin;
+        const comp = ca.company;
+        const v = ca.verification;
+
+        const company = await tx.company.create({
+          data: {
+            companyName: comp.companyName.trim(),
+            taxId: comp.taxId.trim(),
+            logo: comp.logo?.trim() || null,
+            city: comp.city.trim(),
+            address: comp.address?.trim() || null,
+            latitude: comp.latitude ?? null,
+            longitude: comp.longitude ?? null,
+            serviceZones:
+              Array.isArray(comp.serviceZones) && comp.serviceZones.length > 0
+                ? comp.serviceZones.map((z) => String(z).trim()).filter(Boolean)
+                : [],
+            email: null,
+            adminId: null,
+          } as unknown as Parameters<typeof tx.company.create>[0]['data'],
+        });
+
+        await tx.companyAdmin.create({
+          data: {
+            id: created.id,
+            companyId: company.id,
+          },
+        });
+
+        await tx.company.update({
+          where: { id: company.id },
+          data: { adminId: created.id },
+        });
+
+        const verificationRequest = await tx.verificationProfilRequest.create({
+          data: {
+            userId,
+            ownerType: OwnerType.COMPANY,
+            serviceId: null,
+            requestStatus: ReviewStatus.PENDING,
+          } as unknown as Parameters<
+            typeof tx.verificationProfilRequest.create
+          >[0]['data'],
+        });
+
+        for (const doc of v.documents) {
+          await tx.document.create({
+            data: {
+              ownerUserId: userId,
+              verificationRequestId: verificationRequest.id,
+              type: doc.type,
+              fichierUrl: doc.fichierUrl.trim(),
+            },
+          });
+        }
+      }
+
+      return created;
     });
-
-    // Create role-specific details
-    if (data.role === UserRole.CLIENT && data.client) {
-      await this.prisma.client.create({
-        data: {
-          id: user.id,
-          city: data.client.city,
-          address: data.client.address,
-          imageUrl: data.client.imageUrl,
-        },
-      });
-    }
-
-    if (data.role === UserRole.PROVIDER && data.provider) {
-      await this.prisma.provider.create({
-        data: {
-          id: user.id,
-          type: data.provider.type,
-          city: data.provider.city,
-          address: data.provider.address,
-          latitude: data.provider.latitude,
-          longitude: data.provider.longitude,
-          photoUrl: data.provider.photoUrl,
-          /*qualificationDocuments: data.providerDetails.qualificationDocuments,*/
-        },
-      });
-    }
-
-    if (data.role === UserRole.COMPANY_ADMIN && data.companyAdmin) {
-      await this.prisma.companyAdmin.create({
-        data: {
-          id: user.id,
-          companyId: data.companyAdmin.companyId,
-        },
-      });
-    }
 
     // Update Supabase user metadata with role
     const supabaseClient = this.supabase.getClient();

@@ -1,0 +1,115 @@
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  background: #0b1020;
+}
+
+.login-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 20%, rgba(99, 102, 241, 0.35), transparent),
+    radial-gradient(ellipse 70% 50% at 80% 0%, rgba(139, 92, 246, 0.28), transparent),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(56, 189, 248, 0.12), transparent);
+  pointer-events: none;
+}
+
+.login-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 20%, transparent 70%);
+  pointer-events: none;
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  border-radius: 16px !important;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  background: rgba(15, 23, 42, 0.72) !important;
+  backdrop-filter: blur(16px);
+}
+
+.login-card .ant-card-body {
+  padding: 32px 28px 36px;
+}
+
+.login-card-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.login-card-logo {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: -0.02em;
+}
+
+.login-card-title {
+  color: #f8fafc !important;
+  margin-bottom: 8px !important;
+}
+
+.login-card-desc {
+  margin-bottom: 0 !important;
+  color: #94a3b8 !important;
+  font-size: 14px;
+}
+
+.login-form .ant-form-item-label > label {
+  color: #cbd5e1 !important;
+}
+
+.login-input-icon {
+  color: #64748b !important;
+}
+
+.login-form .ant-input-affix-wrapper,
+.login-form .ant-input {
+  background: rgba(30, 41, 59, 0.65) !important;
+  border-color: rgba(148, 163, 184, 0.2) !important;
+  color: #f1f5f9 !important;
+}
+
+.login-form .ant-input-affix-wrapper:hover,
+.login-form .ant-input:hover {
+  border-color: rgba(129, 140, 248, 0.45) !important;
+}
+
+.login-form .ant-input-affix-wrapper-focused,
+.login-form .ant-input:focus {
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.15);
+}
+
+.login-submit {
+  height: 44px !important;
+  font-weight: 600;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #7c3aed) !important;
+}
+
+.login-submit:hover {
+  filter: brightness(1.06);
+}

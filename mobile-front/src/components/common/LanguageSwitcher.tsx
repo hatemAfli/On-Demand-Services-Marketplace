@@ -31,17 +31,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F9FAFB",
     alignItems: "center",
     justifyContent: "center",
   },
   chipActive: {
-    borderColor: "#E8C97A",
+    borderColor: "#C9A84C",
+    backgroundColor: "#FEF3C7",
   },
   text: {
-    color: "#F0EEF8",
+    color: "#374151",
     fontWeight: "700",
     fontSize: 15,
   },
-  textActive: { color: "#E8C97A" },
+  textActive: { color: "#92400E" },
 });

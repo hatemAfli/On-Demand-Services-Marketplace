@@ -2,7 +2,7 @@ import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole, ProviderType } from '@prisma/client';
+import { UserRole, ProviderType, DocumentType } from '@prisma/client';
 
 @Controller('auth')
 export class AuthController {
@@ -31,9 +31,31 @@ export class AuthController {
         longitude?: number;
         photoUrl?: string;
         companyId?: string;
+        verification?: {
+          serviceId: string;
+          documents: Array<{
+            type: DocumentType;
+            fichierUrl: string;
+          }>;
+        };
       };
       companyAdmin?: {
-        companyId: string;
+        company: {
+          companyName: string;
+          taxId: string;
+          city: string;
+          address?: string;
+          latitude?: number;
+          longitude?: number;
+          serviceZones?: string[];
+          logo?: string;
+        };
+        verification: {
+          documents: Array<{
+            type: DocumentType;
+            fichierUrl: string;
+          }>;
+        };
       };
     },
   ) {

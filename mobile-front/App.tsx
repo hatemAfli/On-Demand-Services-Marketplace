@@ -9,7 +9,7 @@ import { AppNavigator } from "./src/navigation/AppNavigator";
 import { AppLaunchOverlay } from "./src/components/common/AppLaunchOverlay";
 import "./src/i18n";
 
-const SPLASH_MS = 3000;
+const SPLASH_MS = 5000;
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);

@@ -1,0 +1,16 @@
+/**
+ * Admin UI routes: one folder per screen / domain.
+ * Import from `features/admin` or this barrel ? avoid deep paths in App.
+ */
+export { LoginPage } from './login/LoginPage'
+export { DashboardHomePage } from './dashboard/DashboardHomePage'
+export { PlaceholderPage } from './placeholder/PlaceholderPage'
+export { ServiceCategoriesAdminPage } from './service_category/ServiceCategoriesAdminPage'
+export { ServicesAdminPage } from './service/ServicesAdminPage'
+export { AccessBlockedPage } from './access_blocked/AccessBlockedPage'
+export { LegalDocumentsAdminPage } from './legal_documents/LegalDocumentsAdminPage'
+export { UsersAdminPage } from './users/UsersAdminPage'
+export { CompaniesAdminPage } from './companies/CompaniesAdminPage'
+export { PendingProvidersPage } from './validations/PendingProvidersPage'
+export { PendingCompaniesPage } from './validations/PendingCompaniesPage'
+export { ValidationHistoryPage } from './validations/ValidationHistoryPage'

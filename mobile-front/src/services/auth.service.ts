@@ -31,9 +31,25 @@ function mapCompleteRegistrationBody(profileData: {
     longitude?: number;
     photoUrl?: string;
     companyId?: string;
+    verification?: {
+      serviceId: string;
+      documents: Array<{ type: string; fichierUrl: string }>;
+    };
   };
   companyAdmin?: {
-    companyId: string;
+    company: {
+      companyName: string;
+      taxId: string;
+      city: string;
+      address?: string;
+      latitude?: number;
+      longitude?: number;
+      serviceZones?: string[];
+      logo?: string;
+    };
+    verification: {
+      documents: Array<{ type: string; fichierUrl: string }>;
+    };
   };
 }) {
   const base = {
@@ -56,19 +72,56 @@ function mapCompleteRegistrationBody(profileData: {
     if (!profileData.provider?.city) {
       throw new Error("City is required to complete your provider profile");
     }
+    const v = profileData.provider.verification;
+    if (
+      !v?.serviceId?.trim() ||
+      !v.documents?.length ||
+      v.documents.some((d) => !d.fichierUrl?.trim() || !d.type)
+    ) {
+      throw new Error(
+        "Please select a service and add at least one verification document",
+      );
+    }
     return { ...base, provider: profileData.provider };
   }
 
   if (role === "COMPANY_ADMIN") {
-    const companyId = profileData.companyAdmin?.companyId?.trim();
-    if (!companyId) {
+    const ca = profileData.companyAdmin;
+    const c = ca?.company;
+    const v = ca?.verification;
+    if (!c?.companyName?.trim() || !c?.taxId?.trim() || !c?.city?.trim()) {
       throw new Error(
-        "Company ID is required. Use the UUID provided by your organization.",
+        "Company name, tax ID, and city are required to complete registration",
+      );
+    }
+    if (
+      !v?.documents?.length ||
+      v.documents.some((d) => !d.fichierUrl?.trim() || !d.type)
+    ) {
+      throw new Error(
+        "Please add at least one verification document with a valid type and file",
       );
     }
     return {
       ...base,
-      companyAdmin: { companyId },
+      companyAdmin: {
+        company: {
+          companyName: c.companyName.trim(),
+          taxId: c.taxId.trim(),
+          city: c.city.trim(),
+          address: c.address?.trim(),
+          latitude: c.latitude,
+          longitude: c.longitude,
+          serviceZones: c.serviceZones,
+          logo: c.logo?.trim(),
+        },
+        verification: {
+          documents: v.documents.map((d) => ({
+            type: d.type,
+            fichierUrl: d.fichierUrl.trim(),
+          })),
+        },
+      },
     };
   }
 

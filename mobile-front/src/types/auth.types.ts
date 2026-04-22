@@ -49,7 +49,19 @@ export interface CompleteRegistrationData {
     longitude?: number;
   };
   companyAdmin?: {
-    companyId: string;
+    company: {
+      companyName: string;
+      taxId: string;
+      city: string;
+      address?: string;
+      latitude?: number;
+      longitude?: number;
+      serviceZones?: string[];
+      logo?: string;
+    };
+    verification: {
+      documents: Array<{ type: string; fichierUrl: string }>;
+    };
   };
 }
 

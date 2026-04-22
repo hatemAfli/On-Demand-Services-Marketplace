@@ -8,7 +8,11 @@ async function bootstrap() {
 
   // Enable CORS
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:19000'], // React Native dev server
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:19000',
+      'http://localhost:5173',
+    ],
     credentials: true,
   });
 

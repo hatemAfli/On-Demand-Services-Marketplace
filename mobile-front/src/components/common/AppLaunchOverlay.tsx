@@ -1,6 +1,6 @@
 // src/components/common/AppLaunchOverlay.tsx
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -10,50 +10,70 @@ import {
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CONFIG } from "../../constants/config";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
+import { COLORS } from "../../constants";
 
-const ACCENT = "#E8C97A";
+const BRAND = "ServeMe";
+const ACCENT = "#C9A84C";
+const ACCENT_SOFT = "#E8C97A";
 
 export const AppLaunchOverlay: React.FC = () => {
   const { t, isRTL } = useAppTranslation();
   const insets = useSafeAreaInsets();
-  const fade = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.88)).current;
-  const ringPulse = useRef(new Animated.Value(1)).current;
+
+  const letters = useMemo(() => BRAND.split(""), []);
+  const letterProgress = useRef(letters.map(() => new Animated.Value(0))).current;
+  const underlineScale = useRef(new Animated.Value(0)).current;
+  const taglineOpacity = useRef(new Animated.Value(0)).current;
+  const orbPulse = useRef(new Animated.Value(0.4)).current;
+  const orbRotate = useRef(new Animated.Value(0)).current;
   const dot1 = useRef(new Animated.Value(0.35)).current;
   const dot2 = useRef(new Animated.Value(0.35)).current;
   const dot3 = useRef(new Animated.Value(0.35)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, {
+    const letterStagger = Animated.stagger(
+      52,
+      letterProgress.map((v) =>
+        Animated.spring(v, {
+          toValue: 1,
+          friction: 7,
+          tension: 90,
+          useNativeDriver: true,
+        }),
+      ),
+    );
+
+    const afterLetters = Animated.parallel([
+      Animated.timing(underlineScale, {
         toValue: 1,
         duration: 520,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
-      Animated.spring(scale, {
+      Animated.timing(taglineOpacity, {
         toValue: 1,
-        friction: 7,
-        tension: 65,
+        duration: 420,
+        delay: 120,
+        easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
-    ]).start();
+    ]);
+
+    Animated.sequence([letterStagger, afterLetters]).start();
 
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(ringPulse, {
-          toValue: 1.06,
-          duration: 900,
+        Animated.timing(orbPulse, {
+          toValue: 0.75,
+          duration: 1200,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-        Animated.timing(ringPulse, {
-          toValue: 1,
-          duration: 900,
+        Animated.timing(orbPulse, {
+          toValue: 0.4,
+          duration: 1200,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
@@ -61,19 +81,29 @@ export const AppLaunchOverlay: React.FC = () => {
     );
     pulse.start();
 
+    const rotationLoop = Animated.loop(
+      Animated.timing(orbRotate, {
+        toValue: 1,
+        duration: 14000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    rotationLoop.start();
+
     const stagger = (v: Animated.Value, delay: number) =>
       Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
           Animated.timing(v, {
             toValue: 1,
-            duration: 320,
+            duration: 340,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(v, {
             toValue: 0.35,
-            duration: 320,
+            duration: 340,
             easing: Easing.in(Easing.quad),
             useNativeDriver: true,
           }),
@@ -81,58 +111,111 @@ export const AppLaunchOverlay: React.FC = () => {
       );
 
     const a1 = stagger(dot1, 0);
-    const a2 = stagger(dot2, 140);
-    const a3 = stagger(dot3, 280);
+    const a2 = stagger(dot2, 130);
+    const a3 = stagger(dot3, 260);
     a1.start();
     a2.start();
     a3.start();
 
     return () => {
       pulse.stop();
+      rotationLoop.stop();
       a1.stop();
       a2.stop();
       a3.stop();
     };
-  }, [fade, scale, ringPulse, dot1, dot2, dot3]);
+  }, [
+    letters.length,
+    letterProgress,
+    underlineScale,
+    taglineOpacity,
+    orbPulse,
+    orbRotate,
+    dot1,
+    dot2,
+    dot3,
+  ]);
+
+  const orbSpin = orbRotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   return (
-    <View style={styles.root} pointerEvents="none">
+    <View style={styles.root}>
       <LinearGradient
-        colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
-        locations={[0, 0.35, 0.7, 1]}
+        colors={["#FFFFFF", "#F8FAFC", "#EEF2FF"]}
+        locations={[0, 0.45, 1]}
         style={StyleSheet.absoluteFillObject}
       />
+
       <Animated.View
         style={[
-          styles.center,
+          styles.orb,
           {
-            opacity: fade,
-            transform: [{ scale }],
+            opacity: orbPulse,
+            transform: [{ rotate: orbSpin }],
           },
         ]}
-      >
-        <Animated.View
+      />
+
+      <View style={styles.center}>
+        <View
+          style={[styles.brandRow, isRTL && styles.brandRowRtl]}
+          accessibilityRole="text"
+        >
+          {letters.map((ch, i) => {
+            const p = letterProgress[i];
+            const opacity = p!;
+            const translateY = opacity.interpolate({
+              inputRange: [0, 1],
+              outputRange: [18, 0],
+            });
+            const isAccent = i >= letters.length - 2;
+            return (
+              <Animated.Text
+                key={`${ch}-${i}`}
+                style={[
+                  styles.brandLetter,
+                  isAccent && styles.brandLetterAccent,
+                  {
+                    opacity,
+                    transform: [{ translateY }],
+                  },
+                ]}
+              >
+                {ch}
+              </Animated.Text>
+            );
+          })}
+        </View>
+
+        <View style={styles.underlineWrap}>
+          <Animated.View
+            style={[
+              styles.underline,
+              {
+                transform: [{ scaleX: underlineScale }],
+              },
+            ]}
+          />
+        </View>
+
+        <Animated.Text
           style={[
-            styles.iconRing,
-            { transform: [{ scale: ringPulse }] },
+            styles.tagline,
+            isRTL && styles.rtlText,
+            { opacity: taglineOpacity },
           ]}
         >
-          <Ionicons name="sparkles" size={44} color={ACCENT} />
-        </Animated.View>
-        <Text style={[styles.title, isRTL && styles.rtlText]}>
-          {CONFIG.app.name}
-        </Text>
-        <Text style={[styles.tagline, isRTL && styles.rtlText]}>
-          {t("app.launchTagline")}
-        </Text>
-      </Animated.View>
+          {t("welcome.tagline")}
+        </Animated.Text>
+      </View>
 
       <View
         style={[
           styles.footer,
-          {
-            paddingBottom: Math.max(insets.bottom, 16) + 8,
-          },
+          { paddingBottom: Math.max(insets.bottom, 16) + 8 },
         ]}
       >
         <View style={styles.dotsRow}>
@@ -141,7 +224,7 @@ export const AppLaunchOverlay: React.FC = () => {
           <Animated.View style={[styles.dot, { opacity: dot3 }]} />
         </View>
         <Text style={[styles.loading, isRTL && styles.rtlText]}>
-          {t("app.launchLoading")}
+          {t("common.loading")}
         </Text>
       </View>
     </View>
@@ -156,38 +239,59 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  orb: {
+    position: "absolute",
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: "rgba(99, 102, 241, 0.08)",
+    top: "22%",
+  },
   center: {
     alignItems: "center",
     paddingHorizontal: 32,
+    maxWidth: 360,
   },
-  iconRing: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: 1.5,
-    borderColor: "rgba(232,201,122,0.45)",
-    backgroundColor: "rgba(232,201,122,0.12)",
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    flexWrap: "nowrap",
+  },
+  brandRowRtl: {
+    /* Brand word stays LTR */
+    direction: "ltr",
+  },
+  brandLetter: {
+    fontSize: 44,
+    fontWeight: "800",
+    color: COLORS.primary,
+    letterSpacing: -0.5,
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  },
+  brandLetterAccent: {
+    color: ACCENT,
+  },
+  underlineWrap: {
+    width: 200,
+    height: 4,
+    marginTop: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 28,
-    shadowColor: ACCENT,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
   },
-  title: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-    marginBottom: 10,
+  underline: {
+    width: "100%",
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: ACCENT_SOFT,
   },
   tagline: {
+    marginTop: 20,
     fontSize: 16,
-    color: "rgba(197, 201, 220, 0.95)",
+    color: COLORS.text.secondary,
     textAlign: "center",
-    lineHeight: 22,
-    maxWidth: 280,
+    lineHeight: 24,
+    fontWeight: "500",
   },
   footer: {
     position: "absolute",
@@ -205,11 +309,11 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: ACCENT,
+    backgroundColor: COLORS.primary,
   },
   loading: {
     fontSize: 14,
-    color: "rgba(181, 184, 201, 0.95)",
+    color: COLORS.text.tertiary,
     fontWeight: "500",
   },
   rtlText: {

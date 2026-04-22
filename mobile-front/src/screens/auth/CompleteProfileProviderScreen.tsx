@@ -1,6 +1,12 @@
 // src/screens/auth/CompleteProfileProviderScreen.tsx
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -13,27 +19,75 @@ import {
   StatusBar,
   Image,
   ActivityIndicator,
+  Modal,
+  Pressable,
 } from "react-native";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import MapView, { Marker, Region, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
-import { Button, Input, LanguageSwitcher } from "../../components/common";
+import {
+  Input,
+  LanguageSwitcher,
+  AuthNoticeModal,
+} from "../../components/common";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../services/supabase";
 import {
   requestPhotoLibraryPermission,
   uploadClientProfileAvatar,
 } from "../../services/clientAvatarUpload";
+import {
+  uploadProviderVerificationDocument,
+  isImageMimeOrPath,
+} from "../../services/providerDocumentUpload";
+import { api } from "../../services/api";
+import {
+  PROVIDER_DOCUMENT_TYPES,
+  type ProviderDocumentType,
+} from "../../types/documents";
 import { COLORS } from "../../constants";
 import { OsmLocationPicker } from "../../components/maps/OsmLocationPicker";
 
-const ACCENT = "#E8C97A";
+const ACCENT = "#C9A84C";
+const TOTAL_STEPS = 3;
+
+type ServiceRow = {
+  id: string;
+  name: string;
+  description?: string | null;
+  /** Omitted or true when active; backend lists active-only, kept for safety. */
+  active?: boolean;
+  categoryId?: string;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+    /** Inactive categories should not appear; omitted means treat as active. */
+    active?: boolean;
+    iconKey?: string | null;
+    iconUrl?: string | null;
+  };
+};
+
+type ServiceCategoryGroup = {
+  categoryId: string;
+  categoryName: string;
+  services: ServiceRow[];
+};
+type PendingDoc = {
+  id: string;
+  localUri: string;
+  mimeType?: string | null;
+  /** From document picker — used for PDF / Office uploads. */
+  fileName?: string | null;
+  documentType: ProviderDocumentType;
+};
 
 /** Google Maps tiles are not available in Expo Go on Android (no API key in binary). Use OSM WebView instead. */
 const USE_OSM_WEB_MAP =
@@ -79,6 +133,29 @@ export const CompleteProfileProviderScreen: React.FC<
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [currentStep, setCurrentStep] = useState(1);
 
+  const [services, setServices] = useState<ServiceRow[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(
+    null,
+  );
+  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(
+    null,
+  );
+  const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
+  const [typePickerVisible, setTypePickerVisible] = useState(false);
+  const [docSourceModalVisible, setDocSourceModalVisible] = useState(false);
+  const [pendingPick, setPendingPick] = useState<{
+    uri: string;
+    mimeType?: string | null;
+    fileName?: string | null;
+  } | null>(null);
+  const [notice, setNotice] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+  }>({ visible: false, title: "", message: "" });
+
   const mapRef = useRef<MapView | null>(null);
   const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_MAP_REGION);
   const [locating, setLocating] = useState(false);
@@ -106,6 +183,76 @@ export const CompleteProfileProviderScreen: React.FC<
     setMapRegion(nextRegion);
     mapRef.current?.animateToRegion(nextRegion, 280);
   }, []);
+
+  const loadServices = useCallback(async () => {
+    setServicesLoading(true);
+    setServicesError(null);
+    try {
+      const res = await api.listServices();
+      setServices(res.data as ServiceRow[]);
+    } catch {
+      setServicesError(t("completeProfile.servicesLoadError"));
+    } finally {
+      setServicesLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    void loadServices();
+  }, [loadServices]);
+
+  const groupedServices = useMemo<ServiceCategoryGroup[]>(() => {
+    const visible = services.filter(
+      (s) => s.active !== false && s.category?.active !== false,
+    );
+    const map = new Map<string, ServiceCategoryGroup>();
+    for (const service of visible) {
+      const categoryId =
+        service.category?.id ?? service.categoryId ?? "uncategorized";
+      const categoryName = service.category?.name ?? "Other services";
+      const existing = map.get(categoryId);
+      if (existing) {
+        existing.services.push(service);
+      } else {
+        map.set(categoryId, { categoryId, categoryName, services: [service] });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.categoryName.localeCompare(b.categoryName),
+    );
+  }, [services]);
+
+  useEffect(() => {
+    if (groupedServices.length === 0) {
+      if (expandedCategoryId !== null) setExpandedCategoryId(null);
+      return;
+    }
+
+    // Keep user's current expanded category when possible.
+    if (
+      expandedCategoryId &&
+      groupedServices.some((g) => g.categoryId === expandedCategoryId)
+    ) {
+      return;
+    }
+
+    // Initial/default expansion only; do not force it based on selected service.
+    setExpandedCategoryId(groupedServices[0].categoryId);
+  }, [expandedCategoryId, groupedServices]);
+
+  const labelForDocType = useCallback(
+    (dt: string) => {
+      const map: Record<string, string> = {
+        IDENTITY: t("completeProfile.docTypeIdentity"),
+        LICENSE: t("completeProfile.docTypeLicense"),
+        QUALIFICATION: t("completeProfile.docTypeQualification"),
+        INSURANCE: t("completeProfile.docTypeInsurance"),
+        OTHER: t("completeProfile.docTypeOther"),
+      };
+      return map[dt] ?? dt;
+    },
+    [t],
+  );
 
   useEffect(() => {
     if (currentStep !== 2) return;
@@ -229,14 +376,30 @@ export const CompleteProfileProviderScreen: React.FC<
     return Object.keys(newErrors).length === 0;
   };
 
+  const validateStep3 = (): boolean => {
+    const newErrors: { [key: string]: string } = {};
+    if (!selectedServiceId) {
+      newErrors.service = t("completeProfile.serviceRequired");
+    }
+    if (pendingDocs.length === 0) {
+      newErrors.documents = t("completeProfile.documentsRequired");
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleNext = () => {
     if (currentStep === 1 && validateStep1()) {
       setCurrentStep(2);
+    } else if (currentStep === 2 && validateStep2()) {
+      setCurrentStep(3);
     }
   };
 
   const handleStepBack = () => {
-    if (currentStep === 2) {
+    if (currentStep === 3) {
+      setCurrentStep(2);
+    } else if (currentStep === 2) {
       setCurrentStep(1);
     }
   };
@@ -282,8 +445,109 @@ export const CompleteProfileProviderScreen: React.FC<
     }
   };
 
+  const handleAddVerificationDoc = () => {
+    setDocSourceModalVisible(true);
+  };
+
+  const pickVerificationFromGallery = async () => {
+    setDocSourceModalVisible(false);
+    try {
+      const ok = await requestPhotoLibraryPermission();
+      if (!ok) {
+        setNotice({
+          visible: true,
+          title: t("common.error"),
+          message: t("completeProfile.photoPermissionDenied"),
+        });
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.9,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        const asset = result.assets[0];
+        setPendingPick({
+          uri: asset.uri,
+          mimeType: asset.mimeType ?? undefined,
+          fileName: null,
+        });
+        setTypePickerVisible(true);
+      }
+    } catch (e: unknown) {
+      setNotice({
+        visible: true,
+        title: t("common.error"),
+        message:
+          e instanceof Error
+            ? e.message
+            : t("completeProfile.photoPermissionDenied"),
+      });
+    }
+  };
+
+  const pickVerificationFromFiles = async () => {
+    setDocSourceModalVisible(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        type: [
+          "application/pdf",
+          "application/msword",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "application/vnd.ms-excel",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ],
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      setPendingPick({
+        uri: asset.uri,
+        mimeType: asset.mimeType ?? undefined,
+        fileName: asset.name,
+      });
+      setTypePickerVisible(true);
+    } catch (e: unknown) {
+      setNotice({
+        visible: true,
+        title: t("common.error"),
+        message:
+          e instanceof Error
+            ? e.message
+            : t("completeProfile.documentPickError"),
+      });
+    }
+  };
+
+  const confirmDocType = (documentType: ProviderDocumentType) => {
+    if (!pendingPick) return;
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    setPendingDocs((prev) => [
+      ...prev,
+      {
+        id,
+        localUri: pendingPick.uri,
+        mimeType: pendingPick.mimeType,
+        fileName: pendingPick.fileName ?? null,
+        documentType,
+      },
+    ]);
+    setPendingPick(null);
+    setTypePickerVisible(false);
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.documents;
+      return next;
+    });
+  };
+
+  const removePendingDoc = (id: string) => {
+    setPendingDocs((prev) => prev.filter((d) => d.id !== id));
+  };
+
   const handleSubmit = async () => {
-    if (!validateStep2()) return;
+    if (!validateStep1() || !validateStep2() || !validateStep3()) return;
 
     setIsSubmitting(true);
     try {
@@ -293,15 +557,14 @@ export const CompleteProfileProviderScreen: React.FC<
       if (!session?.user?.id) {
         throw new Error("Not signed in");
       }
+      const uid = session.user.id;
 
       let photoUrl: string | undefined;
       if (pickedPhoto) {
         try {
-          photoUrl = await uploadClientProfileAvatar(
-            session.user.id,
-            pickedPhoto.uri,
-            { mimeType: pickedPhoto.mimeType },
-          );
+          photoUrl = await uploadClientProfileAvatar(uid, pickedPhoto.uri, {
+            mimeType: pickedPhoto.mimeType,
+          });
         } catch (uploadErr: unknown) {
           const msg =
             uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
@@ -309,6 +572,15 @@ export const CompleteProfileProviderScreen: React.FC<
             `${t("completeProfile.uploadPhotoFailedPrefix")} ${msg}`,
           );
         }
+      }
+
+      const docPayload: { type: string; fichierUrl: string }[] = [];
+      for (const d of pendingDocs) {
+        const url = await uploadProviderVerificationDocument(uid, d.localUri, {
+          mimeType: d.mimeType,
+          fileName: d.fileName,
+        });
+        docPayload.push({ type: d.documentType, fichierUrl: url });
       }
 
       const profileData = {
@@ -325,6 +597,10 @@ export const CompleteProfileProviderScreen: React.FC<
             : undefined,
           type: "INDEPENDENT" as const,
           photoUrl,
+          verification: {
+            serviceId: selectedServiceId!,
+            documents: docPayload,
+          },
         },
       };
 
@@ -337,12 +613,14 @@ export const CompleteProfileProviderScreen: React.FC<
         );
       }
     } catch (error: unknown) {
-      Alert.alert(
-        t("common.error"),
-        error instanceof Error
-          ? error.message
-          : t("completeProfile.submitError"),
-      );
+      setNotice({
+        visible: true,
+        title: t("common.error"),
+        message:
+          error instanceof Error
+            ? error.message
+            : t("completeProfile.submitError"),
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -354,12 +632,15 @@ export const CompleteProfileProviderScreen: React.FC<
         <View
           style={[
             styles.progressFill,
-            { width: `${(currentStep / 2) * 100}%` },
+            { width: `${(currentStep / TOTAL_STEPS) * 100}%` },
           ]}
         />
       </View>
       <Text style={[styles.progressText, isRTL && styles.rtlText]}>
-        {t("completeProfile.stepProgress", { current: currentStep, total: 2 })}
+        {t("completeProfile.stepProgress", {
+          current: currentStep,
+          total: TOTAL_STEPS,
+        })}
       </Text>
     </View>
   );
@@ -388,7 +669,10 @@ export const CompleteProfileProviderScreen: React.FC<
           accessibilityLabel={t("completeProfile.tapToChoosePhoto")}
         >
           {pickedPhoto ? (
-            <Image source={{ uri: pickedPhoto.uri }} style={styles.photoImage} />
+            <Image
+              source={{ uri: pickedPhoto.uri }}
+              style={styles.photoImage}
+            />
           ) : (
             <Ionicons name="camera-outline" size={36} color={ACCENT} />
           )}
@@ -569,17 +853,200 @@ export const CompleteProfileProviderScreen: React.FC<
             )}
           </View>
         )}
+      </View>
+    </View>
+  );
 
-        <View style={styles.pendingNotice}>
-          <Ionicons name="time-outline" size={22} color={ACCENT} />
-          <View style={styles.pendingNoticeText}>
-            <Text style={[styles.pendingNoticeTitle, isRTL && styles.rtlText]}>
-              {t("completeProfile.providerPendingTitle")}
+  const renderStep3 = () => (
+    <View style={styles.stepContainer}>
+      <View style={styles.stepHeader}>
+        <Ionicons name="document-text-outline" size={56} color={ACCENT} />
+        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
+          {t("completeProfile.providerStep3Title")}
+        </Text>
+        <Text style={[styles.stepSubtitle, isRTL && styles.rtlText]}>
+          {t("completeProfile.providerStep3Subtitle")}
+        </Text>
+      </View>
+
+      <Text style={[styles.sectionLabel, isRTL && styles.rtlText]}>
+        {t("completeProfile.serviceLabel")}
+      </Text>
+      <Text style={[styles.sectionHint, isRTL && styles.rtlText]}>
+        {t("completeProfile.selectServiceHint")}
+      </Text>
+      <View style={styles.premiumHintCard}>
+        <Ionicons name="sparkles-outline" size={18} color="#92400E" />
+        <Text style={[styles.premiumHintText, isRTL && styles.rtlText]}>
+          Add one service now. Want to offer more? Upgrade to Premium to unlock
+          multiple services.
+        </Text>
+      </View>
+
+      {servicesLoading ? (
+        <ActivityIndicator color={ACCENT} style={{ marginVertical: 16 }} />
+      ) : servicesError ? (
+        <View style={styles.serviceErrorRow}>
+          <Text style={styles.serviceErrorText}>{servicesError}</Text>
+          <TouchableOpacity onPress={() => void loadServices()}>
+            <Text style={styles.retryText}>
+              {t("completeProfile.retryLoadServices")}
             </Text>
-            <Text style={[styles.pendingNoticeDescription, isRTL && styles.rtlText]}>
-              {t("completeProfile.providerPendingDescription")}
+          </TouchableOpacity>
+        </View>
+      ) : services.length === 0 ? (
+        <Text style={[styles.serviceErrorText, isRTL && styles.rtlText]}>
+          {t("completeProfile.noServicesAvailable")}
+        </Text>
+      ) : (
+        <View style={styles.categoryListWrap}>
+          {groupedServices.map((group) => {
+            const expanded = expandedCategoryId === group.categoryId;
+            return (
+              <View key={group.categoryId} style={styles.categoryCard}>
+                <TouchableOpacity
+                  style={styles.categoryHeader}
+                  onPress={() =>
+                    setExpandedCategoryId(expanded ? null : group.categoryId)
+                  }
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.categoryTitleWrap}>
+                    <Text style={[styles.categoryTitle, isRTL && styles.rtlText]}>
+                      {group.categoryName}
+                    </Text>
+                    <Text style={[styles.categoryCount, isRTL && styles.rtlText]}>
+                      {group.services.length} service
+                      {group.services.length > 1 ? "s" : ""}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={expanded ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color="#6B7280"
+                  />
+                </TouchableOpacity>
+
+                {expanded ? (
+                  <View style={styles.serviceOptionList}>
+                    {group.services.map((s) => {
+                      const selected = selectedServiceId === s.id;
+                      return (
+                        <TouchableOpacity
+                          key={s.id}
+                          style={[
+                            styles.serviceOption,
+                            selected && styles.serviceOptionSelected,
+                          ]}
+                          onPress={() => {
+                            setSelectedServiceId(s.id);
+                            setErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.service;
+                              return next;
+                            });
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <Text
+                            style={[
+                              styles.serviceOptionText,
+                              selected && styles.serviceOptionTextSelected,
+                              isRTL && styles.rtlText,
+                            ]}
+                          >
+                            {s.name}
+                          </Text>
+                          {selected ? (
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={18}
+                              color="#92400E"
+                            />
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      )}
+      {errors.service ? (
+        <Text style={styles.fieldError}>{errors.service}</Text>
+      ) : null}
+
+      <Text
+        style={[
+          styles.sectionLabel,
+          { marginTop: 20 },
+          isRTL && styles.rtlText,
+        ]}
+      >
+        {t("completeProfile.verificationDocsTitle")}
+      </Text>
+      <Text style={[styles.sectionHint, isRTL && styles.rtlText]}>
+        {t("completeProfile.minOneDoc")}
+      </Text>
+
+      {pendingDocs.map((d) => (
+        <View key={d.id} style={styles.docRow}>
+          {isImageMimeOrPath(d.mimeType, d.localUri) ? (
+            <Image source={{ uri: d.localUri }} style={styles.docThumb} />
+          ) : (
+            <View style={styles.docThumbPlaceholder}>
+              <Ionicons name="document-text-outline" size={28} color={ACCENT} />
+            </View>
+          )}
+          <View style={styles.docRowText}>
+            <Text style={[styles.docRowTitle, isRTL && styles.rtlText]}>
+              {labelForDocType(d.documentType)}
             </Text>
+            {d.fileName ? (
+              <Text
+                style={[styles.docFileName, isRTL && styles.rtlText]}
+                numberOfLines={1}
+              >
+                {d.fileName}
+              </Text>
+            ) : null}
           </View>
+          <TouchableOpacity
+            onPress={() => removePendingDoc(d.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="trash-outline" size={22} color="#fecaca" />
+          </TouchableOpacity>
+        </View>
+      ))}
+
+      <TouchableOpacity
+        style={styles.addDocButton}
+        onPress={() => void handleAddVerificationDoc()}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="add-circle-outline" size={22} color={ACCENT} />
+        <Text style={[styles.addDocButtonText, isRTL && styles.rtlText]}>
+          {t("completeProfile.addVerificationDoc")}
+        </Text>
+      </TouchableOpacity>
+      {errors.documents ? (
+        <Text style={styles.fieldError}>{errors.documents}</Text>
+      ) : null}
+
+      <View style={[styles.pendingNotice, { marginTop: 16 }]}>
+        <Ionicons name="time-outline" size={22} color={ACCENT} />
+        <View style={styles.pendingNoticeText}>
+          <Text style={[styles.pendingNoticeTitle, isRTL && styles.rtlText]}>
+            {t("completeProfile.providerPendingTitle")}
+          </Text>
+          <Text
+            style={[styles.pendingNoticeDescription, isRTL && styles.rtlText]}
+          >
+            {t("completeProfile.providerPendingDescription")}
+          </Text>
         </View>
       </View>
     </View>
@@ -587,11 +1054,10 @@ export const CompleteProfileProviderScreen: React.FC<
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <LinearGradient
-        colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
-        locations={[0, 0.35, 0.7, 1]}
-        style={StyleSheet.absoluteFillObject}
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
       />
       <KeyboardAvoidingView
         style={styles.container}
@@ -619,18 +1085,13 @@ export const CompleteProfileProviderScreen: React.FC<
             <LanguageSwitcher />
           </View>
 
-          <View style={styles.pageHeader}>
-            <Text style={[styles.title, isRTL && styles.rtlText]}>
-              {t("completeProfile.providerTitle")}
-            </Text>
-            <Text style={[styles.subtitle, isRTL && styles.rtlText]}>
-              {t("completeProfile.providerSubtitle")}
-            </Text>
-          </View>
-
           <View style={styles.panel}>
             {renderProgressBar()}
-            {currentStep === 1 ? renderStep1() : renderStep2()}
+            {currentStep === 1
+              ? renderStep1()
+              : currentStep === 2
+                ? renderStep2()
+                : renderStep3()}
           </View>
         </ScrollView>
 
@@ -640,33 +1101,160 @@ export const CompleteProfileProviderScreen: React.FC<
             { paddingBottom: 16 + insets.bottom, paddingTop: 16 },
           ]}
         >
-          {currentStep === 2 && (
-            <Button
-              title={t("completeProfile.previousStep")}
+          {currentStep > 1 && (
+            <TouchableOpacity
+              style={styles.stepBackFab}
               onPress={handleStepBack}
-              variant="outline"
-              fullWidth={false}
-              style={styles.footerBackButton}
-              textStyle={styles.footerOutlineText}
-            />
+              accessibilityRole="button"
+              accessibilityLabel={t("completeProfile.previousStep")}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name={isRTL ? "chevron-forward" : "chevron-back"}
+                size={22}
+                color="#92400E"
+              />
+            </TouchableOpacity>
           )}
 
-          <Button
-            title={
-              currentStep === 1
+          <TouchableOpacity
+            style={[
+              styles.stepPrimaryButton,
+              currentStep > 1
+                ? styles.stepPrimaryButtonWithBack
+                : styles.stepPrimaryButtonFull,
+              currentStep === TOTAL_STEPS &&
+                isSubmitting &&
+                styles.stepPrimaryButtonDisabled,
+            ]}
+            onPress={currentStep < TOTAL_STEPS ? handleNext : handleSubmit}
+            disabled={currentStep === TOTAL_STEPS && isSubmitting}
+            accessibilityRole="button"
+            accessibilityLabel={
+              currentStep < TOTAL_STEPS
                 ? t("common.next")
                 : t("completeProfile.completeButton")
             }
-            onPress={currentStep === 1 ? handleNext : handleSubmit}
-            loading={currentStep === 2 && isSubmitting}
-            fullWidth={false}
-            style={{
-              ...styles.submitButton,
-              flex: currentStep === 2 ? 2 : 1,
-            }}
-          />
+            activeOpacity={0.9}
+          >
+            {currentStep === TOTAL_STEPS && isSubmitting ? (
+              <ActivityIndicator color="#111827" />
+            ) : (
+              <>
+                <Text style={styles.stepPrimaryButtonText}>
+                  {currentStep < TOTAL_STEPS
+                    ? t("common.next")
+                    : t("completeProfile.completeButton")}
+                </Text>
+                <View style={styles.stepPrimaryIconWrap}>
+                  <Ionicons
+                    name={
+                      currentStep < TOTAL_STEPS
+                        ? isRTL
+                          ? "arrow-back"
+                          : "arrow-forward"
+                        : "checkmark"
+                    }
+                    size={18}
+                    color="#111827"
+                  />
+                </View>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={docSourceModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDocSourceModalVisible(false)}
+      >
+        <Pressable
+          style={styles.typeModalBackdrop}
+          onPress={() => setDocSourceModalVisible(false)}
+        >
+          <Pressable
+            style={styles.typeModalCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={[styles.typeModalTitle, isRTL && styles.rtlText]}>
+              {t("completeProfile.docSourceModalTitle")}
+            </Text>
+            <TouchableOpacity
+              style={styles.typeModalRow}
+              onPress={() => void pickVerificationFromGallery()}
+            >
+              <Ionicons name="images-outline" size={22} color={ACCENT} />
+              <Text style={[styles.typeModalRowText, isRTL && styles.rtlText]}>
+                {t("completeProfile.addDocFromGallery")}
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={ACCENT} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.typeModalRow}
+              onPress={() => void pickVerificationFromFiles()}
+            >
+              <Ionicons name="folder-open-outline" size={22} color={ACCENT} />
+              <Text style={[styles.typeModalRowText, isRTL && styles.rtlText]}>
+                {t("completeProfile.addDocFromFiles")}
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={ACCENT} />
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={typePickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setTypePickerVisible(false);
+          setPendingPick(null);
+        }}
+      >
+        <Pressable
+          style={styles.typeModalBackdrop}
+          onPress={() => {
+            setTypePickerVisible(false);
+            setPendingPick(null);
+          }}
+        >
+          <Pressable
+            style={styles.typeModalCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={[styles.typeModalTitle, isRTL && styles.rtlText]}>
+              {t("completeProfile.docTypeModalTitle")}
+            </Text>
+            {PROVIDER_DOCUMENT_TYPES.map((dt) => (
+              <TouchableOpacity
+                key={dt}
+                style={styles.typeModalRow}
+                onPress={() => confirmDocType(dt)}
+              >
+                <Text
+                  style={[styles.typeModalRowText, isRTL && styles.rtlText]}
+                >
+                  {labelForDocType(dt)}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color={ACCENT} />
+              </TouchableOpacity>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <AuthNoticeModal
+        visible={notice.visible}
+        onClose={() => setNotice((n) => ({ ...n, visible: false }))}
+        title={notice.title}
+        message={notice.message}
+        primaryLabel={t("common.close")}
+        onPrimary={() => setNotice((n) => ({ ...n, visible: false }))}
+      />
     </View>
   );
 };
@@ -674,7 +1262,7 @@ export const CompleteProfileProviderScreen: React.FC<
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#0A0E1A",
+    backgroundColor: "#FFFFFF",
   },
   container: {
     flex: 1,
@@ -700,32 +1288,25 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "600",
   },
-  pageHeader: {
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#B5B8C9",
-  },
   panel: {
     borderRadius: 18,
     borderWidth: 1.2,
-    borderColor: "rgba(255,255,255,0.16)",
-    backgroundColor: "rgba(255,255,255,0.07)",
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
     padding: 16,
+    marginTop: 20,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   progressContainer: {
     marginBottom: 24,
   },
   progressBar: {
     height: 6,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "#E5E7EB",
     borderRadius: 3,
     overflow: "hidden",
     marginBottom: 8,
@@ -737,7 +1318,7 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: 13,
-    color: "#B5B8C9",
+    color: "#6B7280",
     textAlign: "center",
   },
   stepContainer: {
@@ -750,13 +1331,13 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 20,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: "#111827",
     marginTop: 12,
     marginBottom: 6,
   },
   stepSubtitle: {
     fontSize: 14,
-    color: "#B5B8C9",
+    color: "#4B5563",
   },
   photoBlock: {
     alignItems: "center",
@@ -766,16 +1347,16 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.white,
+    color: "#374151",
     marginBottom: 10,
   },
   photoCircle: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "#F9FAFB",
     borderWidth: 2,
-    borderColor: "rgba(232,201,122,0.45)",
+    borderColor: "#E5E7EB",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -796,12 +1377,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#0A0E1A",
+    borderColor: "#FFFFFF",
   },
   photoHint: {
     marginTop: 10,
     fontSize: 13,
-    color: "#B5B8C9",
+    color: "#6B7280",
     textAlign: "center",
     paddingHorizontal: 8,
   },
@@ -818,12 +1399,12 @@ const styles = StyleSheet.create({
   mapSectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#111827",
     marginBottom: 8,
   },
   mapHint: {
     fontSize: 13,
-    color: "#B5B8C9",
+    color: "#4B5563",
     lineHeight: 19,
     marginBottom: 12,
   },
@@ -832,8 +1413,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(232,201,122,0.35)",
-    backgroundColor: "rgba(0,0,0,0.25)",
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
   },
   map: {
     width: "100%",
@@ -861,14 +1442,14 @@ const styles = StyleSheet.create({
   coordsReadout: {
     marginTop: 10,
     fontSize: 12,
-    color: "rgba(232,201,122,0.95)",
+    color: "#92400E",
     fontWeight: "600",
     letterSpacing: 0.2,
   },
   mapError: {
     marginTop: 6,
     fontSize: 12,
-    color: "#fecaca",
+    color: "#DC2626",
   },
   coordinatesContainer: {
     flexDirection: "row",
@@ -880,13 +1461,13 @@ const styles = StyleSheet.create({
   pendingNotice: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "rgba(232,201,122,0.10)",
+    backgroundColor: "#FFFBEB",
     padding: 12,
     borderRadius: 12,
     gap: 10,
     marginTop: 4,
     borderWidth: 1,
-    borderColor: "rgba(232,201,122,0.22)",
+    borderColor: "#FDE68A",
   },
   pendingNoticeText: {
     flex: 1,
@@ -894,13 +1475,215 @@ const styles = StyleSheet.create({
   pendingNoticeTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#F3E5B8",
+    color: "#92400E",
     marginBottom: 4,
   },
   pendingNoticeDescription: {
     fontSize: 12,
-    color: "#E8E6F0",
+    color: "#374151",
     lineHeight: 17,
+  },
+  sectionLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 6,
+  },
+  sectionHint: {
+    fontSize: 13,
+    color: "#4B5563",
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  serviceErrorRow: {
+    marginVertical: 12,
+    gap: 8,
+  },
+  serviceErrorText: {
+    color: "#DC2626",
+    fontSize: 13,
+  },
+  retryText: {
+    color: ACCENT,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  premiumHintCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  premiumHintText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#92400E",
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  categoryListWrap: {
+    gap: 10,
+  },
+  categoryCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+    overflow: "hidden",
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  categoryTitleWrap: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  categoryTitle: {
+    color: "#111827",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  categoryCount: {
+    marginTop: 2,
+    color: "#6B7280",
+    fontSize: 12,
+  },
+  serviceOptionList: {
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    padding: 10,
+    gap: 8,
+  },
+  serviceOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#F9FAFB",
+  },
+  serviceOptionSelected: {
+    borderColor: "#C9A84C",
+    backgroundColor: "#FEF3C7",
+  },
+  serviceOptionText: {
+    flex: 1,
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  serviceOptionTextSelected: {
+    color: "#92400E",
+  },
+  docRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#F9FAFB",
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  docThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: "#E5E7EB",
+  },
+  docThumbPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  docRowText: {
+    flex: 1,
+  },
+  docRowTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  docFileName: {
+    marginTop: 4,
+    fontSize: 11,
+    color: "#9CA3AF",
+  },
+  addDocButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.2,
+    borderColor: "#C9A84C",
+    borderStyle: "dashed",
+    marginTop: 4,
+  },
+  addDocButtonText: {
+    color: ACCENT,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  fieldError: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#DC2626",
+  },
+  typeModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.32)",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  typeModalCard: {
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingVertical: 8,
+    maxHeight: "70%",
+  },
+  typeModalTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#111827",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  typeModalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+  },
+  typeModalRowText: {
+    fontSize: 16,
+    color: "#374151",
+    flex: 1,
   },
   footer: {
     position: "absolute",
@@ -908,22 +1691,55 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 24,
-    backgroundColor: "rgba(10,14,26,0.94)",
+    backgroundColor: "rgba(255,255,255,0.96)",
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.10)",
+    borderTopColor: "#E5E7EB",
     flexDirection: "row",
     gap: 12,
     alignItems: "stretch",
   },
-  footerBackButton: {
+  stepBackFab: {
+    width: 54,
+    borderRadius: 14,
+    borderWidth: 1.2,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F9FAFB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepPrimaryButton: {
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: "#FEF3C7",
+    borderWidth: 1.2,
+    borderColor: "#C9A84C",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  stepPrimaryButtonFull: {
     flex: 1,
-    borderColor: ACCENT,
   },
-  footerOutlineText: {
-    color: ACCENT,
+  stepPrimaryButtonWithBack: {
+    flex: 2,
   },
-  submitButton: {
-    minWidth: 0,
+  stepPrimaryButtonDisabled: {
+    opacity: 0.7,
+  },
+  stepPrimaryButtonText: {
+    color: "#111827",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  stepPrimaryIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#FDE68A",
+    alignItems: "center",
+    justifyContent: "center",
   },
   rtlText: {
     textAlign: "right",

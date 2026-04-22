@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 16,
-    minHeight: 56,
+    height: 56,
   },
   inputError: {
     borderColor: COLORS.error,
@@ -109,7 +109,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: COLORS.text.primary,
-    paddingVertical: 16,
+    height: 56,
+    paddingVertical: 0,
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   inputWithLeftIcon: {
     paddingLeft: 8,

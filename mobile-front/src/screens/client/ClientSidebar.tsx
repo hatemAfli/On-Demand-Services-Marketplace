@@ -7,9 +7,9 @@ import {
   I18nManager,
   useWindowDimensions,
   Image,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants";
 import type { ClientStackParamList } from "../../navigation/types";
@@ -21,6 +21,7 @@ import { useAppTranslation } from "../../hooks/useAppTranslation";
 type Props = {
   isOpen: boolean;
   onClose: () => void;
+  currentRouteName?: keyof ClientStackParamList;
 };
 
 const MENU_ITEMS: {
@@ -78,7 +79,11 @@ const MENU_ITEMS: {
 const VERTICAL_MARGIN = 14;
 const HORIZONTAL_MARGIN = 8;
 
-export const ClientSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
+export const ClientSidebar: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  currentRouteName,
+}) => {
   const { user, logout } = useAuth();
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
@@ -115,10 +120,7 @@ export const ClientSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
       ]}
       pointerEvents={isOpen ? "auto" : "none"}
     >
-      <LinearGradient
-        colors={["#0b1020", "#1f1b4a", "#2b1b77"]}
-        style={styles.headerGradient}
-      >
+      <View style={styles.headerGradient}>
         <TouchableOpacity
           style={styles.closeButton}
           onPress={onClose}
@@ -126,67 +128,78 @@ export const ClientSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
           accessibilityRole="button"
           accessibilityLabel={t("client.a11y.closeSidebar")}
         >
-          <Ionicons name="close" size={26} color="rgba(255,255,255,0.92)" />
+          <Ionicons name="close" size={24} color="#334155" />
         </TouchableOpacity>
 
         <View style={styles.profileBlock}>
-          <View style={styles.avatarOuter}>
-            <View style={styles.avatarInner}>
-              {avatarUri ? (
-                <Image
-                  source={{ uri: avatarUri }}
-                  style={styles.avatarImage}
-                  accessibilityIgnoresInvertColors
-                />
-              ) : (
-                <Ionicons name="person" size={26} color={COLORS.primaryLight} />
-              )}
+          <View style={styles.profileTopRow}>
+            <View style={styles.avatarOuter}>
+              <View style={styles.avatarInner}>
+                {avatarUri ? (
+                  <Image
+                    source={{ uri: avatarUri }}
+                    style={styles.avatarImage}
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : (
+                  <Ionicons name="person" size={26} color="#4F46E5" />
+                )}
+              </View>
+            </View>
+            <View style={styles.profileMeta}>
+              <Text
+                style={[
+                  styles.nameText,
+                  { textAlign: I18nManager.isRTL ? "right" : "left" },
+                ]}
+                numberOfLines={2}
+              >
+                {(user?.firstName ?? "") + " " + (user?.lastName ?? "")}
+              </Text>
+              <View style={styles.statusRow}>
+                <View style={styles.statusDot} />
+                <Text style={styles.statusText}>{statusLabel}</Text>
+              </View>
             </View>
           </View>
-
-          <Text
-            style={[
-              styles.nameText,
-              { textAlign: I18nManager.isRTL ? "right" : "left" },
-            ]}
-            numberOfLines={2}
-          >
-            {(user?.firstName ?? "") + " " + (user?.lastName ?? "")}
-          </Text>
-
-          <View style={styles.statusRow}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>{statusLabel}</Text>
-          </View>
         </View>
-      </LinearGradient>
+      </View>
 
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.sectionTitle}>{t("client.sidebar.mySpace")}</Text>
 
-        {MENU_ITEMS.map((item) => (
-          <TouchableOpacity
-            key={item.key}
-            style={styles.itemRow}
-            onPress={() => {
-              navigation.navigate(item.key);
-              onClose();
-            }}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={item.icon}
-              size={20}
-              color="rgba(255,255,255,0.9)"
-            />
-            <Text style={styles.itemLabel}>{t(item.labelKey)}</Text>
-            <Ionicons
-              name={I18nManager.isRTL ? "chevron-back" : "chevron-forward"}
-              size={16}
-              color="rgba(255,255,255,0.35)"
-            />
-          </TouchableOpacity>
-        ))}
+        {MENU_ITEMS.map((item) => {
+          const isActive = item.key === currentRouteName;
+          return (
+            <TouchableOpacity
+              key={item.key}
+              style={[styles.itemRow, isActive && styles.itemRowActive]}
+              onPress={() => {
+                navigation.navigate(item.key);
+                onClose();
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={item.icon}
+                size={20}
+                color={isActive ? "#4338ca" : "#4F46E5"}
+              />
+              <Text style={[styles.itemLabel, isActive && styles.itemLabelActive]}>
+                {t(item.labelKey)}
+              </Text>
+              <Ionicons
+                name={I18nManager.isRTL ? "chevron-back" : "chevron-forward"}
+                size={16}
+                color={isActive ? "#6366f1" : "#9ca3af"}
+              />
+            </TouchableOpacity>
+          );
+        })}
 
         <View style={styles.separator} />
 
@@ -195,47 +208,54 @@ export const ClientSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
           onPress={handleLogout}
           activeOpacity={0.85}
         >
-          <Ionicons name="log-out-outline" size={20} color="#fecaca" />
+          <Ionicons name="log-out-outline" size={20} color="#ef4444" />
           <Text style={[styles.itemLabel, styles.logoutLabel]}>
             {t("client.sidebar.logout")}
           </Text>
           <Ionicons
             name={I18nManager.isRTL ? "chevron-back" : "chevron-forward"}
             size={16}
-            color="rgba(255,255,255,0.35)"
+            color="#f87171"
           />
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   drawer: {
-    backgroundColor: "#0b1020",
-    borderRadius: 18,
+    backgroundColor: "#ffffff",
+    borderRadius: 24,
     overflow: "hidden",
     flex: 1,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
   },
   headerGradient: {
-    paddingTop: 12,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 18,
+    paddingHorizontal: 18,
     position: "relative",
+    backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
   },
   closeButton: {
     position: "absolute",
-    top: 8,
-    end: 8,
+    top: 10,
+    end: 10,
     zIndex: 2,
-    padding: 4,
+    padding: 6,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   profileBlock: {
     alignItems: "flex-start",
@@ -243,22 +263,33 @@ const styles = StyleSheet.create({
     paddingEnd: 48,
     maxWidth: "100%",
   },
-  avatarOuter: {
-    width: 64,
-    height: 64,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.14)",
+  profileTopRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 12,
     marginBottom: 8,
   },
-  avatarInner: {
-    width: 54,
-    height: 54,
+  profileMeta: {
+    justifyContent: "center",
+    flex: 1,
+  },
+  avatarOuter: {
+    width: 68,
+    height: 68,
     borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.22)",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderColor: "#e2e8f0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInner: {
+    width: 58,
+    height: 58,
+    borderRadius: 999,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#dbeafe",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -269,12 +300,11 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   nameText: {
-    color: COLORS.white,
-    fontSize: 15,
+    color: "#0f172a",
+    fontSize: 16,
     fontWeight: "800",
     letterSpacing: 0.2,
-    marginBottom: 6,
-    alignSelf: "stretch",
+    marginBottom: 4,
   },
   statusRow: {
     flexDirection: "row",
@@ -287,21 +317,24 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.secondaryLight,
+    backgroundColor: "#22c55e",
   },
   statusText: {
-    color: "rgba(255,255,255,0.92)",
+    color: "#475569",
     fontSize: 13,
     fontWeight: "700",
   },
   content: {
+    flex: 1,
     paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 12,
+  },
+  contentContainer: {
+    paddingTop: 10,
+    paddingBottom: 16,
     flexGrow: 1,
   },
   sectionTitle: {
-    color: "rgba(255,255,255,0.65)",
+    color: "#64748b",
     fontWeight: "800",
     fontSize: 12,
     textTransform: "uppercase",
@@ -316,28 +349,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 14,
     gap: 12,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
     marginBottom: 8,
+  },
+  itemRowActive: {
+    backgroundColor: "#eef2ff",
+    borderColor: "#c7d2fe",
   },
   itemLabel: {
     flex: 1,
-    color: "rgba(255,255,255,0.92)",
+    color: "#0f172a",
     fontSize: 14,
     fontWeight: "800",
   },
+  itemLabelActive: {
+    color: "#312e81",
+  },
   separator: {
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "#e2e8f0",
     marginTop: 14,
     marginBottom: 10,
   },
   logoutRow: {
-    backgroundColor: "rgba(239,68,68,0.14)",
+    backgroundColor: "#fff1f2",
     borderWidth: 1,
-    borderColor: "rgba(248,113,113,0.35)",
+    borderColor: "#fecdd3",
     marginTop: 4,
   },
   logoutLabel: {
-    color: "#fecaca",
+    color: "#b91c1c",
   },
 });

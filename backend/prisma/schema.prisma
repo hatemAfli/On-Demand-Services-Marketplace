@@ -9,8 +9,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DIRECT_URL")
+  provider  = "postgresql"
+  url       = env("DIRECT_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -21,6 +21,7 @@ enum UserRole {
   COMPANY_ADMIN
   PLATFORM_ADMIN
 }
+
 enum AccountStatus {
   PENDING
   ACTIVE
@@ -28,48 +29,93 @@ enum AccountStatus {
   SUSPENDED
   DELETED
 }
+
 enum ProviderType {
   INDEPENDENT
   EMPLOYEE
 }
 
+/// Who submitted the verification (provider user vs company representative, etc.).
+enum OwnerType {
+  PROVIDER
+  COMPANY
+}
+
+enum DocumentType {
+  IDENTITY
+  LICENSE
+  QUALIFICATION
+  INSURANCE
+  OTHER
+}
+
+enum ReviewStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum PricingType {
+  FIXED
+  HOURLY
+}
+
+enum Locale {
+  EN
+  AR
+}
+
+enum LegalDocumentType {
+  TERMS
+  PRIVACY
+}
+
+enum LegalDocumentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 // User Model (synced with Supabase Auth)
 model User {
-  id                String        @id @db.Uuid
-  email             String        @unique
-  phoneNumber       String?       @unique @map("phone_number")
-  firstName         String        @map("first_name")
-  lastName          String        @map("last_name")
-  role              UserRole      @default(CLIENT)
-  status            AccountStatus @default(PENDING)
-  isEmailVerified   Boolean       @default(false) @map("is_email_verified")
-  isPhoneVerified   Boolean       @default(false) @map("is_phone_verified")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  id              String        @id @db.Uuid
+  email           String        @unique
+  phoneNumber     String?       @unique @map("phone_number")
+  firstName       String        @map("first_name")
+  lastName        String        @map("last_name")
+  role            UserRole      @default(CLIENT)
+  status          AccountStatus @default(PENDING)
+  isEmailVerified Boolean       @default(false) @map("is_email_verified")
+  isPhoneVerified Boolean       @default(false) @map("is_phone_verified")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
 
   /// Relations
-  client            Client?
-  provider          Provider?
-  companyAdmin      CompanyAdmin?
-  platformAdmin     PlatformAdmin?
+  client                     Client?
+  provider                   Provider?
+  companyAdmin               CompanyAdmin?
+  platformAdmin              PlatformAdmin?
+  documents                  Document[]
+  verificationProfilRequests VerificationProfilRequest[]
+  legalAcceptances           UserLegalAcceptance[]
 
   @@map("users")
 }
 
-
 // Client Model 
 model Client {
-  id         String   @id @db.Uuid
+  id String @id @db.Uuid
 
-  city       String
-  address    String?
-  imageUrl   String?  @map("image_url")
+  city     String
+  address  String?
+  imageUrl String? @map("image_url")
 
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   /// Relations
-  user       User     @relation(fields: [id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [id], references: [id], onDelete: Cascade)
 
   @@map("clients")
 }
@@ -77,40 +123,40 @@ model Client {
 // Provider-specific details
 //add qualificationDocuments  String[]     @map("qualification_documents")
 model Provider {
-  id                      String       @id @db.Uuid
-  
-  type             ProviderType @default(INDEPENDENT)
-  city             String
-  address          String?
-  latitude         Float?
-  longitude        Float?
-  photoUrl         String?       @map("photo_url")
-  averageRating           Decimal?     @default(0) @db.Decimal(3, 2)
-  totalReviews            Int          @default(0) @map("total_reviews")
-  cancellationRate        Decimal?     @default(0) @db.Decimal(5, 2)
-  averageResponseTime     Decimal?     @map("average_response_time") @db.Decimal(10, 2)
-  isTopProvider           Boolean      @default(false) @map("is_top_provider")
-  companyId               String?      @map("company_id") @db.Uuid
-  createdAt               DateTime     @default(now()) @map("created_at")
-  updatedAt               DateTime     @updatedAt @map("updated_at")
+  id String @id @db.Uuid
+
+  type                ProviderType @default(INDEPENDENT)
+  city                String
+  address             String?
+  latitude            Float?
+  longitude           Float?
+  photoUrl            String?      @map("photo_url")
+  averageRating       Decimal?     @default(0) @db.Decimal(3, 2)
+  totalReviews        Int          @default(0) @map("total_reviews")
+  cancellationRate    Decimal?     @default(0) @db.Decimal(5, 2)
+  averageResponseTime Decimal?     @map("average_response_time") @db.Decimal(10, 2)
+  isTopProvider       Boolean      @default(false) @map("is_top_provider")
+  companyId           String?      @map("company_id") @db.Uuid
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
 
   // Relations
-  user    User            @relation(fields: [id], references: [id], onDelete: Cascade)
-  company Company? @relation("CompanyProviders", fields: [companyId], references: [id])
+  user          User           @relation(fields: [id], references: [id], onDelete: Cascade)
+  company       Company?       @relation("CompanyProviders", fields: [companyId], references: [id])
 
   @@map("providers")
 }
 
 // company Admin model
 model CompanyAdmin {
-  id                String   @id @db.Uuid
-  companyId         String @unique  @map("company_id") @db.Uuid
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id        String   @id @db.Uuid
+  companyId String   @unique @map("company_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  user      User              @relation(fields: [id], references: [id], onDelete: Cascade)
-  company   Company?   @relation
+  user    User     @relation(fields: [id], references: [id], onDelete: Cascade)
+  company Company? @relation
 
   @@map("company_admins")
 }
@@ -118,39 +164,263 @@ model CompanyAdmin {
 // Company-specific details
 // add legalDocuments, employees, calendar
 model Company {
-  id                String   @id @default(uuid()) @db.Uuid
-  adminId   String    @unique  @db.Uuid
-  
-  legalName         String   @map("legal_name")
-  commercialName    String   @map("commercial_name")
-  photoUrl         String?  @map("photo_url")
-  city             String
-  address          String?
-  latitude         Float?
-  longitude        Float?
-  serviceZones      String[] @map("service_zones")
-  mainContact       String   @map("main_contact")
-  averageRating     Decimal? @default(0) @db.Decimal(3, 2)
-  totalReviews      Int      @default(0) @map("total_reviews")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id      String  @id @default(uuid()) @db.Uuid
+  /// Set after `CompanyAdmin` row is created (bootstrap avoids a circular FK insert).
+  /// DB column is `adminId` (legacy from initial migration).
+  adminId String? @unique @db.Uuid
+
+  companyName    String   @map("company_name")
+  taxId          String   @map("tax_id")
+  logo           String?  @map("logo")
+  city           String
+  address        String?
+  latitude       Float?
+  longitude      Float?
+  serviceZones   String[] @default([]) @map("service_zones")
+  email    String?   @map("email")
+  averageRating  Decimal? @default(0) @db.Decimal(3, 2)
+  totalReviews   Int      @default(0) @map("total_reviews")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   // Relations
-  providers Provider[] @relation("CompanyProviders")
-  admin     CompanyAdmin @relation(fields: [adminId], references: [id]) 
+  providers     Provider[]     @relation("CompanyProviders")
+  admin         CompanyAdmin?  @relation(fields: [adminId], references: [id])
 
   @@map("companies")
 }
 
+
+
 // Platform Admins model
 model PlatformAdmin {
-  id        String   @id @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          String   @id @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
   permissions String[] @map("permissions")
 
   // Relations
-  user      User     @relation(fields: [id], references: [id], onDelete: Cascade)
+  user                         User                   @relation(fields: [id], references: [id], onDelete: Cascade)
+  createdLegalDocumentVersions LegalDocumentVersion[]
 
   @@map("platform_admins")
 }
+
+/// One row per legal document type (TERMS/PRIVACY). Localized fields live in `LegalDocumentTranslation`.
+model LegalDocument {
+  id String @id @default(uuid()) @db.Uuid
+  /// Stable type key: only one legal "Terms" and one legal "Privacy".
+  type           LegalDocumentType @unique
+  currentVersion Int               @default(0) @map("current_version")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  versions LegalDocumentVersion[]
+
+  @@map("legal_documents")
+}
+
+/// Version history and publish state for legal documents.
+model LegalDocumentVersion {
+  id String @id @default(uuid()) @db.Uuid
+  documentId String @map("document_id") @db.Uuid
+  version Int
+  status LegalDocumentStatus @default(DRAFT)
+  publishedAt      DateTime?           @map("published_at")
+  createdByAdminId String?             @map("created_by_admin_id") @db.Uuid
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  document        LegalDocument         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdByAdmin  PlatformAdmin?        @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  translations    LegalDocumentTranslation[]
+  acceptances     UserLegalAcceptance[]
+
+  @@unique([documentId, version])
+  @@index([documentId, status, version])
+  @@index([status, publishedAt])
+  @@map("legal_document_versions")
+}
+
+/// One row per legal document version + locale (EN/AR).
+model LegalDocumentTranslation {
+  id String @id @default(uuid()) @db.Uuid
+  documentVersionId String @map("document_version_id") @db.Uuid
+  locale Locale
+  title String
+  contentMarkdown String @map("content_markdown") @db.Text
+  summary String? @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  documentVersion LegalDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([documentVersionId, locale])
+  @@index([documentVersionId])
+  @@index([locale])
+  @@map("legal_document_translations")
+}
+
+/// Audit trail for which legal version each user accepted.
+model UserLegalAcceptance {
+  id                String               @id @default(uuid()) @db.Uuid
+  userId            String               @map("user_id") @db.Uuid
+  documentVersionId String               @map("document_version_id") @db.Uuid
+  acceptedAt        DateTime             @default(now()) @map("accepted_at")
+  ipAddress         String?              @map("ip_address")
+  userAgent         String?              @map("user_agent") @db.Text
+
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentVersion LegalDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, documentVersionId])
+  @@index([userId, acceptedAt])
+  @@index([documentVersionId])
+  @@map("user_legal_acceptances")
+}
+
+/// Admin-managed marketplace category (name, slug, icons for mobile).
+model ServiceCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Stable key for APIs and deep links (e.g. "cleaning", "food").
+  slug      String   @unique
+  /// Optional preset icon id for clients (e.g. FontAwesome5 glyph name: "car", "broom").
+  iconKey   String?  @map("icon_key")
+  /// Optional custom icon image URL (uploaded asset).
+  iconUrl   String?  @map("icon_url")
+  sortOrder Int      @default(0) @map("sort_order")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  services     Service[]
+  translations ServiceCategoryTranslation[]
+
+  @@index([active, sortOrder])
+  @@map("service_categories")
+}
+
+/// Catalog service a provider applies for; belongs to one `ServiceCategory`.
+model Service {
+  id         String   @id @default(uuid()) @db.Uuid
+  categoryId String   @map("category_id") @db.Uuid
+  active     Boolean  @default(true)
+  servicePhoto String? @map("service_photo")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  category                   ServiceCategory             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  givenServices              GivenService[]
+  verificationProfilRequests VerificationProfilRequest[]
+  translations               ServiceTranslation[]
+
+  @@index([categoryId])
+  @@index([active, categoryId])
+  @@map("services")
+}
+
+model ServiceCategoryTranslation {
+  id         String   @id @default(uuid()) @db.Uuid
+  categoryId String   @map("category_id") @db.Uuid
+  locale     Locale
+  name       String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  category ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, locale])
+  @@index([locale, name])
+  @@map("service_category_translations")
+}
+
+model ServiceTranslation {
+  id          String   @id @default(uuid()) @db.Uuid
+  serviceId   String   @map("service_id") @db.Uuid
+  locale      Locale
+  name        String
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, locale])
+  @@index([locale, name])
+  @@map("service_translations")
+}
+
+/// A concrete service offer created by provider/company for marketplace publishing.
+model GivenService {
+  id          String      @id @default(uuid()) @db.Uuid
+  serviceId   String      @map("service_id") @db.Uuid
+  pricingType PricingType @map("pricing_type")
+  price       Float
+  ownerType   OwnerType   @map("owner_type")
+  ownerId     String      @map("owner_id") @db.Uuid
+  active      Boolean     @default(false)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  service   Service          @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  galleries ServiceGallery[]
+
+  @@index([serviceId])
+  @@index([ownerType, ownerId])
+  @@index([active])
+  @@map("given_services")
+}
+
+model ServiceGallery {
+  id             String @id @default(uuid()) @db.Uuid
+  givenServiceId String @map("given_service_id") @db.Uuid
+  imageUrl       String @map("image_url")
+
+  givenService GivenService @relation(fields: [givenServiceId], references: [id], onDelete: Cascade)
+
+  @@index([givenServiceId])
+  @@map("service_gallery")
+}
+
+/// Uploaded file metadata; provider verification files belong to one `VerificationProfilRequest`.
+model Document {
+  id                    String       @id @default(uuid()) @db.Uuid
+  ownerUserId           String       @map("owner_user_id") @db.Uuid
+  verificationRequestId String       @map("verification_request_id") @db.Uuid
+  type                  DocumentType
+  fichierUrl            String       @map("fichier_url")
+  uploadedAt            DateTime     @default(now()) @map("uploaded_at")
+  validatedAt           DateTime?    @map("validated_at")
+
+  ownerUser           User                      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  verificationRequest VerificationProfilRequest @relation(fields: [verificationRequestId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId])
+  @@index([verificationRequestId])
+  @@index([type])
+  @@map("documents")
+}
+
+/// Provider: one catalog service + documents. Company: documents only (`serviceId` null).
+model VerificationProfilRequest {
+  id            String       @id @default(uuid()) @db.Uuid
+  userId        String       @map("user_id") @db.Uuid
+  ownerType     OwnerType    @map("owner_type")
+  serviceId     String?      @map("service_id") @db.Uuid
+  requestStatus ReviewStatus @default(PENDING) @map("request_status")
+  adminComment  String?      @map("admin_comment") @db.Text
+  ownerComment  String?      @map("owner_comment") @db.Text
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  service   Service?   @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  documents Document[]
+
+  @@index([userId])
+  @@index([serviceId])
+  @@index([requestStatus])
+  @@map("verification_profil_requests")
+}
+
+

@@ -66,11 +66,23 @@ function kindToContentType(kind: ImageKind): string {
   }
 }
 
+function buildUniqueFileName(ext: string): string {
+  const stamp = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `${stamp}-${rand}.${ext}`;
+}
+
 /**
- * Object key: `avatars/{userId}/profile.{ext}` with ext jpg | png | webp
+ * Object key: `avatars/{userId}/{fileName}`.
+ * Using a unique file name per upload prevents stale image caches.
  */
-export function clientAvatarStoragePath(userId: string, ext: string): string {
-  return `avatars/${userId}/profile.${ext}`;
+export function clientAvatarStoragePath(
+  userId: string,
+  ext: string,
+  fileName?: string,
+): string {
+  const safeName = fileName?.trim() || buildUniqueFileName(ext);
+  return `avatars/${userId}/${safeName}`;
 }
 
 async function readLocalFileAsArrayBuffer(uri: string): Promise<ArrayBuffer> {
@@ -117,7 +129,7 @@ export async function uploadClientProfileAvatar(
     .from(AVATAR_BUCKET)
     .upload(path, arrayBuffer, {
       contentType,
-      upsert: true,
+      upsert: false,
     });
 
   if (error) {

@@ -19,7 +19,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import { Button, Input, LanguageSwitcher } from "../../components/common";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../services/supabase";
 import {
@@ -28,7 +27,7 @@ import {
 } from "../../services/clientAvatarUpload";
 import { COLORS } from "../../constants";
 
-const ACCENT = "#E8C97A";
+const ACCENT = "#C9A84C";
 
 interface CompleteProfileClientScreenProps {
   navigation: NativeStackNavigationProp<any>;
@@ -197,14 +196,9 @@ export const CompleteProfileClientScreen: React.FC<
   return (
     <View style={styles.root}>
       <StatusBar
-        barStyle="light-content"
+        barStyle="dark-content"
         translucent
         backgroundColor="transparent"
-      />
-      <LinearGradient
-        colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
-        locations={[0, 0.35, 0.7, 1]}
-        style={StyleSheet.absoluteFillObject}
       />
       <KeyboardAvoidingView
         style={styles.container}
@@ -230,15 +224,6 @@ export const CompleteProfileClientScreen: React.FC<
               <Text style={styles.navBackText}>← {t("common.back")}</Text>
             </TouchableOpacity>
             <LanguageSwitcher />
-          </View>
-
-          <View style={styles.pageHeader}>
-            <Text style={[styles.title, isRTL && styles.rtlText]}>
-              {t("completeProfile.title")}
-            </Text>
-            <Text style={[styles.subtitle, isRTL && styles.rtlText]}>
-              {t("completeProfile.subtitle")}
-            </Text>
           </View>
 
           <View style={styles.panel}>
@@ -361,7 +346,7 @@ export const CompleteProfileClientScreen: React.FC<
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#0A0E1A",
+    backgroundColor: "#FFFFFF",
   },
   container: {
     flex: 1,
@@ -387,30 +372,23 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "600",
   },
-  pageHeader: {
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#B5B8C9",
-  },
   panel: {
     borderRadius: 18,
     borderWidth: 1.2,
-    borderColor: "rgba(255,255,255,0.16)",
-    backgroundColor: "rgba(255,255,255,0.07)",
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
     padding: 16,
+    marginTop: 20,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#111827",
     marginBottom: 16,
   },
   photoBlock: {
@@ -421,16 +399,16 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     fontSize: 14,
     fontWeight: "600",
-    color: COLORS.white,
+    color: "#374151",
     marginBottom: 10,
   },
   photoCircle: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "#F9FAFB",
     borderWidth: 2,
-    borderColor: "rgba(232,201,122,0.45)",
+    borderColor: "#E5E7EB",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -451,12 +429,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#0A0E1A",
+    borderColor: "#FFFFFF",
   },
   photoHint: {
     marginTop: 10,
     fontSize: 13,
-    color: "#B5B8C9",
+    color: "#6B7280",
     textAlign: "center",
     paddingHorizontal: 8,
   },
@@ -466,18 +444,18 @@ const styles = StyleSheet.create({
   locationTip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(232,201,122,0.10)",
+    backgroundColor: "#FFFBEB",
     padding: 12,
     borderRadius: 12,
     gap: 10,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: "rgba(232,201,122,0.22)",
+    borderColor: "#FDE68A",
   },
   locationTipText: {
     flex: 1,
     fontSize: 13,
-    color: "#E8E6F0",
+    color: "#374151",
     lineHeight: 18,
   },
   footer: {
@@ -486,9 +464,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 24,
-    backgroundColor: "rgba(10,14,26,0.94)",
+    backgroundColor: "rgba(255,255,255,0.96)",
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.10)",
+    borderTopColor: "#E5E7EB",
   },
   submitButton: {
     minWidth: 0,

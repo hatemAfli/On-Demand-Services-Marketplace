@@ -7,8 +7,8 @@ import { useAuth, getRoleFromSession } from "../context/AuthContext";
 import { AuthNavigator } from "./AuthNavigator";
 import { ClientOverlayNavigator } from "./ClientOverlayNavigator";
 import { ProviderSpaceRouter } from "./ProviderSpaceRouter";
-import { CompanyDashboardScreen } from "../screens/company/CompanyDashboardScreen";
-import { AdminPlatformDashboardScreen } from "../screens/admin";
+import { CompanySpaceRouter } from "./CompanySpaceRouter";
+import { AdminNavigator } from "../screens/admin";
 import { UserRole } from "../types";
 import { COLORS } from "../constants";
 
@@ -38,9 +38,9 @@ export const AppNavigator: React.FC = () => {
       case UserRole.PROVIDER:
         return <ProviderSpaceRouter />;
       case UserRole.COMPANY_ADMIN:
-        return <CompanyDashboardScreen />;
+        return <CompanySpaceRouter />;
       case UserRole.PLATFORM_ADMIN:
-        return <AdminPlatformDashboardScreen />;
+        return <AdminNavigator />;
       default:
         return <ClientOverlayNavigator />;
     }

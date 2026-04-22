@@ -1,57 +1,130 @@
-import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "../../navigation/types";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
+import { api } from "../../services/api";
+import { LegalMarkdownRenderer } from "../../components/common/LegalMarkdownRenderer";
 
 interface PrivacyScreenProps {
   navigation: NativeStackNavigationProp<AuthStackParamList, "Privacy">;
 }
 
 export const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation }) => {
-  const { isRTL, t } = useAppTranslation();
+  const { isRTL, t, language } = useAppTranslation();
+  const [loading, setLoading] = useState(true);
+  const [content, setContent] = useState<string | null>(null);
+  const [title, setTitle] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.getLatestLegalDocument("PRIVACY");
+        if (!mounted) return;
+        setTitle(res.data.title);
+        setContent(res.data.contentMarkdown);
+      } catch (e) {
+        if (!mounted) return;
+        const maybeMessage = (e as { response?: { data?: { message?: unknown } } })
+          ?.response?.data?.message;
+        if (typeof maybeMessage === "string") setError(maybeMessage);
+        else setError(t("common.error", { defaultValue: "Error" }));
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      mounted = false;
+    };
+  }, [language, t]);
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Text style={styles.back}>← {t("common.back")}</Text>
         </TouchableOpacity>
         <Text style={[styles.title, isRTL && styles.rtl]}>
-          {t("legal.privacyTitle", { defaultValue: "Privacy Policy" })}
+          {title ?? t("legal.privacyTitle", { defaultValue: "Privacy Policy" })}
         </Text>
       </View>
+
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.paragraph, isRTL && styles.rtl]}>
-          {t("legal.privacyP1", {
-            defaultValue:
-              "We collect only the data needed to provide account access and service matching, such as profile details and authentication information.",
-          })}
-        </Text>
-        <Text style={[styles.paragraph, isRTL && styles.rtl]}>
-          {t("legal.privacyP2", {
-            defaultValue:
-              "Your data is processed securely and used to operate and improve platform features.",
-          })}
-        </Text>
-        <Text style={[styles.paragraph, isRTL && styles.rtl]}>
-          {t("legal.privacyP3", {
-            defaultValue:
-              "You can request updates or deletion of personal information through support channels.",
-          })}
-        </Text>
+        <View style={styles.card}>
+          {loading ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator color="#111827" />
+              <Text style={styles.loadingText}>Loading latest privacy policy...</Text>
+            </View>
+          ) : (
+            <>
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={[styles.error, isRTL && styles.rtl]}>{error}</Text>
+                </View>
+              ) : null}
+              <LegalMarkdownRenderer
+                markdown={content?.trim() ?? ""}
+                isRTL={isRTL}
+              />
+            </>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0A0E1A" },
-  header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 6 },
-  back: { color: "#E8C97A", fontSize: 15, fontWeight: "600" },
-  title: { color: "#FFFFFF", fontSize: 24, fontWeight: "700", marginTop: 12 },
-  content: { padding: 20, gap: 14 },
-  paragraph: { color: "#B5B8C9", lineHeight: 22, fontSize: 15 },
+  safe: { flex: 1, backgroundColor: "#FFFFFF" },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  backButton: {
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+    paddingRight: 8,
+  },
+  back: { color: "#111827", fontSize: 15, fontWeight: "600" },
+  title: {
+    color: "#111827",
+    fontSize: 26,
+    fontWeight: "800",
+    marginTop: 20,
+  },
+  content: { padding: 20, paddingTop: 4 },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 16,
+  },
+  loadingWrap: { alignItems: "center", paddingVertical: 24, gap: 10 },
+  loadingText: { color: "#6B7280", fontSize: 13 },
+  errorBox: {
+    borderRadius: 10,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    padding: 10,
+    marginBottom: 12,
+  },
+  error: { color: "#B91C1C", lineHeight: 20, fontSize: 13 },
   rtl: { textAlign: "right", writingDirection: "rtl" },
 });

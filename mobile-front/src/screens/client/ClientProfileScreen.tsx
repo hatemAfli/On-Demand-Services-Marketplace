@@ -10,14 +10,18 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Image,
+  StatusBar,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
-import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Button, Input } from "../../components/common";
+import { COLORS } from "../../constants";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../services/api";
@@ -28,7 +32,9 @@ import {
 } from "../../services/clientAvatarUpload";
 import type { UserWithProfile } from "../../types";
 
-const ACCENT = "#E8C97A";
+const PAGE_BG = "#F8FAFC";
+const CARD_BORDER = "#F3F4F6";
+const INDIGO_SOFT = "#EEF2FF";
 
 type FormState = {
   firstName: string;
@@ -292,36 +298,35 @@ export const ClientProfileScreen: React.FC = () => {
 
   if (initialLoading && !hasLoadedSuccessfullyRef.current) {
     return (
-      <View style={styles.centered}>
-        <LinearGradient
-          colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
-          style={StyleSheet.absoluteFillObject}
-        />
-        <ActivityIndicator size="large" color={ACCENT} />
-      </View>
+      <SafeAreaView style={styles.centeredSafe} edges={["bottom"]}>
+        <StatusBar barStyle="dark-content" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </SafeAreaView>
     );
   }
 
   if (loadError && !hasLoadedSuccessfullyRef.current) {
     return (
-      <View style={styles.centered}>
-        <LinearGradient
-          colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
-          style={StyleSheet.absoluteFillObject}
-        />
+      <SafeAreaView style={styles.centeredSafe} edges={["bottom"]}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.errorIconWrap}>
+          <Ionicons name="cloud-offline-outline" size={40} color={COLORS.gray[400]} />
+        </View>
+        <Text style={styles.errorTitle}>{t("common.error")}</Text>
         <Text style={styles.errorText}>{loadError}</Text>
         <Button title={t("common.retry")} onPress={() => void loadProfile()} />
-      </View>
+      </SafeAreaView>
     );
   }
 
+  const displayName = [form.firstName, form.lastName]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <View style={styles.root}>
-      <LinearGradient
-        colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
-        locations={[0, 0.35, 0.7, 1]}
-        style={StyleSheet.absoluteFillObject}
-      />
+    <SafeAreaView style={styles.safeRoot} edges={["bottom"]}>
+      <StatusBar barStyle="dark-content" />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -329,22 +334,20 @@ export const ClientProfileScreen: React.FC = () => {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: 32 + insets.bottom },
+            { paddingBottom: 28 + insets.bottom },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.screenSubtitle, isRTL && styles.rtlText]}>
-            {t("client.profile.subtitle")}
-          </Text>
-
           {refreshing ? (
             <View style={styles.refreshRow}>
-              <ActivityIndicator size="small" color={ACCENT} />
+              <ActivityIndicator size="small" color={COLORS.primary} />
+              <Text style={styles.refreshLabel}>{t("client.profile.refreshing")}</Text>
             </View>
           ) : null}
 
           <View style={styles.heroCard}>
+            <View style={styles.heroBlob} />
             <TouchableOpacity
               style={styles.avatarWrap}
               onPress={handlePickPhoto}
@@ -358,20 +361,27 @@ export const ClientProfileScreen: React.FC = () => {
                   style={styles.avatarImg}
                 />
               ) : (
-                <Ionicons name="person" size={48} color={ACCENT} />
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="person" size={44} color={COLORS.primary} />
+                </View>
               )}
               <View style={styles.avatarEditBadge}>
-                <Ionicons name="camera" size={16} color="#0A0E1A" />
+                <Ionicons name="camera" size={15} color={COLORS.white} />
               </View>
             </TouchableOpacity>
-            <Text style={[styles.photoHint, isRTL && styles.rtlText]}>
-              {t("client.profile.photoHint")}
-            </Text>
+            {displayName.length > 0 ? (
+              <Text style={[styles.displayName, isRTL && styles.rtlText]}>
+                {displayName}
+              </Text>
+            ) : null}
           </View>
 
-          <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
-            {t("client.profile.accountSection")}
-          </Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
+              {t("client.profile.accountSection")}
+            </Text>
+            <View style={styles.sectionRule} />
+          </View>
           <View style={styles.card}>
             <Input
               label={t("completeProfile.firstNameLabel")}
@@ -409,9 +419,12 @@ export const ClientProfileScreen: React.FC = () => {
             />
           </View>
 
-          <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
-            {t("client.profile.locationSection")}
-          </Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
+              {t("client.profile.locationSection")}
+            </Text>
+            <View style={styles.sectionRule} />
+          </View>
           <View style={styles.card}>
             <Input
               label={t("completeProfile.cityLabel")}
@@ -431,110 +444,222 @@ export const ClientProfileScreen: React.FC = () => {
             />
           </View>
 
+          {isDirty() ? (
+            <View style={styles.dirtyPill}>
+              <View style={styles.dirtyDot} />
+              <Text style={styles.dirtyPillText}>
+                {t("client.profile.unsavedHint")}
+              </Text>
+            </View>
+          ) : null}
+
           <Button
             title={t("client.profile.saveButton")}
             onPress={() => void handleSave()}
             loading={saving}
             disabled={!isDirty()}
+            style={styles.saveButton}
           />
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  root: {
+  safeRoot: {
     flex: 1,
-    backgroundColor: "#0A0E1A",
+    backgroundColor: PAGE_BG,
   },
   flex: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-  },
-  screenSubtitle: {
-    color: "rgba(181,184,201,0.95)",
-    fontSize: 15,
-    marginBottom: 18,
-    lineHeight: 22,
+    paddingHorizontal: 24,
+    paddingTop: 12,
   },
   heroCard: {
     alignItems: "center",
-    marginBottom: 22,
+    backgroundColor: COLORS.white,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    marginBottom: 28,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  heroBlob: {
+    position: "absolute",
+    top: -36,
+    right: -28,
+    width: 140,
+    height: 140,
+    borderRadius: 48,
+    backgroundColor: INDIGO_SOFT,
+    transform: [{ rotate: "12deg" }],
   },
   avatarWrap: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 2,
-    borderColor: "rgba(232,201,122,0.5)",
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: INDIGO_SOFT,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
+    borderWidth: 3,
+    borderColor: COLORS.white,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  avatarPlaceholder: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: INDIGO_SOFT,
   },
   avatarImg: {
     width: "100%",
     height: "100%",
-    borderRadius: 56,
+    borderRadius: 52,
   },
   avatarEditBadge: {
     position: "absolute",
-    bottom: 6,
-    right: 6,
+    bottom: 4,
+    right: 4,
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: ACCENT,
+    backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#0A0E1A",
+    borderColor: COLORS.white,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  photoHint: {
-    marginTop: 10,
-    fontSize: 13,
-    color: "rgba(181,184,201,0.9)",
+  displayName: {
+    marginTop: 14,
+    fontSize: 20,
+    fontWeight: "800",
+    color: COLORS.text.primary,
     textAlign: "center",
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 12,
   },
   sectionTitle: {
-    color: ACCENT,
-    fontSize: 13,
+    color: COLORS.text.primary,
+    fontSize: 18,
     fontWeight: "800",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 10,
-    marginTop: 4,
+  },
+  sectionRule: {
+    flex: 1,
+    height: 1,
+    backgroundColor: CARD_BORDER,
   },
   card: {
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    padding: 14,
-    marginBottom: 18,
+    borderColor: CARD_BORDER,
+    padding: 16,
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  centered: {
+  dirtyPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
+    gap: 8,
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  dirtyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.warning,
+  },
+  dirtyPillText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#92400E",
+  },
+  saveButton: {
+    marginTop: 8,
+    borderRadius: 16,
+  },
+  centeredSafe: {
     flex: 1,
+    backgroundColor: PAGE_BG,
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
+    padding: 28,
+  },
+  errorIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: COLORS.text.primary,
+    marginBottom: 8,
   },
   errorText: {
-    color: "#fecaca",
+    color: COLORS.text.secondary,
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 20,
     fontSize: 15,
+    lineHeight: 22,
   },
   rtlText: {
     textAlign: "right",
     writingDirection: "rtl",
   },
   refreshRow: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 14,
+  },
+  refreshLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.text.secondary,
   },
 });

@@ -3,6 +3,8 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 import * as SecureStore from "expo-secure-store";
 import { CONFIG } from "../constants";
+import type { UserRole } from "../types";
+import i18n from "../i18n";
 import { supabase } from "./supabase";
 
 // Storage keys
@@ -22,6 +24,9 @@ const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.request.use(
   async (config) => {
     try {
+      config.headers["Accept-Language"] = i18n.language?.startsWith("ar")
+        ? "ar"
+        : "en";
       const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -99,6 +104,84 @@ export const api = {
   // Company endpoints
   getCompanyProfile: () => apiClient.get("/companies/me"),
   updateCompanyProfile: (data: any) => apiClient.put("/companies/me", data),
+
+  // Marketplace catalog
+  listServices: (params?: { categoryId?: string; categorySlug?: string }) =>
+    apiClient.get("/services", {
+      params: {
+        ...params,
+        lang: i18n.language?.startsWith("ar") ? "ar" : "en",
+      },
+    }),
+
+  /** Active services in a single category (same payload as `listServices({ categoryId })`). */
+  listServicesByCategoryId: (categoryId: string) =>
+    apiClient.get(`/services/category/${categoryId}`, {
+      params: {
+        lang: i18n.language?.startsWith("ar") ? "ar" : "en",
+      },
+    }),
+
+  listServiceCategories: () =>
+    apiClient.get("/service-categories", {
+      params: {
+        lang: i18n.language?.startsWith("ar") ? "ar" : "en",
+      },
+    }),
+
+  // Platform admin — verification queue
+  listAdminUsers: (params?: {
+    role?: UserRole;
+    skip?: number;
+    take?: number;
+  }) => apiClient.get("/admin/users", { params }),
+
+  listAdminVerificationRequests: (params?: {
+    status?: string;
+    userId?: string;
+    ownerType?: "PROVIDER" | "COMPANY";
+    skip?: number;
+    take?: number;
+  }) => apiClient.get("/admin/verification-requests", { params }),
+
+  getAdminVerificationRequest: (id: string) =>
+    apiClient.get(`/admin/verification-requests/${id}`),
+
+  markVerificationUnderReview: (id: string) =>
+    apiClient.patch(`/admin/verification-requests/${id}/review`),
+
+  approveVerificationRequest: (id: string) =>
+    apiClient.post(`/admin/verification-requests/${id}/approve`),
+
+  rejectVerificationRequest: (id: string, data: { reason: string }) =>
+    apiClient.post(`/admin/verification-requests/${id}/reject`, data),
+
+  // Current provider/company admin — latest own verification request
+  getMyLatestVerificationRequest: () =>
+    apiClient.get("/verification-requests/me/latest"),
+
+  resubmitVerificationRequest: (data: {
+    ownerComment?: string | null;
+    documents: { type: string; fichierUrl: string }[];
+  }) => apiClient.post("/verification-requests/me/resubmit", data),
+
+  getLatestLegalDocument: (type: "TERMS" | "PRIVACY") =>
+    apiClient.get<{
+      type: "TERMS" | "PRIVACY";
+      locale: "EN" | "AR";
+      title: string;
+      version: number;
+      contentMarkdown: string;
+      summary: string | null;
+      publishedAt: string | null;
+      documentId: string;
+      versionId: string;
+    }>("/legal-documents/latest", {
+      params: {
+        type,
+        lang: i18n.language?.startsWith("ar") ? "ar" : "en",
+      },
+    }),
 };
 
 export default apiClient;

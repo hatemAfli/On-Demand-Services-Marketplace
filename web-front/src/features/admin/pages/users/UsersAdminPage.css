@@ -1,0 +1,141 @@
+.users-admin {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.users-admin-hero {
+  position: relative;
+  border-radius: 16px;
+  padding: 28px 32px 32px;
+  margin-bottom: 24px;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    #f8fafc 0%,
+    #eef2ff 45%,
+    #faf5ff 100%
+  );
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 12px 40px rgba(99, 102, 241, 0.08);
+}
+
+.users-admin-hero::after {
+  content: '';
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(99, 102, 241, 0.18) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.users-admin-hero-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.users-admin-kicker {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6366f1;
+  margin-bottom: 8px;
+}
+
+.users-admin-title {
+  margin: 0 0 8px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em;
+  color: #0f172a !important;
+}
+
+.users-admin-subtitle {
+  font-size: 15px;
+  line-height: 1.55;
+  color: #64748b;
+  max-width: 640px;
+}
+
+.users-admin-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.users-admin-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.users-admin-stat-pill strong {
+  color: #4f46e5;
+  font-weight: 800;
+}
+
+.users-admin-card.ant-card {
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+}
+
+.users-admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.users-admin-toolbar-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.users-admin-search {
+  width: min(320px, 100%);
+}
+
+.users-admin-table .ant-table-thead > tr > th {
+  background: #f8fafc !important;
+  font-weight: 700;
+  color: #475569 !important;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.users-admin-table .ant-table-tbody > tr:hover > td {
+  background: #fafbff !important;
+}
+
+.users-admin-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.users-admin-avatar.ant-avatar {
+  flex-shrink: 0;
+  font-weight: 800;
+  border: 2px solid rgba(99, 102, 241, 0.25);
+}

@@ -6,9 +6,11 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { SupabaseService } from '../../config/supabase.config';
+import { GivenServiceModule } from '../given-service/given-service.module';
 
 @Module({
   imports: [
+    GivenServiceModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -16,7 +16,8 @@ import { ClientHeaderLanguageChips } from "../components/common";
 
 import { ClientSidebar } from "../screens/client/ClientSidebar";
 
-import { ClientHomeScreen } from "../screens/client/ClientHomeScreen";
+import { ClientHomeScreen } from "../screens/client/ClientHomeView";
+import { CategoryServicesScreen } from "../screens/client/category-services/CategoryServicesScreen";
 import { ClientSearchProviderScreen } from "../screens/client/ClientSearchProviderScreen";
 import { ClientMessagesScreen } from "../screens/client/ClientMessagesScreen";
 import { ClientReclamationScreen } from "../screens/client/ClientReclamationScreen";
@@ -39,6 +40,8 @@ export const ClientOverlayNavigator: React.FC = () => {
   );
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [currentRouteName, setCurrentRouteName] =
+    useState<keyof ClientStackParamList>("ClientHome");
 
   const anim = useRef(new Animated.Value(0)).current;
 
@@ -65,8 +68,18 @@ export const ClientOverlayNavigator: React.FC = () => {
     <React.Fragment>
       <Stack.Navigator
         initialRouteName="ClientHome"
+        screenListeners={{
+          state: (e) => {
+            const state = e.data.state;
+            const next = state.routes[state.index]
+              ?.name as keyof ClientStackParamList;
+            if (next) {
+              setCurrentRouteName(next);
+            }
+          },
+        }}
         screenOptions={({ route }) => ({
-          headerShown: true,
+          headerShown: route.name !== "ClientCategoryServices",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
             backgroundColor: COLORS.background,
@@ -88,6 +101,10 @@ export const ClientOverlayNavigator: React.FC = () => {
         })}
       >
         <Stack.Screen name="ClientHome" component={ClientHomeScreen} />
+        <Stack.Screen
+          name="ClientCategoryServices"
+          component={CategoryServicesScreen}
+        />
         <Stack.Screen
           name="ClientSearchProvider"
           component={ClientSearchProviderScreen}
@@ -146,6 +163,7 @@ export const ClientOverlayNavigator: React.FC = () => {
         <ClientSidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
+          currentRouteName={currentRouteName}
         />
       </Animated.View>
     </React.Fragment>

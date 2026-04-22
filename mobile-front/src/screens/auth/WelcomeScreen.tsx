@@ -29,26 +29,22 @@ const { height } = Dimensions.get("window");
 
 const COLORS = {
   midnight: "#0A0E1A",
-  navy: "#0F172A",
-  indigo: "#1E1B4B",
-  violet: "#2D1B69",
   gold: "#C9A84C",
   goldLight: "#E8C97A",
   white: "#FFFFFF",
-  offWhite: "#F0EEF8",
-  muted: "#8B8FA8",
-  cardBg: "rgba(255,255,255,0.06)",
 } as const;
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
-  const { t, isRTL, language, setLanguage } = useAppTranslation();
+  const { t, language, setLanguage } = useAppTranslation();
+  const welcomeLabel = language === "ar" ? "مرحبا" : "Welcome";
+  const footerPrefix =
+    language === "ar"
+      ? "بالمتابعة، فإنك توافق على"
+      : "By continuing, you agree to our";
 
   const heroAnim = useRef(new Animated.Value(0)).current;
   const contentAnim = useRef(new Animated.Value(0)).current;
   const btnAnim = useRef(new Animated.Value(0)).current;
-  const orbTopFloat = useRef(new Animated.Value(0)).current;
-  const orbMiddleFloat = useRef(new Animated.Value(0)).current;
-  const orbBottomFloat = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.stagger(120, [
@@ -71,53 +67,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
         useNativeDriver: true,
       }),
     ]).start();
+  }, [heroAnim, contentAnim, btnAnim]);
 
-    const makeFloat = (
-      value: Animated.Value,
-      amplitude: number,
-      duration: number,
-    ) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(value, {
-            toValue: amplitude,
-            duration,
-            useNativeDriver: true,
-          }),
-          Animated.timing(value, {
-            toValue: -amplitude,
-            duration,
-            useNativeDriver: true,
-          }),
-          Animated.timing(value, {
-            toValue: 0,
-            duration,
-            useNativeDriver: true,
-          }),
-        ]),
-      );
-
-    const orbTopLoop = makeFloat(orbTopFloat, 10, 2600);
-    const orbMiddleLoop = makeFloat(orbMiddleFloat, 8, 3000);
-    const orbBottomLoop = makeFloat(orbBottomFloat, 12, 3400);
-
-    orbTopLoop.start();
-    orbMiddleLoop.start();
-    orbBottomLoop.start();
-
-    return () => {
-      orbTopLoop.stop();
-      orbMiddleLoop.stop();
-      orbBottomLoop.stop();
-    };
-  }, [
-    heroAnim,
-    contentAnim,
-    btnAnim,
-    orbTopFloat,
-    orbMiddleFloat,
-    orbBottomFloat,
-  ]);
+  const subtitleMessage = t("welcome.subtitle", {
+    defaultValue: "Your Gateway to seamless services",
+  });
 
   const heroTranslate = heroAnim.interpolate({
     inputRange: [0, 1],
@@ -135,39 +89,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
   return (
     <View style={styles.root}>
       <StatusBar
-        barStyle="light-content"
+        barStyle="dark-content"
         translucent
         backgroundColor="transparent"
       />
-
-      <LinearGradient
-        colors={[COLORS.midnight, COLORS.navy, COLORS.indigo, COLORS.violet]}
-        locations={[0, 0.35, 0.7, 1]}
-        style={StyleSheet.absoluteFillObject}
-      />
-
-      <Animated.View style={[styles.orbTop, { transform: [{ translateY: orbTopFloat }] }]}>
-        <LinearGradient
-          colors={["rgba(99,102,241,0.35)", "rgba(139,92,246,0.08)"]}
-          style={styles.orbFill}
-        />
-      </Animated.View>
-      <Animated.View
-        style={[styles.orbMiddle, { transform: [{ translateY: orbMiddleFloat }] }]}
-      >
-        <LinearGradient
-          colors={["rgba(201,168,76,0.20)", "rgba(201,168,76,0.04)"]}
-          style={styles.orbFill}
-        />
-      </Animated.View>
-      <Animated.View
-        style={[styles.orbBottom, { transform: [{ translateY: orbBottomFloat }] }]}
-      >
-        <LinearGradient
-          colors={["rgba(45,27,105,0.55)", "rgba(30,27,75,0.16)"]}
-          style={styles.orbFill}
-        />
-      </Animated.View>
 
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <Animated.View
@@ -187,7 +112,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
             colors={["transparent", "rgba(10,14,26,0.7)", COLORS.midnight]}
             style={styles.heroFade}
           />
-          <View style={[styles.brandBadge, isRTL && styles.brandBadgeRtl]}>
+          <View style={styles.brandBadge}>
             <Text style={styles.brandText}>ServeMe</Text>
           </View>
         </Animated.View>
@@ -201,20 +126,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
             },
           ]}
         >
-          <Text style={[styles.tagline, isRTL && styles.textRtl]}>
-            {t("welcome.tagline")}
-          </Text>
-          <Text style={[styles.headline, isRTL && styles.textRtl]}>
-            {t("welcome.title")}
-          </Text>
-          <Text style={[styles.subtext, isRTL && styles.textRtl]}>
-            {t("welcome.subtitle")}
-          </Text>
+          <View style={styles.headlineBlock}>
+            <Text style={styles.headlineWelcome}>{welcomeLabel}</Text>
+            <Text style={styles.headlineTyped}>{subtitleMessage}</Text>
+          </View>
+        </Animated.View>
 
-          <Text style={[styles.sectionLabel, isRTL && styles.textRtl]}>
-            {t("common.selectLanguage")}
-          </Text>
-
+        <Animated.View
+          style={[
+            styles.buttonSection,
+            { opacity: btnAnim, transform: [{ translateY: btnTranslate }] },
+          ]}
+        >
           <View style={styles.langRow}>
             <TouchableOpacity
               activeOpacity={0.9}
@@ -254,14 +177,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
               <Text style={styles.langBigCode}>AR</Text>
             </TouchableOpacity>
           </View>
-        </Animated.View>
 
-        <Animated.View
-          style={[
-            styles.buttonSection,
-            { opacity: btnAnim, transform: [{ translateY: btnTranslate }] },
-          ]}
-        >
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => navigation.navigate("SignUp")}
@@ -287,10 +203,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
             <Text style={styles.secondaryText}>{t("common.login")}</Text>
           </TouchableOpacity>
 
-          <Text style={[styles.footerNote, isRTL && styles.textRtl]}>
-            {t("welcome.footerPrefix", {
-              defaultValue: "By continuing, you agree to our",
-            })}{" "}
+          <Text style={styles.footerNote}>
+            {footerPrefix}{" "}
             <Text
               style={styles.footerLink}
               onPress={() => navigation.navigate("Terms")}
@@ -314,39 +228,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: COLORS.midnight,
+    backgroundColor: COLORS.white,
   },
   safeArea: {
     flex: 1,
-  },
-  orbFill: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 999,
-  },
-  orbTop: {
-    position: "absolute",
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    top: -70,
-    right: -90,
-  },
-  orbMiddle: {
-    position: "absolute",
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    top: height * 0.3,
-    left: -70,
-  },
-  orbBottom: {
-    position: "absolute",
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    bottom: -80,
-    right: -100,
   },
   heroContainer: {
     width: "100%",
@@ -369,10 +254,6 @@ const styles = StyleSheet.create({
     left: 24,
     bottom: 20,
   },
-  brandBadgeRtl: {
-    left: undefined,
-    right: 24,
-  },
   brandText: {
     color: COLORS.white,
     fontSize: 24,
@@ -382,46 +263,43 @@ const styles = StyleSheet.create({
   contentSection: {
     paddingHorizontal: 24,
     paddingTop: 20,
+    alignItems: "center",
   },
-  tagline: {
-    color: COLORS.gold,
-    fontSize: 12,
-    letterSpacing: 2,
-    textTransform: "uppercase",
-    marginBottom: 8,
-    fontWeight: "600",
-  },
-  headline: {
-    color: COLORS.white,
-    fontSize: 40,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  subtext: {
-    color: COLORS.muted,
-    fontSize: 15,
-    lineHeight: 24,
+  headlineBlock: {
+    minHeight: 92,
     marginBottom: 20,
+    justifyContent: "flex-start",
+    alignSelf: "stretch",
+    alignItems: "center",
   },
-  sectionLabel: {
-    color: COLORS.offWhite,
-    fontSize: 12,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    marginBottom: 12,
-    fontWeight: "600",
+  headlineWelcome: {
+    color: "#111827",
+    fontSize: 36,
+    fontWeight: "700",
+    lineHeight: 44,
+    textAlign: "center",
+    alignSelf: "stretch",
+  },
+  headlineTyped: {
+    color: "#374151",
+    fontSize: 22,
+    fontWeight: "500",
+    lineHeight: 30,
+    textAlign: "center",
+    alignSelf: "stretch",
   },
   langRow: {
     flexDirection: "row",
     gap: 12,
+    marginBottom: 8,
   },
   langBigButton: {
     flex: 1,
     minHeight: 92,
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderColor: "rgba(255,255,255,0.22)",
-    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1.2,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
@@ -432,20 +310,21 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   langBigButtonActive: {
-    borderColor: COLORS.goldLight,
-    backgroundColor: "rgba(201,168,76,0.20)",
+    borderColor: "#C9A84C",
+    backgroundColor: "#FEF3C7",
   },
   langBigTitle: {
-    color: COLORS.offWhite,
+    color: "#111827",
     fontSize: 16,
     fontWeight: "700",
     marginBottom: 6,
+    textAlign: "center",
   },
   langBigTitleActive: {
-    color: COLORS.goldLight,
+    color: "#92400E",
   },
   langBigCode: {
-    color: COLORS.muted,
+    color: "#6B7280",
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 1.3,
@@ -494,30 +373,28 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.2,
     borderColor: "rgba(232,201,122,0.45)",
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "#FFFFFF",
     height: 60,
     alignItems: "center",
     justifyContent: "center",
   },
   secondaryText: {
-    color: COLORS.white,
+    color: "#111827",
     fontSize: 16,
     fontWeight: "600",
+    textAlign: "center",
   },
   footerNote: {
     marginTop: 4,
     textAlign: "center",
-    color: COLORS.muted,
+    color: "#6B7280",
     fontSize: 12,
     lineHeight: 18,
+    alignSelf: "stretch",
   },
   footerLink: {
     color: COLORS.goldLight,
     fontWeight: "600",
-  },
-  textRtl: {
-    textAlign: "right",
-    writingDirection: "rtl",
   },
 });
 
