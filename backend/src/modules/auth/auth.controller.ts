@@ -63,7 +63,7 @@ export class AuthController {
     console.log('   User from token:', user);
     console.log('   Body:', body);
     return this.authService.completeRegistration(user.id, {
-      email: user.email,
+      email: user.tokenEmail ?? user.email,
       isEmailVerified: user?.isEmailVerified === true,
       ...body,
     });
@@ -76,8 +76,22 @@ export class AuthController {
     console.log('   User:', user);
     return this.authService.getCurrentUser({
       id: user.id,
-      email: user.email,
+      email: user.tokenEmail ?? user.email,
     });
+  }
+
+  @Post('magic-login/lookup')
+  async lookupMagicLoginAccount(@Body() body: { email: string }) {
+    return this.authService.lookupMagicLoginAccount(body);
+  }
+
+  @Post('email-change/check')
+  @UseGuards(JwtAuthGuard)
+  async checkEmailChangeAvailability(
+    @CurrentUser() user: any,
+    @Body() body: { email: string },
+  ) {
+    return this.authService.checkEmailChangeAvailability(user.id, body);
   }
 
   @Post('verify-token')

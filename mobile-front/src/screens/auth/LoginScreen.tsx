@@ -10,23 +10,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth, getRoleFromSession } from "../../context/AuthContext";
 import {
   AuthNoticeModal,
-  Button,
   Input,
-  LanguageSwitcher,
 } from "../../components/common";
 import { COLORS } from "../../constants";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { AuthStackParamList } from "../../navigation/types";
 
 type LoginMode = "email" | "phone";
 
 interface LoginScreenProps {
-  navigation: NativeStackNavigationProp<any>;
+  navigation: NativeStackNavigationProp<AuthStackParamList, "Login">;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
@@ -127,6 +128,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         translucent
         backgroundColor="transparent"
       />
+      <View style={[styles.topBackContainer, { top: insets.top + 8 }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.navigate("Welcome")}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.backText}>← {t("common.back")}</Text>
+        </TouchableOpacity>
+      </View>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -135,25 +145,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: insets.top + 20,
+              paddingTop: insets.top + 64,
               paddingBottom: 16 + insets.bottom,
             },
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.header}>
-            <View style={styles.topRow}>
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => navigation.navigate("Welcome")}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={styles.backText}>← {t("common.back")}</Text>
-              </TouchableOpacity>
-              <LanguageSwitcher />
-            </View>
-          </View>
-
           <View style={styles.panel}>
             {/* Mode Toggle */}
             <View style={styles.modeToggle}>
@@ -227,18 +224,31 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 error={errors.password}
               />
 
-              <TouchableOpacity style={styles.forgotPassword}>
+              <TouchableOpacity
+                style={styles.forgotPassword}
+                onPress={() => navigation.navigate("ForgotPassword")}
+              >
                 <Text style={styles.forgotPasswordText}>
                   {t("auth.forgotPassword")}
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <Button
-              title={t("common.login")}
+            <TouchableOpacity
+              style={styles.loginButton}
               onPress={handleLogin}
-              loading={isLoading}
-            />
+              activeOpacity={0.9}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <View style={styles.loginButtonContent}>
+                  <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
+                  <Text style={styles.loginButtonText}>{t("common.login")}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
 
           <View style={styles.footer}>
@@ -265,53 +275,51 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F1F5F9",
+  },
+  topBackContainer: {
+    position: "absolute",
+    left: 24,
+    zIndex: 10,
   },
   container: {
     flex: 1,
   },
   panel: {
-    borderRadius: 18,
-    borderWidth: 1.2,
-    borderColor: "#E5E7EB",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     backgroundColor: "#FFFFFF",
-    padding: 10,
-    marginTop: 50,
+    padding: 16,
+    marginTop: 8,
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 1,
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    justifyContent: "flex-start",
-  },
-  header: {
-    minHeight: 64,
-    marginBottom: 20,
-  },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 14,
+    justifyContent: "center",
   },
   backButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     minHeight: 44,
     justifyContent: "center",
   },
   backText: {
-    color: "#C9A84C",
-    fontSize: 17,
+    color: "#4F46E5",
+    fontSize: 16,
     fontWeight: "600",
   },
   modeToggle: {
     flexDirection: "row",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F1F5F9",
     borderRadius: 12,
     padding: 4,
     marginBottom: 20,
@@ -323,29 +331,54 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   modeButtonActive: {
-    backgroundColor: "#FEF3C7",
+    backgroundColor: "#FFFFFF",
   },
   modeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#6B7280",
+    color: "#64748B",
   },
   modeTextActive: {
-    color: "#92400E",
+    color: "#4F46E5",
   },
   form: {
-    marginBottom: 24,
+    marginBottom: 20,
     marginTop: 8,
   },
   forgotPassword: {
     alignSelf: "flex-end",
     marginTop: -12,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   forgotPasswordText: {
-    fontSize: 14,
-    color: "#C9A84C",
+    fontSize: 13,
+    color: "#4F46E5",
     fontWeight: "600",
+  },
+  loginButton: {
+    alignSelf: "center",
+    minWidth: 170,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: "#6366F1",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#4338CA",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  loginButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  loginButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   footer: {
     flexDirection: "row",
@@ -353,12 +386,12 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   footerText: {
-    fontSize: 14,
-    color: "#6B7280",
+    fontSize: 13,
+    color: "#64748B",
   },
   footerLink: {
-    fontSize: 14,
-    color: "#C9A84C",
+    fontSize: 13,
+    color: "#4F46E5",
     fontWeight: "600",
   },
 });

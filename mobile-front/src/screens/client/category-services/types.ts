@@ -5,6 +5,8 @@ export type MarketplaceServiceItem = {
   description: string | null;
   /** Public catalog image URL when set by admin. */
   servicePhoto: string | null;
+  /** Active rows in `given_services` for this catalog service (from list API). */
+  activeGivenCount?: number;
   categoryId: string;
   active: boolean;
   createdAt: string;

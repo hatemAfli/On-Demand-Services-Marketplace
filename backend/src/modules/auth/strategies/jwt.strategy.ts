@@ -101,6 +101,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     // Protect sensitive write routes with explicit status checks in services/guards.
 
     console.log('   ✅ User authenticated:', user.email, '| Role:', user.role);
-    return user;
+    return {
+      ...user,
+      // Keep the latest email from Supabase JWT so backend can sync DB email after confirmation.
+      tokenEmail: email,
+    };
   }
 }

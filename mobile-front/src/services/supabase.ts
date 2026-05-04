@@ -48,11 +48,23 @@ export const supabase = createClient(
 
 export const getAuthRedirectUrl = () => Linking.createURL("auth/callback");
 
+/** Use as `redirectTo` for `resetPasswordForEmail` (must be allowlisted in Supabase Auth URL config). */
+export const getPasswordRecoveryRedirectUrl = () =>
+  Linking.createURL("auth/callback", { queryParams: { flow: "recovery" } });
+
 function getParamsFromUrl(url: string): URLSearchParams {
   const query = url.includes("?") ? url.split("?")[1].split("#")[0] : "";
   const hash = url.includes("#") ? url.split("#")[1] : "";
   const merged = [query, hash].filter(Boolean).join("&");
   return new URLSearchParams(merged);
+}
+
+/** True when this URL is from a password recovery email (hash or query). */
+export function authUrlIndicatesPasswordRecovery(url: string): boolean {
+  const params = getParamsFromUrl(url);
+  return (
+    params.get("type") === "recovery" || params.get("flow") === "recovery"
+  );
 }
 
 export const handleAuthDeepLink = async (url: string): Promise<boolean> => {

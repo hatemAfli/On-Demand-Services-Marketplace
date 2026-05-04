@@ -195,11 +195,107 @@ export class VerificationService {
         createdAt: true,
         updatedAt: true,
         serviceId: true,
+        documents: {
+          select: {
+            id: true,
+            type: true,
+            fichierUrl: true,
+            uploadedAt: true,
+            validatedAt: true,
+          },
+          orderBy: { uploadedAt: 'desc' },
+        },
       },
     });
 
     if (!row) return null;
     return row;
+  }
+
+  async getAllVerificationDocumentsForCurrentUser(user: User) {
+    const rows = await this.prisma.document.findMany({
+      where: { ownerUserId: user.id },
+      orderBy: { uploadedAt: 'desc' },
+      select: {
+        id: true,
+        type: true,
+        fichierUrl: true,
+        uploadedAt: true,
+        validatedAt: true,
+        verificationRequest: {
+          select: {
+            id: true,
+            requestStatus: true,
+            ownerType: true,
+            createdAt: true,
+            updatedAt: true,
+            adminComment: true,
+            ownerComment: true,
+            serviceId: true,
+            service: {
+              select: {
+                id: true,
+                servicePhoto: true,
+                translations: {
+                  where: { locale: { in: [Locale.EN, Locale.AR] } },
+                  select: { locale: true, name: true, description: true },
+                },
+                category: {
+                  select: {
+                    slug: true,
+                    iconUrl: true,
+                    translations: {
+                      where: { locale: { in: [Locale.EN, Locale.AR] } },
+                      select: { locale: true, name: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    return rows.map((row) => {
+      const request = row.verificationRequest;
+      if (!request?.service) {
+        return row;
+      }
+      return {
+        ...row,
+        verificationRequest: {
+          ...request,
+          service: {
+            id: request.service.id,
+            servicePhoto: request.service.servicePhoto,
+            name: pickName(
+              request.service.translations,
+              `service-${request.service.id}`,
+            ),
+            description:
+              request.service.translations.find(
+                (translation) =>
+                  translation.locale === Locale.EN &&
+                  Boolean(translation.description?.trim()),
+              )?.description ??
+              request.service.translations.find((translation) =>
+                Boolean(translation.description?.trim()),
+              )?.description ??
+              null,
+            category: request.service.category
+              ? {
+                  slug: request.service.category.slug,
+                  iconUrl: request.service.category.iconUrl,
+                  name: pickName(
+                    request.service.category.translations,
+                    request.service.category.slug,
+                  ),
+                }
+              : null,
+          },
+        },
+      };
+    });
   }
 
   /**

@@ -1,5 +1,12 @@
 import React from "react";
-import { View, Text, TouchableOpacity, Image } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import { styles } from "./styles";
 
@@ -11,46 +18,32 @@ export type ServiceCardDisplay = {
   price: string;
   unit: string;
   image: string;
-  rating: string;
-  reviews: string;
-  meta: string;
-  badge?: string;
-  highDemand?: boolean;
+  activeGivenCount: number;
 };
 
 type Props = {
   service: ServiceCardDisplay;
   onPress: () => void;
-  vatLabel: string;
-  highDemandLabel: string;
+  providersCountLabel: string;
+  /** e.g. fixed width for horizontal carousels */
+  style?: StyleProp<ViewStyle>;
 };
 
 export const ServiceDiscoveryCard: React.FC<Props> = ({
   service,
   onPress,
-  vatLabel,
-  highDemandLabel,
+  providersCountLabel,
+  style,
 }) => {
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, style]}
       activeOpacity={0.93}
       onPress={onPress}
     >
-      {service.badge ? (
-        <View style={styles.topBadge}>
-          <Text style={styles.topBadgeText}>{service.badge}</Text>
-        </View>
-      ) : null}
-
       <View style={styles.cardMainRow}>
         <View style={styles.cardImageWrap}>
           <Image source={{ uri: service.image }} style={styles.cardImage} />
-          {service.highDemand ? (
-            <View style={styles.demandOverlay}>
-              <Text style={styles.demandText}>{highDemandLabel}</Text>
-            </View>
-          ) : null}
         </View>
 
         <View style={styles.cardInfo}>
@@ -66,6 +59,12 @@ export const ServiceDiscoveryCard: React.FC<Props> = ({
                 <FontAwesome6 name="clock" size={10} color="#D1D5DB" />
                 <Text style={styles.durationText}>{service.duration}</Text>
               </View>
+              <View style={styles.cardProviderCountRow}>
+                <FontAwesome6 name="user-group" size={10} color="#6B7280" />
+                <Text style={styles.cardProviderCountText}>
+                  {providersCountLabel}
+                </Text>
+              </View>
               <View style={styles.priceTextRow}>
                 <Text style={styles.priceText}>{service.price}</Text>
                 {service.unit ? (
@@ -78,16 +77,6 @@ export const ServiceDiscoveryCard: React.FC<Props> = ({
             </View>
           </View>
         </View>
-      </View>
-
-      <View style={styles.cardFooter}>
-        <View style={styles.metaRow}>
-          <FontAwesome6 name="star" size={10} color="#FBBF24" />
-          <Text style={styles.rating}>{service.rating}</Text>
-          <Text style={styles.reviews}>{service.reviews}</Text>
-        </View>
-        <Text style={styles.metaText}>{service.meta}</Text>
-        <Text style={styles.vatText}>{vatLabel}</Text>
       </View>
     </TouchableOpacity>
   );

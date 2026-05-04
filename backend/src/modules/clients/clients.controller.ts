@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateClientDto } from './dto/create-client.dto';
+import { SoftDeleteClientDto } from './dto/soft-delete-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { ClientsService } from './clients.service';
 
@@ -29,9 +30,13 @@ export class ClientsController {
     return this.clientsService.updateMe(user.id, dto);
   }
 
-  @Delete('me')
-  async deleteMe(@CurrentUser() user: any) {
-    return this.clientsService.deleteMe(user.id);
+  /** Soft-delete: status DELETED, deletedAt set, profile image removed from storage. */
+  @Post('me/soft-delete')
+  async softDeleteMe(
+    @CurrentUser() user: any,
+    @Body() dto: SoftDeleteClientDto,
+  ) {
+    return this.clientsService.softDeleteMe(user.id, dto.password);
   }
 }
 

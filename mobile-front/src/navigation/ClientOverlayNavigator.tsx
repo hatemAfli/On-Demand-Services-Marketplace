@@ -12,7 +12,6 @@ import { useWindowDimensions } from "react-native";
 import type { ClientStackParamList } from "./types";
 import { COLORS } from "../constants";
 import { useAppTranslation } from "../hooks/useAppTranslation";
-import { ClientHeaderLanguageChips } from "../components/common";
 
 import { ClientSidebar } from "../screens/client/ClientSidebar";
 
@@ -24,8 +23,17 @@ import { ClientReclamationScreen } from "../screens/client/ClientReclamationScre
 import { ClientReservationScreen } from "../screens/client/ClientReservationScreen";
 import { ClientFavoritesScreen } from "../screens/client/ClientFavoritesScreen";
 import { ClientNotificationsScreen } from "../screens/client/ClientNotificationsScreen";
-import { ClientProfileScreen } from "../screens/client/ClientProfileScreen";
-import { ClientSettingsScreen } from "../screens/client/ClientSettingsScreen";
+import {
+  ClientChangeEmailScreen,
+  ClientChangePhoneScreen,
+  ClientChangePasswordScreen,
+  ClientDeleteAccountScreen,
+  ClientEditProfileScreen,
+  ClientSavedAddressesScreen,
+  ClientSettingsScreen,
+} from "../screens/client/setting";
+import { TermsScreen } from "../screens/auth/TermsScreen";
+import { PrivacyScreen } from "../screens/auth/PrivacyScreen";
 
 const Stack = createNativeStackNavigator<ClientStackParamList>();
 
@@ -79,7 +87,16 @@ export const ClientOverlayNavigator: React.FC = () => {
           },
         }}
         screenOptions={({ route }) => ({
-          headerShown: route.name !== "ClientCategoryServices",
+          headerShown:
+            route.name !== "ClientCategoryServices" &&
+            route.name !== "ClientEditProfile" &&
+            route.name !== "ClientChangeEmail" &&
+            route.name !== "ClientChangePhone" &&
+            route.name !== "ClientChangePassword" &&
+            route.name !== "ClientSavedAddresses" &&
+            route.name !== "ClientDeleteAccount" &&
+            route.name !== "ClientTerms" &&
+            route.name !== "ClientPrivacy",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
             backgroundColor: COLORS.background,
@@ -87,7 +104,6 @@ export const ClientOverlayNavigator: React.FC = () => {
           title: t(
             `client.screenTitles.${route.name as keyof ClientStackParamList}`,
           ),
-          headerRight: () => <ClientHeaderLanguageChips />,
           headerLeft: () => (
             <TouchableOpacity
               onPress={() => setIsSidebarOpen(true)}
@@ -126,8 +142,33 @@ export const ClientOverlayNavigator: React.FC = () => {
           name="ClientNotifications"
           component={ClientNotificationsScreen}
         />
-        <Stack.Screen name="ClientProfile" component={ClientProfileScreen} />
         <Stack.Screen name="ClientSettings" component={ClientSettingsScreen} />
+        <Stack.Screen
+          name="ClientEditProfile"
+          component={ClientEditProfileScreen}
+        />
+        <Stack.Screen
+          name="ClientChangeEmail"
+          component={ClientChangeEmailScreen}
+        />
+        <Stack.Screen
+          name="ClientChangePhone"
+          component={ClientChangePhoneScreen}
+        />
+        <Stack.Screen
+          name="ClientChangePassword"
+          component={ClientChangePasswordScreen}
+        />
+        <Stack.Screen
+          name="ClientSavedAddresses"
+          component={ClientSavedAddressesScreen}
+        />
+        <Stack.Screen
+          name="ClientDeleteAccount"
+          component={ClientDeleteAccountScreen}
+        />
+        <Stack.Screen name="ClientTerms" component={TermsScreen} />
+        <Stack.Screen name="ClientPrivacy" component={PrivacyScreen} />
       </Stack.Navigator>
 
       {/** Backdrop */}

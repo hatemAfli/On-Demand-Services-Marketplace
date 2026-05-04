@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { WelcomeScreen } from "../screens/auth/WelcomeScreen";
 import {
   LoginScreen,
+  ForgotPasswordScreen,
   SignUpScreen,
   TermsScreen,
   PrivacyScreen,
@@ -38,6 +39,7 @@ export const AuthNavigator: React.FC<Props> = ({
       <Stack.Screen name="Terms" component={TermsScreen} />
       <Stack.Screen name="Privacy" component={PrivacyScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
       <Stack.Screen
         name="EmailVerification"

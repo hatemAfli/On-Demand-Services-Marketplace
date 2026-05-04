@@ -11,8 +11,10 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { COLORS } from "../../constants";
-import type { ClientStackParamList } from "../../navigation/types";
+import type {
+  ClientStackParamList,
+  ClientStackRouteWithoutParams,
+} from "../../navigation/types";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -25,7 +27,7 @@ type Props = {
 };
 
 const MENU_ITEMS: {
-  key: keyof ClientStackParamList;
+  key: ClientStackRouteWithoutParams;
   labelKey: string;
   icon: keyof typeof Ionicons.glyphMap;
 }[] = [
@@ -65,11 +67,6 @@ const MENU_ITEMS: {
     icon: "notifications-outline",
   },
   {
-    key: "ClientProfile",
-    labelKey: "client.sidebar.menu.profile",
-    icon: "person-outline",
-  },
-  {
     key: "ClientSettings",
     labelKey: "client.sidebar.menu.settings",
     icon: "settings-outline",
@@ -104,7 +101,7 @@ export const ClientSidebar: React.FC<Props> = ({
   const marginTop = insets.top + VERTICAL_MARGIN;
   const marginBottom = insets.bottom + VERTICAL_MARGIN;
 
-  const avatarUri = user?.client?.imageUrl;
+  const avatarUri = user?.client?.imageUrl?.trim();
 
   return (
     <View
@@ -142,7 +139,9 @@ export const ClientSidebar: React.FC<Props> = ({
                     accessibilityIgnoresInvertColors
                   />
                 ) : (
-                  <Ionicons name="person" size={26} color="#4F46E5" />
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="person" size={26} color="#F08E10" />
+                  </View>
                 )}
               </View>
             </View>
@@ -274,25 +273,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatarOuter: {
-    width: 68,
-    height: 68,
-    borderRadius: 999,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    alignItems: "center",
-    justifyContent: "center",
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#F08E10",
+    padding: 4,
+    shadowColor: "#F08E10",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 5,
   },
   avatarInner: {
-    width: 58,
-    height: 58,
-    borderRadius: 999,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#dbeafe",
+    flex: 1,
+    borderRadius: 32,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  avatarPlaceholder: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
+    backgroundColor: "#FFF7ED",
+    minHeight: 60,
   },
   avatarImage: {
     width: "100%",

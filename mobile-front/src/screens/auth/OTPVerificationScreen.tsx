@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/native";
@@ -18,19 +19,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
 import {
   AuthNoticeModal,
-  Button,
-  LanguageSwitcher,
 } from "../../components/common";
 
 import { UserRole } from "../../types";
 import type { AuthStackParamList } from "../../navigation/types";
 import * as SecureStore from "expo-secure-store";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface OTPVerificationScreenProps {
-  navigation: NativeStackNavigationProp<any>;
+  navigation: NativeStackNavigationProp<AuthStackParamList, "OTPVerification">;
   route: RouteProp<AuthStackParamList, "OTPVerification">;
 }
 
@@ -148,12 +146,16 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <LinearGradient
-        colors={["#0A0E1A", "#0F172A", "#1E1B4B", "#2D1B69"]}
-        locations={[0, 0.35, 0.7, 1]}
-        style={StyleSheet.absoluteFillObject}
-      />
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+      <View style={[styles.topBackContainer, { top: insets.top + 8 }]}>
+        <TouchableOpacity
+          style={styles.backButtonInline}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.backInlineText}>← {t("auth.changePhone")}</Text>
+        </TouchableOpacity>
+      </View>
 
       <KeyboardAvoidingView
         style={styles.container}
@@ -163,27 +165,16 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: insets.top + 18,
+              paddingTop: insets.top + 64,
               paddingBottom: Math.max(insets.bottom, 12) + 24,
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.topRow}>
-            <TouchableOpacity
-              style={styles.backButtonInline}
-              onPress={() => navigation.goBack()}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.backInlineText}>← {t("auth.changePhone")}</Text>
-            </TouchableOpacity>
-            <LanguageSwitcher />
-          </View>
-
           <View style={styles.panel}>
             <View style={styles.iconWrap}>
-              <Ionicons name="chatbubble-ellipses-outline" size={42} color="#E8C97A" />
+              <Ionicons name="chatbubble-ellipses-outline" size={34} color="#4F46E5" />
             </View>
 
             <Text style={[styles.title, isRTL && styles.rtlText]}>
@@ -212,12 +203,21 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
               ))}
             </View>
 
-            <Button
-              title={t("auth.verifyOtp")}
+            <TouchableOpacity
+              style={styles.verifyButton}
               onPress={handleVerifyOTP}
-              loading={isLoading}
-              style={styles.button}
-            />
+              activeOpacity={0.9}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <View style={styles.verifyButtonContent}>
+                  <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
+                  <Text style={styles.verifyButtonText}>{t("auth.verifyOtp")}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
             <View style={styles.resendContainer}>
               <Text style={[styles.resendText, isRTL && styles.rtlText]}>
@@ -263,7 +263,12 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#0A0E1A",
+    backgroundColor: "#F1F5F9",
+  },
+  topBackContainer: {
+    position: "absolute",
+    left: 24,
+    zIndex: 10,
   },
   container: {
     flex: 1,
@@ -271,61 +276,66 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-  },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
+    justifyContent: "center",
   },
   backButtonInline: {
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     minHeight: 44,
     justifyContent: "center",
   },
   backInlineText: {
-    color: "#E8C97A",
-    fontSize: 15,
+    color: "#4F46E5",
+    fontSize: 16,
     fontWeight: "600",
   },
   panel: {
-    borderRadius: 18,
-    borderWidth: 1.2,
-    borderColor: "rgba(255,255,255,0.16)",
-    backgroundColor: "rgba(255,255,255,0.07)",
-    padding: 18,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 1,
   },
   iconWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: "rgba(232,201,122,0.14)",
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#EEF2FF",
     borderWidth: 1,
-    borderColor: "rgba(232,201,122,0.32)",
+    borderColor: "#E0E7FF",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 18,
+    marginBottom: 14,
     alignSelf: "center",
   },
   title: {
-    fontSize: 30,
+    fontSize: 24,
+    lineHeight: 28,
     fontWeight: "700",
-    color: "#FFFFFF",
-    textAlign: "center",
-    marginBottom: 10,
-  },
-  description: {
-    fontSize: 16,
-    color: "#B5B8C9",
+    color: "#0F172A",
     textAlign: "center",
     marginBottom: 8,
+    letterSpacing: -0.4,
+  },
+  description: {
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
+    marginBottom: 6,
   },
   phone: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
-    color: "#E8C97A",
-    marginBottom: 22,
+    color: "#4F46E5",
+    marginBottom: 16,
     textAlign: "center",
   },
   otpContainer: {
@@ -338,55 +348,78 @@ const styles = StyleSheet.create({
     width: 46,
     height: 56,
     borderRadius: 10,
-    borderWidth: 1.6,
-    borderColor: "rgba(255,255,255,0.24)",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1.4,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#F8FAFC",
     fontSize: 23,
     fontWeight: "600",
     textAlign: "center",
-    color: "#FFFFFF",
+    color: "#0F172A",
   },
   otpInputFilled: {
-    borderColor: "#E8C97A",
-    backgroundColor: "rgba(232,201,122,0.16)",
+    borderColor: "#4F46E5",
+    backgroundColor: "#EEF2FF",
   },
-  button: {
-    marginBottom: 18,
+  verifyButton: {
+    alignSelf: "center",
+    minWidth: 190,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: "#6366F1",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#4338CA",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
+    marginBottom: 14,
+  },
+  verifyButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  verifyButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   resendContainer: {
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 14,
   },
   resendText: {
-    fontSize: 14,
-    color: "#B5B8C9",
-    marginBottom: 8,
+    fontSize: 12,
+    color: "#64748B",
+    marginBottom: 6,
   },
   resendLink: {
-    fontSize: 14,
-    color: "#E8C97A",
+    fontSize: 13,
+    color: "#4F46E5",
     fontWeight: "600",
   },
   countdown: {
-    fontSize: 14,
-    color: "#9BA3BD",
+    fontSize: 12,
+    color: "#94A3B8",
   },
   tipCard: {
-    backgroundColor: "rgba(12, 26, 56, 0.6)",
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    padding: 16,
-    borderRadius: 12,
+    borderColor: "#E2E8F0",
+    padding: 14,
+    borderRadius: 16,
   },
   tipTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0F172A",
     marginBottom: 8,
   },
   tipText: {
-    fontSize: 13,
-    color: "#C7CBDA",
+    fontSize: 12,
+    color: "#64748B",
     marginBottom: 4,
   },
   rtlText: {

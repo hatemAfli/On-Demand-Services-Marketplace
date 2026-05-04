@@ -11,21 +11,29 @@ import { useWindowDimensions } from "react-native";
 import type { ProviderStackParamList } from "./types";
 import { COLORS } from "../constants";
 import { useAppTranslation } from "../hooks/useAppTranslation";
-import { ClientHeaderLanguageChips } from "../components/common";
 
 import { ProviderSidebar } from "../screens/provider/ProviderSidebar";
-import { ProviderHomeScreen } from "../screens/provider/ProviderHomeScreen";
+import { ProviderHomeScreen } from "../screens/provider/home/ProviderHomeScreen";
 import { ProviderDashboardScreen } from "../screens/provider/ProviderDashboardScreen";
-import { ProviderServicesScreen } from "../screens/provider/ProviderServicesScreen";
+import { ProviderServicesScreen } from "../screens/provider/services/ProviderServicesScreen";
+import { ProviderManageServiceScreen } from "../screens/provider/services/ProviderManageServiceScreen";
 import { ProviderMessagesScreen } from "../screens/provider/ProviderMessagesScreen";
 import { ProviderNotificationsScreen } from "../screens/provider/ProviderNotificationsScreen";
 import { ProviderReclamationsScreen } from "../screens/provider/ProviderReclamationsScreen";
 import { ProviderOrdersScreen } from "../screens/provider/ProviderOrdersScreen";
 import { ProviderScheduleScreen } from "../screens/provider/ProviderScheduleScreen";
-import { ProviderGalleryScreen } from "../screens/provider/ProviderGalleryScreen";
-import { ProviderRatingsScreen } from "../screens/provider/ProviderRatingsScreen";
-import { ProviderProfileScreen } from "../screens/provider/ProviderProfileScreen";
-import { ProviderSettingsScreen } from "../screens/provider/ProviderSettingsScreen";
+import { ProviderSubscriptionPlanScreen } from "../screens/provider/subscription-plan/ProviderSubscriptionPlanScreen";
+import { ProviderRatingsScreen } from "../screens/provider/rating/ProviderRatingsScreen";
+import { ProviderProfileScreen } from "../screens/provider/setting/ProviderProfileScreen";
+import { ProviderEditProfileScreen } from "../screens/provider/setting/ProviderEditProfileScreen";
+import { ProviderSettingsScreen } from "../screens/provider/setting/ProviderSettingsScreen";
+import { ProviderChangeEmailScreen } from "../screens/provider/setting/ProviderChangeEmailScreen";
+import { ProviderChangePhoneScreen } from "../screens/provider/setting/ProviderChangePhoneScreen";
+import { ProviderChangePasswordScreen } from "../screens/provider/setting/ProviderChangePasswordScreen";
+import { ProviderDeleteAccountScreen } from "../screens/provider/setting/ProviderDeleteAccountScreen";
+import { ProviderDocumentDetailsScreen } from "../screens/provider/setting/ProviderDocumentDetailsScreen";
+import { TermsScreen } from "../screens/auth/TermsScreen";
+import { PrivacyScreen } from "../screens/auth/PrivacyScreen";
 
 const Stack = createNativeStackNavigator<ProviderStackParamList>();
 
@@ -74,11 +82,24 @@ export const ProviderOverlayNavigator: React.FC = () => {
               ?.name as keyof ProviderStackParamList;
             if (next) {
               setCurrentRouteName(next);
+              if (next === "ProviderTerms" || next === "ProviderPrivacy") {
+                setIsSidebarOpen(false);
+              }
             }
           },
         }}
         screenOptions={({ route }) => ({
-          headerShown: true,
+          headerShown:
+            route.name !== "ProviderTerms" &&
+            route.name !== "ProviderPrivacy" &&
+            route.name !== "ProviderProfile" &&
+            route.name !== "ProviderEditProfile" &&
+            route.name !== "ProviderDocumentDetails" &&
+            route.name !== "ProviderChangeEmail" &&
+            route.name !== "ProviderChangePhone" &&
+            route.name !== "ProviderChangePassword" &&
+            route.name !== "ProviderDeleteAccount" &&
+            route.name !== "ProviderManageService",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
             backgroundColor: COLORS.background,
@@ -86,7 +107,6 @@ export const ProviderOverlayNavigator: React.FC = () => {
           title: t(
             `provider.screenTitles.${route.name as keyof ProviderStackParamList}`,
           ),
-          headerRight: () => <ClientHeaderLanguageChips />,
           headerLeft: () => (
             <TouchableOpacity
               onPress={() => setIsSidebarOpen(true)}
@@ -109,6 +129,10 @@ export const ProviderOverlayNavigator: React.FC = () => {
           component={ProviderServicesScreen}
         />
         <Stack.Screen
+          name="ProviderManageService"
+          component={ProviderManageServiceScreen}
+        />
+        <Stack.Screen
           name="ProviderMessages"
           component={ProviderMessagesScreen}
         />
@@ -126,8 +150,8 @@ export const ProviderOverlayNavigator: React.FC = () => {
           component={ProviderScheduleScreen}
         />
         <Stack.Screen
-          name="ProviderGallery"
-          component={ProviderGalleryScreen}
+          name="ProviderSubscriptionPlan"
+          component={ProviderSubscriptionPlanScreen}
         />
         <Stack.Screen
           name="ProviderRatings"
@@ -138,9 +162,35 @@ export const ProviderOverlayNavigator: React.FC = () => {
           component={ProviderProfileScreen}
         />
         <Stack.Screen
+          name="ProviderEditProfile"
+          component={ProviderEditProfileScreen}
+        />
+        <Stack.Screen
+          name="ProviderDocumentDetails"
+          component={ProviderDocumentDetailsScreen}
+        />
+        <Stack.Screen
           name="ProviderSettings"
           component={ProviderSettingsScreen}
         />
+        <Stack.Screen
+          name="ProviderChangeEmail"
+          component={ProviderChangeEmailScreen}
+        />
+        <Stack.Screen
+          name="ProviderChangePhone"
+          component={ProviderChangePhoneScreen}
+        />
+        <Stack.Screen
+          name="ProviderChangePassword"
+          component={ProviderChangePasswordScreen}
+        />
+        <Stack.Screen
+          name="ProviderDeleteAccount"
+          component={ProviderDeleteAccountScreen}
+        />
+        <Stack.Screen name="ProviderTerms" component={TermsScreen} />
+        <Stack.Screen name="ProviderPrivacy" component={PrivacyScreen} />
       </Stack.Navigator>
 
       <Animated.View

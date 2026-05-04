@@ -35,6 +35,12 @@ enum ProviderType {
   EMPLOYEE
 }
 
+/// Shown to clients for same-gender matching (e.g. home services).
+enum ProviderGender {
+  FEMALE
+  MALE
+}
+
 /// Who submitted the verification (provider user vs company representative, etc.).
 enum OwnerType {
   PROVIDER
@@ -90,6 +96,7 @@ model User {
   isPhoneVerified Boolean       @default(false) @map("is_phone_verified")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?      @map("deleted_at")
 
   /// Relations
   client                     Client?
@@ -131,11 +138,18 @@ model Provider {
   latitude            Float?
   longitude           Float?
   photoUrl            String?      @map("photo_url")
-  averageRating       Decimal?     @default(0) @db.Decimal(3, 2)
+  /// One-liner for listings, e.g. "Certified electrician, 8 years in Tunis"
+  tagline             String?      @map("tagline")
+  /// Short personal introduction (a few sentences)
+  bio                 String?      @db.Text @map("bio")
+  yearsOfExperience   Int?         @map("years_of_experience")
+  languagesSpoken     String[]     @default(["Arabic"]) @map("languages_spoken")
+  gender              ProviderGender? @map("gender")
   totalReviews        Int          @default(0) @map("total_reviews")
   cancellationRate    Decimal?     @default(0) @db.Decimal(5, 2)
   averageResponseTime Decimal?     @map("average_response_time") @db.Decimal(10, 2)
   isTopProvider       Boolean      @default(false) @map("is_top_provider")
+  paymentMethodsAccepted String[]  @default(["Cash"]) @map("payment_methods_accepted")
   companyId           String?      @map("company_id") @db.Uuid
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")
@@ -356,6 +370,20 @@ model GivenService {
   serviceId   String      @map("service_id") @db.Uuid
   pricingType PricingType @map("pricing_type")
   price       Float
+  minimumHours               Int?      @map("minimum_hours")
+  estimatedDurationMinutes   Int?      @map("estimated_duration_minutes")
+  description                String?   @db.Text
+  whatIsIncluded             String?   @map("what_is_included") @db.Text
+  whatIsNotIncluded          String?   @map("what_is_not_included") @db.Text
+  toolsProvidedByProvider    Boolean?  @map("tools_provided_by_provider")
+  serviceAreaNotes           String?   @map("service_area_notes") @db.Text
+  advanceBookingRequiredHours Int?     @map("advance_booking_required_hours")
+  serviceRadiusKm            Float?    @map("service_radius_km")
+  isAvailableImmediately     Boolean?  @map("is_available_immediately")
+  averageRating              Decimal?  @map("average_rating") @db.Decimal(3, 2)
+  totalReviews               Int?      @map("total_reviews")
+  totalCompletedJobs         Int?      @map("total_completed_jobs")
+  clientMustProvide          String?   @map("client_must_provide") @db.Text
   ownerType   OwnerType   @map("owner_type")
   ownerId     String      @map("owner_id") @db.Uuid
   active      Boolean     @default(false)

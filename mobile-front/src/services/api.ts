@@ -51,7 +51,8 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const { data, error: refreshErr } = await supabase.auth.refreshSession();
+        const { data, error: refreshErr } =
+          await supabase.auth.refreshSession();
         if (refreshErr || !data.session) {
           throw refreshErr ?? new Error("No session after refresh");
         }
@@ -87,6 +88,10 @@ export const api = {
   completeRegistration: (data: any) =>
     apiClient.post("/auth/complete-registration", data),
   getCurrentUser: () => apiClient.get("/auth/me"),
+  lookupMagicLoginAccount: (data: { email: string }) =>
+    apiClient.post<{ exists: boolean }>("/auth/magic-login/lookup", data),
+  checkEmailChangeAvailability: (data: { email: string }) =>
+    apiClient.post<{ available: boolean }>("/auth/email-change/check", data),
 
   // User endpoints
   updateProfile: (data: any) => apiClient.put("/users/me", data),
@@ -96,10 +101,28 @@ export const api = {
   getClientMe: () => apiClient.get("/clients/me"),
   updateClientMe: (data: Record<string, unknown>) =>
     apiClient.patch("/clients/me", data),
+  softDeleteClientAccount: (data: { password: string }) =>
+    apiClient.post<{ message: string; deletedAt: string }>(
+      "/clients/me/soft-delete",
+      data,
+    ),
 
   // Provider endpoints
   getProviderProfile: () => apiClient.get("/providers/me"),
-  updateProviderProfile: (data: any) => apiClient.put("/providers/me", data),
+  updateProviderProfile: (data: any) => apiClient.patch("/providers/me", data),
+  softDeleteProviderAccount: (data: { password: string }) =>
+    apiClient.post<{ message: string; deletedAt: string }>(
+      "/providers/me/soft-delete",
+      data,
+    ),
+
+  getProviderGivenService: (serviceId: string) =>
+    apiClient.get(`/providers/me/given-services/${serviceId}`),
+
+  updateProviderGivenService: (
+    serviceId: string,
+    data: Record<string, unknown>,
+  ) => apiClient.patch(`/providers/me/given-services/${serviceId}`, data),
 
   // Company endpoints
   getCompanyProfile: () => apiClient.get("/companies/me"),
@@ -121,6 +144,12 @@ export const api = {
         lang: i18n.language?.startsWith("ar") ? "ar" : "en",
       },
     }),
+
+  /** Active `given_services` rows for a catalog service (marketplace provider/company count). */
+  getCatalogServiceActiveGivenCount: (serviceId: string) =>
+    apiClient.get<{ count: number }>(
+      `/services/${serviceId}/active-given-count`,
+    ),
 
   listServiceCategories: () =>
     apiClient.get("/service-categories", {
@@ -159,6 +188,8 @@ export const api = {
   // Current provider/company admin — latest own verification request
   getMyLatestVerificationRequest: () =>
     apiClient.get("/verification-requests/me/latest"),
+  getMyVerificationDocuments: () =>
+    apiClient.get("/verification-requests/me/documents"),
 
   resubmitVerificationRequest: (data: {
     ownerComment?: string | null;

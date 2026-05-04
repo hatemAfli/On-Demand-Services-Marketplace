@@ -313,10 +313,7 @@ export class AuthService {
    * so we can fall back to email when the JWT `sub` does not match `users.id`
    * (e.g. re-seeded DB vs existing Supabase user).
    */
-  async getCurrentUser(jwtUser: {
-    id: string;
-    email?: string | null;
-  }) {
+  async getCurrentUser(jwtUser: { id: string; email?: string | null }) {
     const include = {
       client: true,
       provider: true,
@@ -340,10 +337,71 @@ export class AuthService {
       throw new BadRequestException('User not found');
     }
 
+    const normalizedJwtEmail = jwtUser.email?.trim().toLowerCase();
+    if (normalizedJwtEmail && normalizedJwtEmail !== user.email) {
+      const emailOwner = await this.prisma.user.findUnique({
+        where: { email: normalizedJwtEmail },
+        select: { id: true },
+      });
+
+      if (emailOwner && emailOwner.id !== user.id) {
+        throw new ConflictException('Email already in use by another account');
+      }
+
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { email: normalizedJwtEmail },
+        include,
+      });
+    }
+
     return user;
   }
 
   async verifySupabaseToken(token: string) {
     return await this.supabase.verifyToken(token);
+  }
+
+  async lookupMagicLoginAccount(data: { email: string }) {
+    const normalizedEmail = data.email?.trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new BadRequestException('Email is required');
+    }
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+
+    return { exists: Boolean(existingUser) };
+  }
+
+  async checkEmailChangeAvailability(userId: string, data: { email: string }) {
+    const normalizedEmail = data.email?.trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new BadRequestException('Email is required');
+    }
+
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (!currentUser) {
+      throw new BadRequestException('User not found');
+    }
+
+    if (normalizedEmail === currentUser.email) {
+      throw new BadRequestException('Please enter a different email address');
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+    if (existing && existing.id !== userId) {
+      throw new ConflictException('Email already in use by another account');
+    }
+
+    return { available: true };
   }
 }

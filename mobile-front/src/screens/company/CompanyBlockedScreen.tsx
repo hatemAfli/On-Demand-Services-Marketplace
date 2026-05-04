@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  I18nManager,
   ActivityIndicator,
   ScrollView,
   KeyboardAvoidingView,
@@ -21,10 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { AccountStatus, UserRole } from "../../types";
-import {
-  ClientHeaderLanguageChips,
-  AuthNoticeModal,
-} from "../../components/common";
+import { AuthNoticeModal } from "../../components/common";
 import { api } from "../../services/api";
 import { supabase } from "../../services/supabase";
 import { requestPhotoLibraryPermission } from "../../services/clientAvatarUpload";
@@ -362,27 +358,12 @@ export const CompanyBlockedScreen: React.FC = () => {
     }
   };
 
-  const headerBarStyle = useMemo(
-    () => ({
-      paddingTop: insets.top + 8,
-      flexDirection: (I18nManager.isRTL ? "row-reverse" : "row") as
-        | "row"
-        | "row-reverse",
-    }),
-    [insets.top],
-  );
-
   if (!user || user.role !== UserRole.COMPANY_ADMIN) {
     return null;
   }
 
   return (
     <View style={styles.root}>
-      <View style={[styles.headerBar, headerBarStyle]}>
-        <View style={{ flex: 1 }} />
-        <ClientHeaderLanguageChips />
-      </View>
-
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -737,13 +718,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FAFAFA",
   },
   flex: { flex: 1 },
-  headerBar: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    alignItems: "center",
-    justifyContent: "flex-end",
-    backgroundColor: "#FAFAFA",
-  },
   scrollInner: {
     paddingHorizontal: 20,
     flexGrow: 1,

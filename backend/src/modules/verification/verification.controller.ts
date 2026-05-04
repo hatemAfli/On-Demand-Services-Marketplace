@@ -21,6 +21,13 @@ export class VerificationController {
     );
   }
 
+  @Get('me/documents')
+  getMyDocuments(@CurrentUser() user: User) {
+    return this.verificationService.getAllVerificationDocumentsForCurrentUser(
+      user,
+    );
+  }
+
   @Post('me/resubmit')
   resubmit(@CurrentUser() user: User, @Body() body: ResubmitVerificationDto) {
     return this.verificationService.resubmitVerificationForCurrentUser(

@@ -12,12 +12,13 @@ import {
   TouchableOpacity,
   StatusBar,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
-import { Button, Input, LanguageSwitcher } from "../../components/common";
+import { Input } from "../../components/common";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../services/supabase";
@@ -27,7 +28,7 @@ import {
 } from "../../services/clientAvatarUpload";
 import { COLORS } from "../../constants";
 
-const ACCENT = "#C9A84C";
+const ACCENT = "#4F46E5";
 
 interface CompleteProfileClientScreenProps {
   navigation: NativeStackNavigationProp<any>;
@@ -200,6 +201,15 @@ export const CompleteProfileClientScreen: React.FC<
         translucent
         backgroundColor="transparent"
       />
+      <View style={[styles.topBackContainer, { top: insets.top + 8 }]}>
+        <TouchableOpacity
+          style={styles.navBackButton}
+          onPress={handleNavigateBack}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.navBackText}>← {t("common.back")}</Text>
+        </TouchableOpacity>
+      </View>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -208,33 +218,15 @@ export const CompleteProfileClientScreen: React.FC<
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: insets.top + 20,
+              paddingTop: insets.top + 64,
               paddingBottom: 120 + insets.bottom,
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.topRow}>
-            <TouchableOpacity
-              style={styles.navBackButton}
-              onPress={handleNavigateBack}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.navBackText}>← {t("common.back")}</Text>
-            </TouchableOpacity>
-            <LanguageSwitcher />
-          </View>
-
           <View style={styles.panel}>
-            <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
-              {t("completeProfile.step1Title")}
-            </Text>
-
             <View style={styles.photoBlock}>
-              <Text style={[styles.photoLabel, isRTL && styles.rtlText]}>
-                {t("completeProfile.profilePhotoLabel")}
-              </Text>
               <TouchableOpacity
                 style={styles.photoCircle}
                 onPress={handlePickPhoto}
@@ -330,13 +322,23 @@ export const CompleteProfileClientScreen: React.FC<
             { paddingBottom: 16 + insets.bottom, paddingTop: 16 },
           ]}
         >
-          <Button
-            title={t("completeProfile.completeButton")}
-            onPress={handleSubmit}
-            loading={isSubmitting}
-            fullWidth
+          <TouchableOpacity
             style={styles.submitButton}
-          />
+            onPress={handleSubmit}
+            activeOpacity={0.9}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <View style={styles.submitButtonContent}>
+                <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.submitButtonText}>
+                  {t("completeProfile.completeButton")}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -346,7 +348,12 @@ export const CompleteProfileClientScreen: React.FC<
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F1F5F9",
+  },
+  topBackContainer: {
+    position: "absolute",
+    left: 24,
+    zIndex: 10,
   },
   container: {
     flex: 1,
@@ -355,52 +362,35 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
   },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
   navBackButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     minHeight: 44,
     justifyContent: "center",
   },
   navBackText: {
     color: ACCENT,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "600",
   },
   panel: {
-    borderRadius: 18,
-    borderWidth: 1.2,
-    borderColor: "#E5E7EB",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     backgroundColor: "#FFFFFF",
     padding: 16,
-    marginTop: 20,
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 1,
   },
   photoBlock: {
     alignItems: "center",
     marginBottom: 20,
-  },
-  photoLabel: {
-    alignSelf: "stretch",
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 10,
   },
   photoCircle: {
     width: 120,
@@ -469,7 +459,29 @@ const styles = StyleSheet.create({
     borderTopColor: "#E5E7EB",
   },
   submitButton: {
-    minWidth: 0,
+    alignSelf: "center",
+    minWidth: 210,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: "#6366F1",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#4338CA",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  submitButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  submitButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   rtlText: {
     textAlign: "right",

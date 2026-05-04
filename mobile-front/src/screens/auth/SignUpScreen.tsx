@@ -10,25 +10,26 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth, getRoleFromSession } from "../../context/AuthContext";
 import {
   AuthNoticeModal,
-  Button,
   Input,
-  LanguageSwitcher,
   PasswordStrengthIndicator,
 } from "../../components/common";
 import { COLORS } from "../../constants";
 import { UserRole } from "../../types";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { AuthStackParamList } from "../../navigation/types";
 
 type SignUpMode = "email" | "phone";
 
 interface SignUpScreenProps {
-  navigation: NativeStackNavigationProp<any>;
+  navigation: NativeStackNavigationProp<AuthStackParamList, "SignUp">;
 }
 
 export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
@@ -151,7 +152,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         // Navigate to OTP verification screen
         navigation.navigate("OTPVerification", {
           phone,
-          role: selectedRole,
+          role: selectedRole!,
         });
       }
     } catch (error: any) {
@@ -190,6 +191,15 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         translucent
         backgroundColor="transparent"
       />
+      <View style={[styles.topBackContainer, { top: insets.top + 8 }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.navigate("Welcome")}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.backText}>← {t("common.back")}</Text>
+        </TouchableOpacity>
+      </View>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -198,26 +208,13 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: insets.top + 20,
+              paddingTop: insets.top + 64,
               paddingBottom: Math.max(insets.bottom, 12) + 40,
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
-            <View style={styles.topRow}>
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => navigation.navigate("Welcome")}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={styles.backText}>← {t("common.back")}</Text>
-              </TouchableOpacity>
-              <LanguageSwitcher />
-            </View>
-          </View>
-
           <View style={styles.panel}>
             {/* Mode Toggle */}
             <View style={styles.modeToggle}>
@@ -358,11 +355,25 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
-            <Button
-              title={t("common.next")}
+            <TouchableOpacity
+              style={styles.nextButton}
               onPress={handleSignUp}
-              loading={isLoading}
-            />
+              activeOpacity={0.9}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <View style={styles.nextButtonContent}>
+                  <Ionicons
+                    name={isRTL ? "arrow-back-outline" : "arrow-forward-outline"}
+                    size={16}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.nextButtonText}>{t("common.next")}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
 
           <View style={styles.footer}>
@@ -405,55 +416,52 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F1F5F9",
+  },
+  topBackContainer: {
+    position: "absolute",
+    left: 24,
+    zIndex: 10,
   },
   container: {
     flex: 1,
   },
   panel: {
-    borderRadius: 18,
-    borderWidth: 1.2,
-    borderColor: "#E5E7EB",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     backgroundColor: "#FFFFFF",
-    padding: 10,
-    marginTop: 0,
+    padding: 16,
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 1,
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
   },
-  header: {
-    minHeight: 64,
-    marginBottom: 18,
-  },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
   backButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     minHeight: 44,
     justifyContent: "center",
   },
   backText: {
-    color: "#C9A84C",
-    fontSize: 17,
+    color: "#4F46E5",
+    fontSize: 16,
     fontWeight: "600",
   },
   modeToggle: {
     flexDirection: "row",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F1F5F9",
     borderRadius: 12,
     padding: 4,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   modeButton: {
     flex: 1,
@@ -462,28 +470,31 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   modeButtonActive: {
-    backgroundColor: "#FEF3C7",
+    backgroundColor: "#FFFFFF",
   },
   modeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#6B7280",
+    color: "#64748B",
   },
   modeTextActive: {
-    color: "#92400E",
+    color: "#4F46E5",
   },
   form: {
-    marginBottom: 24,
+    marginBottom: 20,
     marginTop: 8,
   },
   roleSection: {
     marginBottom: 32,
   },
   roleTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 16,
+    marginLeft: 8,
+    marginBottom: 12,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    color: "#94A3B8",
   },
   roleError: {
     fontSize: 12,
@@ -494,16 +505,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   roleCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     position: "relative",
   },
   roleCardActive: {
-    borderColor: "#C9A84C",
-    backgroundColor: "#FEF3C7",
+    borderColor: "#C7D2FE",
+    backgroundColor: "#EEF2FF",
   },
   roleCardRow: {
     flexDirection: "row",
@@ -520,20 +531,20 @@ const styles = StyleSheet.create({
     marginEnd: 14,
   },
   roleLabel: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "600",
     color: "#111827",
     marginBottom: 2,
   },
   roleLabelActive: {
-    color: "#92400E",
+    color: "#4338CA",
   },
   roleDescription: {
-    fontSize: 14,
-    color: "#4B5563",
+    fontSize: 12,
+    color: "#64748B",
   },
   roleDescriptionActive: {
-    color: "#111827",
+    color: "#475569",
   },
   checkmark: {
     position: "absolute",
@@ -542,14 +553,39 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#C9A84C",
+    backgroundColor: "#4F46E5",
     alignItems: "center",
     justifyContent: "center",
   },
   checkmarkText: {
-    color: "#111827",
+    color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "bold",
+  },
+  nextButton: {
+    alignSelf: "center",
+    minWidth: 170,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: "#6366F1",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#4338CA",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  nextButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  nextButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   footer: {
     flexDirection: "row",
@@ -559,12 +595,12 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   footerText: {
-    fontSize: 14,
-    color: "#6B7280",
+    fontSize: 13,
+    color: "#64748B",
   },
   footerLink: {
-    fontSize: 14,
-    color: "#C9A84C",
+    fontSize: 13,
+    color: "#4F46E5",
     fontWeight: "600",
   },
   rtlText: {

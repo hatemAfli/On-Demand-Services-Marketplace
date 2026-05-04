@@ -140,6 +140,22 @@ export class ServicesService {
     return this.findAll({ categoryId, locale });
   }
 
+  /**
+   * Active `GivenService` rows for a catalog service (marketplace supply count).
+   */
+  async countActiveGivenServicesForCatalog(serviceId: string) {
+    const exists = await this.prisma.service.findFirst({
+      where: { id: serviceId, active: true },
+    });
+    if (!exists) {
+      throw new NotFoundException('Service not found');
+    }
+    const count = await this.prisma.givenService.count({
+      where: { serviceId, active: true },
+    });
+    return { count };
+  }
+
   async findAll(params?: {
     categoryId?: string;
     categorySlug?: string;
@@ -166,6 +182,22 @@ export class ServicesService {
       select: localizedServiceListSelect,
     });
 
+    const serviceIds = rows.map((r) => r.id);
+    const aggregates =
+      serviceIds.length === 0
+        ? []
+        : await this.prisma.givenService.groupBy({
+            by: ['serviceId'],
+            where: {
+              active: true,
+              serviceId: { in: serviceIds },
+            },
+            _count: { _all: true },
+          });
+    const activeGivenByServiceId = new Map(
+      aggregates.map((a) => [a.serviceId, a._count._all]),
+    );
+
     return rows.map((row) => {
       const localizedService = requestedLocales
         .map((candidate) =>
@@ -187,6 +219,7 @@ export class ServicesService {
         categoryId: row.categoryId,
         active: row.active,
         servicePhoto: row.servicePhoto,
+        activeGivenCount: activeGivenByServiceId.get(row.id) ?? 0,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         category: {

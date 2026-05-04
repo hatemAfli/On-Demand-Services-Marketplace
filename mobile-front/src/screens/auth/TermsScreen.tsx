@@ -8,14 +8,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { AuthStackParamList } from "../../navigation/types";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { api } from "../../services/api";
 import { LegalMarkdownRenderer } from "../../components/common/LegalMarkdownRenderer";
 
 interface TermsScreenProps {
-  navigation: NativeStackNavigationProp<AuthStackParamList, "Terms">;
+  navigation: { goBack: () => void };
 }
 
 export const TermsScreen: React.FC<TermsScreenProps> = ({ navigation }) => {

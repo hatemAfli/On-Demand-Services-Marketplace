@@ -26,6 +26,8 @@ type Props = {
    * dismiss control. Omit for simple alerts where the primary button already closes.
    */
   showDismissLink?: boolean;
+  /** Label for the dismiss link (defaults to `common.close`). */
+  dismissLabel?: string;
 };
 
 export const AuthNoticeModal: React.FC<Props> = ({
@@ -36,6 +38,7 @@ export const AuthNoticeModal: React.FC<Props> = ({
   primaryLabel,
   onPrimary,
   showDismissLink = false,
+  dismissLabel,
 }) => {
   const insets = useSafeAreaInsets();
   const { t } = useAppTranslation();
@@ -94,7 +97,9 @@ export const AuthNoticeModal: React.FC<Props> = ({
 
           {showDismissLink ? (
             <TouchableOpacity onPress={onClose} style={styles.dismiss} hitSlop={12}>
-              <Text style={styles.dismissText}>{t("common.close")}</Text>
+              <Text style={styles.dismissText}>
+                {dismissLabel ?? t("common.close")}
+              </Text>
             </TouchableOpacity>
           ) : null}
         </Pressable>

@@ -27,6 +27,8 @@ export const Input: React.FC<InputProps> = ({
   rightIcon,
   onRightIconPress,
   secureTextEntry,
+  style,
+  multiline,
   ...props
 }) => {
   const [isSecure, setIsSecure] = useState(secureTextEntry);
@@ -39,20 +41,32 @@ export const Input: React.FC<InputProps> = ({
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
 
-      <View style={[styles.inputContainer, error && styles.inputError]}>
+      <View
+        style={[
+          styles.inputContainer,
+          error && styles.inputError,
+          multiline && styles.inputContainerMultiline,
+        ]}
+      >
         {leftIcon && (
           <Ionicons
             name={leftIcon}
             size={20}
             color={COLORS.text.secondary}
-            style={styles.leftIcon}
+            style={[styles.leftIcon, multiline && styles.leftIconMultiline]}
           />
         )}
 
         <TextInput
-          style={[styles.input, leftIcon && styles.inputWithLeftIcon]}
+          style={[
+            styles.input,
+            leftIcon && styles.inputWithLeftIcon,
+            multiline && styles.inputMultiline,
+            style,
+          ]}
           placeholderTextColor={COLORS.text.tertiary}
           secureTextEntry={isSecure}
+          multiline={multiline}
           {...props}
         />
 
@@ -102,6 +116,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 56,
   },
+  inputContainerMultiline: {
+    height: undefined,
+    minHeight: 120,
+    alignItems: "flex-start",
+    paddingVertical: 12,
+  },
   inputError: {
     borderColor: COLORS.error,
   },
@@ -114,11 +134,20 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
     includeFontPadding: false,
   },
+  inputMultiline: {
+    height: undefined,
+    minHeight: 88,
+    textAlignVertical: "top",
+    paddingTop: 4,
+  },
   inputWithLeftIcon: {
     paddingLeft: 8,
   },
   leftIcon: {
     marginRight: 8,
+  },
+  leftIconMultiline: {
+    marginTop: 4,
   },
   rightIcon: {
     marginLeft: 8,

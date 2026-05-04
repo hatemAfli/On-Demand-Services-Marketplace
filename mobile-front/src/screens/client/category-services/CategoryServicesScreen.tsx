@@ -1,17 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import { api } from "../../../services/api";
 import { CategoryServicesHeader } from "./CategoryServicesHeader";
-import { ServiceFilterChips } from "./ServiceFilterChips";
 import { SubCategoryChips } from "./SubCategoryChips";
 import {
   ServiceDiscoveryCard,
@@ -32,8 +26,8 @@ function toCardDisplay(
   s: MarketplaceServiceItem,
   index: number,
   t: (key: string, opts?: Record<string, unknown>) => string,
-  multi: boolean,
 ): ServiceCardDisplay {
+  const count = typeof s.activeGivenCount === "number" ? s.activeGivenCount : 0;
   return {
     id: s.id,
     title: s.name,
@@ -42,11 +36,7 @@ function toCardDisplay(
     price: t("client.categoryServices.priceOnRequest"),
     unit: "",
     image: s.servicePhoto?.trim() || placeholderImageForService(index),
-    rating: "4.8",
-    reviews: "(—)",
-    meta: t("client.categoryServices.metaCatalog"),
-    badge: index === 0 ? t("client.categoryServices.badgeTopRated") : undefined,
-    highDemand: multi && index === 1,
+    activeGivenCount: count,
   };
 }
 
@@ -102,8 +92,6 @@ export const CategoryServicesScreen: React.FC<Props> = ({
     t("client.categoryServices.subOffers"),
   ] as [string, string, string, string];
 
-  const multi = services.length > 1;
-
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.screenWrap}>
@@ -118,14 +106,6 @@ export const CategoryServicesScreen: React.FC<Props> = ({
             title={categoryName}
             onBack={() => navigation.goBack()}
           />
-          <View style={{ paddingHorizontal: 24, paddingBottom: 8 }}>
-            <ServiceFilterChips
-              filtersLabel={t("client.categoryServices.filters")}
-              chipRating={t("client.categoryServices.chipRating")}
-              chipBestPrice={t("client.categoryServices.chipBestPrice")}
-              chipInstant={t("client.categoryServices.chipInstant")}
-            />
-          </View>
         </View>
 
         {loading ? (
@@ -159,15 +139,20 @@ export const CategoryServicesScreen: React.FC<Props> = ({
                 {t("client.categoryServices.empty")}
               </Text>
             ) : (
-              services.map((item, index) => (
-                <ServiceDiscoveryCard
-                  key={item.id}
-                  service={toCardDisplay(item, index, t, multi)}
-                  vatLabel={t("client.categoryServices.vatIncluded")}
-                  highDemandLabel={t("client.categoryServices.highDemand")}
-                  onPress={() => openSheet(item, index)}
-                />
-              ))
+              services.map((item, index) => {
+                const card = toCardDisplay(item, index, t);
+                return (
+                  <ServiceDiscoveryCard
+                    key={item.id}
+                    service={card}
+                    providersCountLabel={t(
+                      "client.categoryServices.cardProvidersCount",
+                      { count: card.activeGivenCount },
+                    )}
+                    onPress={() => openSheet(item, index)}
+                  />
+                );
+              })
             )}
 
             <PromoBanner
@@ -185,6 +170,11 @@ export const CategoryServicesScreen: React.FC<Props> = ({
         onClose={closeSheet}
         service={selected}
         imageUri={selectedImage}
+        initialActiveGivenCount={
+          selected && typeof selected.activeGivenCount === "number"
+            ? selected.activeGivenCount
+            : undefined
+        }
       />
     </SafeAreaView>
   );

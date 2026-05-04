@@ -29,6 +29,12 @@ export class ServicesController {
     );
   }
 
+  /** How many active provider/company offers exist for this catalog service (`given_services`). */
+  @Get(':serviceId/active-given-count')
+  activeGivenCount(@Param('serviceId', ParseUUIDPipe) serviceId: string) {
+    return this.servicesService.countActiveGivenServicesForCatalog(serviceId);
+  }
+
   @Get()
   list(
     @Query('categoryId') categoryId?: string,

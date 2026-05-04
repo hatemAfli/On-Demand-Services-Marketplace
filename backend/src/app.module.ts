@@ -10,6 +10,7 @@ import { LegalDocumentsModule } from './modules/legal-documents/legal-documents.
 import { GivenServiceModule } from './modules/given-service/given-service.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { CompaniesModule } from './modules/companies/companies.module';
+import { ProvidersModule } from './modules/providers/providers.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -30,6 +31,7 @@ import { AppService } from './app.service';
     GivenServiceModule,
     AdminUsersModule,
     CompaniesModule,
+    ProvidersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

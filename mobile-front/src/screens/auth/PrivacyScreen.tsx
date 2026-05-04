@@ -8,14 +8,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { AuthStackParamList } from "../../navigation/types";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { api } from "../../services/api";
 import { LegalMarkdownRenderer } from "../../components/common/LegalMarkdownRenderer";
 
 interface PrivacyScreenProps {
-  navigation: NativeStackNavigationProp<AuthStackParamList, "Privacy">;
+  navigation: { goBack: () => void };
 }
 
 export const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation }) => {
@@ -37,8 +35,9 @@ export const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation }) => {
         setContent(res.data.contentMarkdown);
       } catch (e) {
         if (!mounted) return;
-        const maybeMessage = (e as { response?: { data?: { message?: unknown } } })
-          ?.response?.data?.message;
+        const maybeMessage = (
+          e as { response?: { data?: { message?: unknown } } }
+        )?.response?.data?.message;
         if (typeof maybeMessage === "string") setError(maybeMessage);
         else setError(t("common.error", { defaultValue: "Error" }));
       } finally {
@@ -54,7 +53,10 @@ export const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
           <Text style={styles.back}>← {t("common.back")}</Text>
         </TouchableOpacity>
         <Text style={[styles.title, isRTL && styles.rtl]}>
@@ -67,13 +69,17 @@ export const PrivacyScreen: React.FC<PrivacyScreenProps> = ({ navigation }) => {
           {loading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator color="#111827" />
-              <Text style={styles.loadingText}>Loading latest privacy policy...</Text>
+              <Text style={styles.loadingText}>
+                Loading latest privacy policy...
+              </Text>
             </View>
           ) : (
             <>
               {error ? (
                 <View style={styles.errorBox}>
-                  <Text style={[styles.error, isRTL && styles.rtl]}>{error}</Text>
+                  <Text style={[styles.error, isRTL && styles.rtl]}>
+                    {error}
+                  </Text>
                 </View>
               ) : null}
               <LegalMarkdownRenderer

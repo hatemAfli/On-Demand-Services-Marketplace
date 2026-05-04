@@ -41,6 +41,8 @@ export interface ClientProfile {
   imageUrl?: string;
 }
 
+export type ProviderGender = "FEMALE" | "MALE";
+
 export interface ProviderProfile {
   id: string;
   type: ProviderType;
@@ -49,6 +51,11 @@ export interface ProviderProfile {
   latitude?: number;
   longitude?: number;
   photoUrl?: string;
+  tagline?: string | null;
+  bio?: string | null;
+  yearsOfExperience?: number | null;
+  languagesSpoken?: string[];
+  gender?: ProviderGender | null;
   averageRating: number;
   totalReviews: number;
   cancellationRate: number;

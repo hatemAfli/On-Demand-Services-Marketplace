@@ -30,11 +30,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../context/AuthContext";
-import {
-  Input,
-  LanguageSwitcher,
-  AuthNoticeModal,
-} from "../../components/common";
+import { Input, AuthNoticeModal } from "../../components/common";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../services/supabase";
@@ -54,7 +50,7 @@ import {
 import { COLORS } from "../../constants";
 import { OsmLocationPicker } from "../../components/maps/OsmLocationPicker";
 
-const ACCENT = "#C9A84C";
+const ACCENT = "#4F46E5";
 const TOTAL_STEPS = 3;
 
 type ServiceRow = {
@@ -626,24 +622,49 @@ export const CompleteProfileProviderScreen: React.FC<
     }
   };
 
-  const renderProgressBar = () => (
-    <View style={styles.progressContainer}>
-      <View style={styles.progressBar}>
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${(currentStep / TOTAL_STEPS) * 100}%` },
-          ]}
-        />
+  const renderStepNavigator = () => {
+    const steps = [
+      t("completeProfile.providerStep1Title"),
+      t("completeProfile.providerStep2Title"),
+      t("completeProfile.providerStep3Title"),
+    ];
+
+    return (
+      <View style={styles.stepNavigator}>
+        <View style={styles.stepNavigatorRow}>
+          {steps.map((label, index) => {
+            const stepNumber = index + 1;
+            const isActive = currentStep === stepNumber;
+            const isDone = currentStep > stepNumber;
+            return (
+              <View key={label} style={styles.stepNavigatorItem}>
+                <View
+                  style={[
+                    styles.stepNavigatorDot,
+                    isActive && styles.stepNavigatorDotActive,
+                    isDone && styles.stepNavigatorDotDone,
+                  ]}
+                >
+                  <Text style={styles.stepNavigatorDotText}>
+                    {isDone ? "✓" : stepNumber}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.stepNavigatorLabel,
+                    isActive && styles.stepNavigatorLabelActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {label}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
       </View>
-      <Text style={[styles.progressText, isRTL && styles.rtlText]}>
-        {t("completeProfile.stepProgress", {
-          current: currentStep,
-          total: TOTAL_STEPS,
-        })}
-      </Text>
-    </View>
-  );
+    );
+  };
 
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
@@ -652,15 +673,9 @@ export const CompleteProfileProviderScreen: React.FC<
         <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
           {t("completeProfile.providerStep1Title")}
         </Text>
-        <Text style={[styles.stepSubtitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.providerStep1Subtitle")}
-        </Text>
       </View>
 
       <View style={styles.photoBlock}>
-        <Text style={[styles.photoLabel, isRTL && styles.rtlText]}>
-          {t("completeProfile.profilePhotoLabel")}
-        </Text>
         <TouchableOpacity
           style={styles.photoCircle}
           onPress={handlePickPhoto}
@@ -725,9 +740,6 @@ export const CompleteProfileProviderScreen: React.FC<
         <Ionicons name="location-outline" size={56} color={ACCENT} />
         <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
           {t("completeProfile.providerStep2Title")}
-        </Text>
-        <Text style={[styles.stepSubtitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.providerStep2Subtitle")}
         </Text>
       </View>
 
@@ -840,12 +852,6 @@ export const CompleteProfileProviderScreen: React.FC<
                 )}
               </TouchableOpacity>
             </View>
-            <Text style={[styles.coordsReadout, isRTL && styles.rtlText]}>
-              {t("completeProfile.coordinatesReadout", {
-                lat: formData.latitude || "—",
-                lng: formData.longitude || "—",
-              })}
-            </Text>
             {(errors.latitude || errors.longitude) && (
               <Text style={styles.mapError}>
                 {errors.latitude || errors.longitude}
@@ -912,10 +918,14 @@ export const CompleteProfileProviderScreen: React.FC<
                   activeOpacity={0.85}
                 >
                   <View style={styles.categoryTitleWrap}>
-                    <Text style={[styles.categoryTitle, isRTL && styles.rtlText]}>
+                    <Text
+                      style={[styles.categoryTitle, isRTL && styles.rtlText]}
+                    >
                       {group.categoryName}
                     </Text>
-                    <Text style={[styles.categoryCount, isRTL && styles.rtlText]}>
+                    <Text
+                      style={[styles.categoryCount, isRTL && styles.rtlText]}
+                    >
                       {group.services.length} service
                       {group.services.length > 1 ? "s" : ""}
                     </Text>
@@ -1059,6 +1069,15 @@ export const CompleteProfileProviderScreen: React.FC<
         translucent
         backgroundColor="transparent"
       />
+      <View style={[styles.topBackContainer, { top: insets.top + 8 }]}>
+        <TouchableOpacity
+          style={styles.navBackButton}
+          onPress={handleNavigateBack}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.navBackText}>← {t("common.back")}</Text>
+        </TouchableOpacity>
+      </View>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -1067,26 +1086,15 @@ export const CompleteProfileProviderScreen: React.FC<
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: insets.top + 20,
+              paddingTop: insets.top + 64,
               paddingBottom: 120 + insets.bottom,
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.topRow}>
-            <TouchableOpacity
-              style={styles.navBackButton}
-              onPress={handleNavigateBack}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.navBackText}>← {t("common.back")}</Text>
-            </TouchableOpacity>
-            <LanguageSwitcher />
-          </View>
-
           <View style={styles.panel}>
-            {renderProgressBar()}
+            {renderStepNavigator()}
             {currentStep === 1
               ? renderStep1()
               : currentStep === 2
@@ -1098,12 +1106,12 @@ export const CompleteProfileProviderScreen: React.FC<
         <View
           style={[
             styles.footer,
-            { paddingBottom: 16 + insets.bottom, paddingTop: 16 },
+            { paddingBottom: Math.max(insets.bottom - 40, 4), paddingTop: 8 },
           ]}
         >
           {currentStep > 1 && (
             <TouchableOpacity
-              style={styles.stepBackFab}
+              style={styles.stepBackButton}
               onPress={handleStepBack}
               accessibilityRole="button"
               accessibilityLabel={t("completeProfile.previousStep")}
@@ -1111,8 +1119,8 @@ export const CompleteProfileProviderScreen: React.FC<
             >
               <Ionicons
                 name={isRTL ? "chevron-forward" : "chevron-back"}
-                size={22}
-                color="#92400E"
+                size={18}
+                color="#4F46E5"
               />
             </TouchableOpacity>
           )}
@@ -1138,7 +1146,7 @@ export const CompleteProfileProviderScreen: React.FC<
             activeOpacity={0.9}
           >
             {currentStep === TOTAL_STEPS && isSubmitting ? (
-              <ActivityIndicator color="#111827" />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
                 <Text style={styles.stepPrimaryButtonText}>
@@ -1156,7 +1164,7 @@ export const CompleteProfileProviderScreen: React.FC<
                         : "checkmark"
                     }
                     size={18}
-                    color="#111827"
+                    color="#FFFFFF"
                   />
                 </View>
               </>
@@ -1262,7 +1270,12 @@ export const CompleteProfileProviderScreen: React.FC<
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F1F5F9",
+  },
+  topBackContainer: {
+    position: "absolute",
+    left: 24,
+    zIndex: 10,
   },
   container: {
     flex: 1,
@@ -1271,55 +1284,80 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
   },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
   navBackButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     minHeight: 44,
     justifyContent: "center",
   },
   navBackText: {
     color: ACCENT,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "600",
   },
   panel: {
-    borderRadius: 18,
-    borderWidth: 1.2,
-    borderColor: "#E5E7EB",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     backgroundColor: "#FFFFFF",
     padding: 16,
-    marginTop: 20,
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 1,
   },
-  progressContainer: {
-    marginBottom: 24,
+  stepNavigator: {
+    marginBottom: 22,
+    paddingHorizontal: 4,
   },
-  progressBar: {
-    height: 6,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 3,
-    overflow: "hidden",
-    marginBottom: 8,
+  stepNavigatorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
   },
-  progressFill: {
-    height: "100%",
-    backgroundColor: ACCENT,
-    borderRadius: 3,
+  stepNavigatorItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 7,
   },
-  progressText: {
+  stepNavigatorDot: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#EEF2FF",
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepNavigatorDotActive: {
+    backgroundColor: "#4F46E5",
+    borderColor: "#4F46E5",
+    transform: [{ scale: 1.05 }],
+  },
+  stepNavigatorDotDone: {
+    backgroundColor: "#10B981",
+    borderColor: "#10B981",
+  },
+  stepNavigatorDotText: {
+    color: "#FFFFFF",
     fontSize: 13,
+    fontWeight: "700",
+  },
+  stepNavigatorLabel: {
+    fontSize: 11,
     color: "#6B7280",
+    fontWeight: "600",
     textAlign: "center",
+    width: "100%",
+  },
+  stepNavigatorLabelActive: {
+    color: "#312E81",
   },
   stepContainer: {
     marginBottom: 8,
@@ -1338,17 +1376,12 @@ const styles = StyleSheet.create({
   stepSubtitle: {
     fontSize: 14,
     color: "#4B5563",
+    textAlign: "center",
+    maxWidth: 280,
   },
   photoBlock: {
     alignItems: "center",
     marginBottom: 20,
-  },
-  photoLabel: {
-    alignSelf: "stretch",
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 10,
   },
   photoCircle: {
     width: 120,
@@ -1438,13 +1471,6 @@ const styles = StyleSheet.create({
   },
   mapFabDisabled: {
     opacity: 0.65,
-  },
-  coordsReadout: {
-    marginTop: 10,
-    fontSize: 12,
-    color: "#92400E",
-    fontWeight: "600",
-    letterSpacing: 0.2,
   },
   mapError: {
     marginTop: 6,
@@ -1691,33 +1717,38 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 24,
-    backgroundColor: "rgba(255,255,255,0.96)",
+    backgroundColor: "rgba(255,255,255,0.98)",
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
     flexDirection: "row",
     gap: 12,
-    alignItems: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  stepBackFab: {
-    width: 54,
-    borderRadius: 14,
-    borderWidth: 1.2,
-    borderColor: "#D1D5DB",
-    backgroundColor: "#F9FAFB",
+  stepBackButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1.4,
+    borderColor: "#C7D2FE",
+    backgroundColor: "#EEF2FF",
     alignItems: "center",
     justifyContent: "center",
   },
   stepPrimaryButton: {
-    height: 54,
-    borderRadius: 14,
-    backgroundColor: "#FEF3C7",
-    borderWidth: 1.2,
-    borderColor: "#C9A84C",
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#4F46E5",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 14,
-    gap: 10,
+    paddingHorizontal: 18,
+    gap: 8,
+    shadowColor: "#4F46E5",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.24,
+    shadowRadius: 12,
+    elevation: 4,
   },
   stepPrimaryButtonFull: {
     flex: 1,
@@ -1729,15 +1760,15 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   stepPrimaryButtonText: {
-    color: "#111827",
+    color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
   },
   stepPrimaryIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#FDE68A",
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },

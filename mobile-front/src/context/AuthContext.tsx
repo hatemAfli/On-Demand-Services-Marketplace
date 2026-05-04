@@ -9,14 +9,21 @@ import React, {
   useRef,
 } from "react";
 import * as SecureStore from "expo-secure-store";
+import { Alert, Platform, ToastAndroid } from "react-native";
 import * as Linking from "expo-linking";
 import { authService } from "../services/auth.service";
-import { handleAuthDeepLink, supabase } from "../services/supabase";
+import {
+  authUrlIndicatesPasswordRecovery,
+  handleAuthDeepLink,
+  supabase,
+} from "../services/supabase";
+import i18n from "../i18n";
 import { UserRole, UserWithProfile } from "../types";
 import type { EmailSignUpResult } from "../types/auth.types";
 import type { Session } from "@supabase/supabase-js";
 
 const USER_KEY = "user";
+const PENDING_PASSWORD_RECOVERY_KEY = "pending_password_recovery_v1";
 
 /** Returned after login so screens can navigate to CompleteProfile when backend has no row yet. */
 export type LoginResult = {
@@ -59,6 +66,10 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
   /** Call after email signup when a session is returned (no confirmation) */
   syncSessionFromSupabase: () => Promise<void>;
+
+  /** User opened a password-recovery link and must set a new password before the app. */
+  pendingPasswordRecovery: boolean;
+  clearPendingPasswordRecovery: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -82,6 +93,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [session, setSession] = useState<Session | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingPasswordRecovery, setPendingPasswordRecovery] =
+    useState(false);
+  const userRef = useRef<UserWithProfile | null>(null);
 
   /**
    * During loginWithEmail / loginWithPhone / signUpWithEmail, Supabase emits
@@ -93,12 +107,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
    */
   const suppressExternalAuthSyncRef = useRef(false);
 
+  const clearPendingPasswordRecovery = useCallback(async () => {
+    setPendingPasswordRecovery(false);
+    try {
+      await SecureStore.deleteItemAsync(PENDING_PASSWORD_RECOVERY_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const markPendingPasswordRecovery = useCallback(async () => {
+    setPendingPasswordRecovery(true);
+    try {
+      await SecureStore.setItemAsync(PENDING_PASSWORD_RECOVERY_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const forceLogoutAndClear = useCallback(async () => {
     try {
       await authService.logout();
     } catch (e) {
       console.error("Force logout error:", e);
     } finally {
+      setPendingPasswordRecovery(false);
+      try {
+        await SecureStore.deleteItemAsync(PENDING_PASSWORD_RECOVERY_KEY);
+      } catch {
+        /* ignore */
+      }
       setSession(null);
       setUser(null);
       await authService.clearStoredProfile();
@@ -149,7 +187,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         error?.message ?? error,
       );
     }
-  }, []);
+  }, [forceLogoutAndClear]);
 
   const syncSessionFromSupabase = useCallback(async () => {
     const s = await authService.getSession();
@@ -160,6 +198,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
     const initializeAuth = async () => {
       try {
         const currentSession = await authService.getSession();
@@ -167,6 +209,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         if (!currentSession) {
           setSession(null);
           setUser(null);
+          await clearPendingPasswordRecovery();
           return;
         }
 
@@ -177,6 +220,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           const res = await authService.api.getCurrentUser();
           setUser(res.data as UserWithProfile);
           await SecureStore.setItemAsync(USER_KEY, JSON.stringify(res.data));
+          const pending = await SecureStore.getItemAsync(
+            PENDING_PASSWORD_RECOVERY_KEY,
+          );
+          if (pending === "1") {
+            setPendingPasswordRecovery(true);
+          }
         } catch (error: any) {
           const status = error?.response?.status;
 
@@ -193,10 +242,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 } else {
                   setUser(null);
                   await authService.clearStoredProfile();
+                  await clearPendingPasswordRecovery();
                 }
               } else {
                 setUser(null);
                 await authService.clearStoredProfile();
+                await clearPendingPasswordRecovery();
               }
             } catch {
               await forceLogoutAndClear();
@@ -204,6 +255,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           } else {
             setUser(null);
             await authService.clearStoredProfile();
+            await clearPendingPasswordRecovery();
           }
         }
       } catch (error) {
@@ -217,8 +269,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const processIncomingUrl = async (url: string | null | undefined) => {
       if (!url) return;
+      const needsRecovery = authUrlIndicatesPasswordRecovery(url);
+      // Set before setSession so a brief SIGNED_IN cannot show the main app first.
+      if (needsRecovery) {
+        setPendingPasswordRecovery(true);
+        void SecureStore.setItemAsync(PENDING_PASSWORD_RECOVERY_KEY, "1").catch(
+          () => undefined,
+        );
+      }
       const consumed = await handleAuthDeepLink(url);
-      if (!consumed) return;
+      if (!consumed) {
+        if (needsRecovery) {
+          await clearPendingPasswordRecovery();
+        }
+        return;
+      }
       const s = await authService.getSession();
       if (!s) return;
       setSession(s);
@@ -227,13 +292,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     void Linking.getInitialURL().then(processIncomingUrl);
-    const urlSubscription = Linking.addEventListener("url", ({ url }: { url: string }) => {
-      void processIncomingUrl(url);
-    });
+    const urlSubscription = Linking.addEventListener(
+      "url",
+      ({ url }: { url: string }) => {
+        void processIncomingUrl(url);
+      },
+    );
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
-        if (event === "SIGNED_IN" && newSession) {
+        if (event === "PASSWORD_RECOVERY" && newSession) {
+          if (suppressExternalAuthSyncRef.current) {
+            return;
+          }
+          await markPendingPasswordRecovery();
+          setSession(newSession);
+          await authService.persistSessionTokens(newSession);
+          await refreshUser();
+        } else if (event === "SIGNED_IN" && newSession) {
           if (suppressExternalAuthSyncRef.current) {
             return;
           }
@@ -243,6 +319,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         } else if (event === "SIGNED_OUT") {
           setSession(null);
           setUser(null);
+          await clearPendingPasswordRecovery();
         } else if (event === "TOKEN_REFRESHED" && newSession) {
           if (suppressExternalAuthSyncRef.current) {
             return;
@@ -253,7 +330,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           if (suppressExternalAuthSyncRef.current) {
             return;
           }
+          const previousEmail = userRef.current?.email?.toLowerCase() ?? "";
+          const nextEmail = newSession.user?.email?.toLowerCase() ?? "";
           setSession(newSession);
+          await authService.persistSessionTokens(newSession);
+          await refreshUser();
+          if (previousEmail && nextEmail && previousEmail !== nextEmail) {
+            const message = i18n.t("client.settings.emailUpdatedToast");
+            if (Platform.OS === "android") {
+              ToastAndroid.show(message, ToastAndroid.SHORT);
+            } else {
+              Alert.alert(i18n.t("common.success"), message);
+            }
+          }
         }
       },
     );
@@ -262,7 +351,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       authListener?.subscription.unsubscribe();
       urlSubscription.remove();
     };
-  }, [refreshUser]);
+  }, [
+    refreshUser,
+    forceLogoutAndClear,
+    markPendingPasswordRecovery,
+    clearPendingPasswordRecovery,
+  ]);
 
   const loginWithEmail = async (email: string, password: string) => {
     suppressExternalAuthSyncRef.current = true;
@@ -396,6 +490,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const logout = async () => {
     setIsLoading(true);
     try {
+      await clearPendingPasswordRecovery();
       await authService.logout();
       setSession(null);
       setUser(null);
@@ -430,6 +525,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     logout,
     refreshUser,
     syncSessionFromSupabase,
+    pendingPasswordRecovery,
+    clearPendingPasswordRecovery,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

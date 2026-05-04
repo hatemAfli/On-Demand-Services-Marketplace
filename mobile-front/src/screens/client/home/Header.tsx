@@ -1,6 +1,8 @@
 import React from "react";
 import { View, Text, TextInput, TouchableOpacity, Image } from "react-native";
 import { FontAwesome5 as Icon, Ionicons } from "@expo/vector-icons";
+import { useAppTranslation } from "../../../hooks/useAppTranslation";
+import { clientLocationLine } from "./clientLocationLine";
 import { styles } from "./styles";
 
 type Props = {
@@ -16,7 +18,8 @@ export const Header: React.FC<Props> = ({
   address,
   onNotificationsPress,
 }) => {
-  const locationText = [city?.trim(), address?.trim()].filter(Boolean).join(" • ");
+  const { t } = useAppTranslation();
+  const locationText = clientLocationLine(city, address);
 
   return (
     <View style={styles.header}>
@@ -29,7 +32,9 @@ export const Header: React.FC<Props> = ({
             <Text style={styles.deliveringTo}>Delivering to</Text>
             <View style={styles.addressTextContainer}>
               <Text style={styles.addressText}>
-                {locationText.length > 0 ? locationText : "Al Olaya"}
+                {locationText.length > 0
+                  ? locationText
+                  : t("client.home.deliveryAddressPlaceholder")}
               </Text>
               <Icon name="chevron-down" size={12} color="#9ca3af" />
             </View>

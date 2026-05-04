@@ -25,6 +25,6 @@ import { GivenServiceModule } from '../given-service/given-service.module';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, SupabaseService],
-  exports: [AuthService, JwtStrategy, PassportModule],
+  exports: [AuthService, JwtStrategy, PassportModule, SupabaseService],
 })
 export class AuthModule {}

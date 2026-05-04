@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { COLORS } from "../../constants";
 import type { ProviderStackParamList } from "../../navigation/types";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
@@ -26,11 +25,7 @@ type Props = {
   currentRouteName?: keyof ProviderStackParamList;
 };
 
-const MENU_ITEMS: {
-  key: keyof ProviderStackParamList;
-  labelKey: string;
-  icon: keyof typeof Ionicons.glyphMap;
-}[] = [
+const MENU_ITEMS = [
   {
     key: "ProviderHome",
     labelKey: "provider.sidebar.menu.home",
@@ -72,26 +67,25 @@ const MENU_ITEMS: {
     icon: "calendar-outline",
   },
   {
-    key: "ProviderGallery",
-    labelKey: "provider.sidebar.menu.gallery",
-    icon: "images-outline",
-  },
-  {
     key: "ProviderRatings",
     labelKey: "provider.sidebar.menu.ratings",
     icon: "star-outline",
   },
   {
-    key: "ProviderProfile",
-    labelKey: "provider.sidebar.menu.profile",
-    icon: "person-outline",
+    key: "ProviderSubscriptionPlan",
+    labelKey: "provider.sidebar.menu.subscriptionPlan",
+    icon: "pricetag-outline",
   },
   {
     key: "ProviderSettings",
     labelKey: "provider.sidebar.menu.settings",
     icon: "settings-outline",
   },
-];
+] as const satisfies ReadonlyArray<{
+  key: keyof ProviderStackParamList;
+  labelKey: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}>;
 
 const VERTICAL_MARGIN = 14;
 const HORIZONTAL_MARGIN = 8;
@@ -165,7 +159,9 @@ export const ProviderSidebar: React.FC<Props> = ({
                     accessibilityIgnoresInvertColors
                   />
                 ) : (
-                  <Ionicons name="construct" size={26} color="#4F46E5" />
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="construct" size={26} color="#F08E10" />
+                  </View>
                 )}
               </View>
             </View>
@@ -315,25 +311,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarOuter: {
-    width: 68,
-    height: 68,
-    borderRadius: 999,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    alignItems: "center",
-    justifyContent: "center",
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#F08E10",
+    padding: 4,
+    shadowColor: "#F08E10",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 5,
   },
   avatarInner: {
-    width: 58,
-    height: 58,
-    borderRadius: 999,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#dbeafe",
+    flex: 1,
+    borderRadius: 32,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  avatarPlaceholder: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
+    backgroundColor: "#FFF7ED",
+    minHeight: 60,
   },
   avatarImage: {
     width: "100%",

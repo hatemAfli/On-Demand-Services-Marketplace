@@ -15,7 +15,8 @@ import { styles } from "./home/styles";
 
 export const ClientHomeScreen: React.FC = () => {
   const { user } = useAuth();
-  const navigation = useNavigation<NativeStackNavigationProp<ClientStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<ClientStackParamList>>();
   const [refreshing, setRefreshing] = useState(false);
   const [categoriesRefreshSignal, setCategoriesRefreshSignal] = useState(0);
 
@@ -35,7 +36,9 @@ export const ClientHomeScreen: React.FC = () => {
           avatarUri={user?.client?.imageUrl}
           city={user?.client?.city}
           address={user?.client?.address}
-          onNotificationsPress={() => navigation.navigate("ClientNotifications")}
+          onNotificationsPress={() =>
+            navigation.navigate("ClientNotifications")
+          }
         />
         <ScrollView
           style={styles.mainContent}
@@ -48,7 +51,10 @@ export const ClientHomeScreen: React.FC = () => {
           <PromotionalBanners />
           <ServiceCategories refreshSignal={categoriesRefreshSignal} />
           <RecommendedSection />
-          <PopularNearYou />
+          <PopularNearYou
+            city={user?.client?.city}
+            address={user?.client?.address}
+          />
         </ScrollView>
       </View>
     </SafeAreaView>
