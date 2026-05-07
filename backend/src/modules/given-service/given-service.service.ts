@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { UpdateProviderGivenServiceDto } from './dto/update-provider-given-service.dto';
+import { UpdateProviderServiceGalleryDto } from './dto/update-provider-service-gallery.dto';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -89,6 +90,12 @@ export class GivenServiceService {
         ownerId: userId,
         serviceId,
       },
+      include: {
+        galleries: {
+          select: { id: true, imageUrl: true },
+          orderBy: { id: 'asc' },
+        },
+      },
     });
     if (!given) {
       throw new NotFoundException(
@@ -96,6 +103,81 @@ export class GivenServiceService {
       );
     }
     return given;
+  }
+
+  async getProviderServiceGallery(userId: string, serviceId: string) {
+    await this.assertProviderUser(userId);
+    const given = await this.prisma.givenService.findFirst({
+      where: {
+        ownerType: OwnerType.PROVIDER,
+        ownerId: userId,
+        serviceId,
+      },
+      select: {
+        id: true,
+        galleries: {
+          select: { id: true, imageUrl: true },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+    if (!given) {
+      throw new NotFoundException(
+        'No given service found for this catalog service.',
+      );
+    }
+
+    return {
+      givenServiceId: given.id,
+      images: given.galleries,
+    };
+  }
+
+  async updateProviderServiceGallery(
+    userId: string,
+    serviceId: string,
+    dto: UpdateProviderServiceGalleryDto,
+  ) {
+    await this.assertProviderUser(userId);
+    const given = await this.prisma.givenService.findFirst({
+      where: {
+        ownerType: OwnerType.PROVIDER,
+        ownerId: userId,
+        serviceId,
+      },
+      select: { id: true },
+    });
+    if (!given) {
+      throw new NotFoundException(
+        'No given service found for this catalog service.',
+      );
+    }
+
+    const imageUrls = Array.from(
+      new Set((dto.imageUrls ?? []).map((u) => u.trim()).filter(Boolean)),
+    );
+    if (imageUrls.length > 40) {
+      throw new BadRequestException('Maximum 40 gallery images');
+    }
+
+    const rows = imageUrls.map((imageUrl) => ({
+      givenServiceId: given.id,
+      imageUrl,
+    }));
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.serviceGallery.deleteMany({
+        where: { givenServiceId: given.id },
+      });
+      if (rows.length > 0) {
+        await tx.serviceGallery.createMany({
+          // Prisma client types can be stale before `prisma generate` after schema edits.
+          data: rows as Prisma.ServiceGalleryCreateManyInput[],
+        });
+      }
+    });
+
+    return this.getProviderServiceGallery(userId, serviceId);
   }
 
   async updateProviderGivenService(

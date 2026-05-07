@@ -419,6 +419,10 @@ model Document {
   fichierUrl            String       @map("fichier_url")
   uploadedAt            DateTime     @default(now()) @map("uploaded_at")
   validatedAt           DateTime?    @map("validated_at")
+  /// Admin per-file decision: null = not reviewed yet, true = accepted, false = rejected.
+  isAccepted            Boolean?     @map("is_accepted")
+  /// When `isAccepted` is false, admin explanation shown to the applicant.
+  rejectionReason       String?      @map("rejection_reason") @db.Text
 
   ownerUser           User                      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
   verificationRequest VerificationProfilRequest @relation(fields: [verificationRequestId], references: [id], onDelete: Cascade)

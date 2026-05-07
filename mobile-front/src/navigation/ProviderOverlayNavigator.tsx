@@ -17,6 +17,8 @@ import { ProviderHomeScreen } from "../screens/provider/home/ProviderHomeScreen"
 import { ProviderDashboardScreen } from "../screens/provider/ProviderDashboardScreen";
 import { ProviderServicesScreen } from "../screens/provider/services/ProviderServicesScreen";
 import { ProviderManageServiceScreen } from "../screens/provider/services/ProviderManageServiceScreen";
+import { ProviderRequestServiceScreen } from "../screens/provider/services/ProviderRequestServiceScreen";
+import { ProviderVerificationRequestDetailScreen } from "../screens/provider/services/ProviderVerificationRequestDetailScreen";
 import { ProviderMessagesScreen } from "../screens/provider/ProviderMessagesScreen";
 import { ProviderNotificationsScreen } from "../screens/provider/ProviderNotificationsScreen";
 import { ProviderReclamationsScreen } from "../screens/provider/ProviderReclamationsScreen";
@@ -99,7 +101,9 @@ export const ProviderOverlayNavigator: React.FC = () => {
             route.name !== "ProviderChangePhone" &&
             route.name !== "ProviderChangePassword" &&
             route.name !== "ProviderDeleteAccount" &&
-            route.name !== "ProviderManageService",
+            route.name !== "ProviderManageService" &&
+            route.name !== "ProviderRequestService" &&
+            route.name !== "ProviderVerificationRequestDetail",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
             backgroundColor: COLORS.background,
@@ -131,6 +135,14 @@ export const ProviderOverlayNavigator: React.FC = () => {
         <Stack.Screen
           name="ProviderManageService"
           component={ProviderManageServiceScreen}
+        />
+        <Stack.Screen
+          name="ProviderRequestService"
+          component={ProviderRequestServiceScreen}
+        />
+        <Stack.Screen
+          name="ProviderVerificationRequestDetail"
+          component={ProviderVerificationRequestDetailScreen}
         />
         <Stack.Screen
           name="ProviderMessages"

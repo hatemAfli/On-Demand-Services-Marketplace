@@ -10,11 +10,14 @@ import {
   OwnerType,
   Prisma,
   ReviewStatus,
+  UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { ResendMailService } from '../../config/resend-mail.service';
 import type { ListVerificationRequestsQueryDto } from './dto/list-verification-requests-query.dto';
 import type { ResubmitVerificationDto } from './dto/resubmit-verification.dto';
+import type { CreateProviderServiceRequestDto } from './dto/create-provider-service-request.dto';
+import type { ReviewVerificationDocumentDto } from './dto/review-verification-document.dto';
 import { GivenServiceService } from '../given-service/given-service.service';
 
 const requestInclude = {
@@ -65,9 +68,10 @@ const requestInclude = {
   service: {
     select: {
       id: true,
+      servicePhoto: true,
       translations: {
         where: { locale: { in: [Locale.EN, Locale.AR] } },
-        select: { locale: true, name: true },
+        select: { locale: true, name: true, description: true },
       },
       category: {
         select: {
@@ -87,10 +91,22 @@ const requestInclude = {
       fichierUrl: true,
       uploadedAt: true,
       validatedAt: true,
+      isAccepted: true,
+      rejectionReason: true,
     },
     orderBy: { uploadedAt: 'asc' as const },
   },
 } satisfies Prisma.VerificationProfilRequestInclude;
+
+const priorDocumentSelect = {
+  id: true,
+  type: true,
+  fichierUrl: true,
+  uploadedAt: true,
+  validatedAt: true,
+  isAccepted: true,
+  rejectionReason: true,
+} as const;
 
 function pickName(
   translations: { locale: Locale; name: string }[],
@@ -106,9 +122,27 @@ function pickName(
   );
 }
 
+function pickDescription(
+  translations: { locale: Locale; description?: string | null }[],
+): string | null {
+  const en = translations.find((t) => t.locale === Locale.EN);
+  const ar = translations.find((t) => t.locale === Locale.AR);
+
+  const enDesc = en?.description?.trim();
+  if (enDesc) return enDesc;
+
+  const arDesc = ar?.description?.trim();
+  if (arDesc) return arDesc;
+
+  const firstWithDesc = translations
+    .find((t) => Boolean(t.description?.trim()))
+    ?.description?.trim();
+  return firstWithDesc ?? null;
+}
+
 type ServiceJoin = {
   id: string;
-  translations: { locale: Locale; name: string }[];
+  translations: { locale: Locale; name: string; description?: string | null }[];
   category: {
     slug: string;
     translations: { locale: Locale; name: string }[];
@@ -126,6 +160,7 @@ function normalizeVerificationItem<T extends { service: ServiceJoin | null }>(
     service: {
       ...row.service,
       name: pickName(row.service.translations, `service-${row.service.id}`),
+      description: pickDescription(row.service.translations),
       category: {
         ...row.service.category,
         name: pickName(
@@ -202,6 +237,8 @@ export class VerificationService {
             fichierUrl: true,
             uploadedAt: true,
             validatedAt: true,
+            isAccepted: true,
+            rejectionReason: true,
           },
           orderBy: { uploadedAt: 'desc' },
         },
@@ -210,6 +247,15 @@ export class VerificationService {
 
     if (!row) return null;
     return row;
+  }
+
+  async listVerificationRequestsForCurrentUser(user: User) {
+    const rows = await this.prisma.verificationProfilRequest.findMany({
+      where: { userId: user.id },
+      include: requestInclude,
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map(normalizeVerificationItem);
   }
 
   async getAllVerificationDocumentsForCurrentUser(user: User) {
@@ -222,6 +268,8 @@ export class VerificationService {
         fichierUrl: true,
         uploadedAt: true,
         validatedAt: true,
+        isAccepted: true,
+        rejectionReason: true,
         verificationRequest: {
           select: {
             id: true,
@@ -236,6 +284,15 @@ export class VerificationService {
               select: {
                 id: true,
                 servicePhoto: true,
+                givenServices: {
+                  where: {
+                    ownerType: OwnerType.PROVIDER,
+                    ownerId: user.id,
+                    active: true,
+                  },
+                  select: { id: true },
+                  take: 1,
+                },
                 translations: {
                   where: { locale: { in: [Locale.EN, Locale.AR] } },
                   select: { locale: true, name: true, description: true },
@@ -268,6 +325,7 @@ export class VerificationService {
           service: {
             id: request.service.id,
             servicePhoto: request.service.servicePhoto,
+            isActiveForOwner: request.service.givenServices.length > 0,
             name: pickName(
               request.service.translations,
               `service-${request.service.id}`,
@@ -383,6 +441,121 @@ export class VerificationService {
     };
   }
 
+  async createProviderServiceRequestForCurrentUser(
+    user: User,
+    dto: CreateProviderServiceRequestDto,
+  ) {
+    if (user.role !== UserRole.PROVIDER) {
+      throw new BadRequestException(
+        'Only provider accounts can request a new service',
+      );
+    }
+
+    const serviceId = dto.serviceId?.trim();
+    if (!serviceId) {
+      throw new BadRequestException('serviceId is required');
+    }
+
+    const docs = dto.documents ?? [];
+    if (docs.length === 0) {
+      throw new BadRequestException(
+        'At least one verification document is required',
+      );
+    }
+    for (const d of docs) {
+      if (!d.fichierUrl?.trim()) {
+        throw new BadRequestException('Each document must include a file URL');
+      }
+    }
+
+    const service = await this.prisma.service.findUnique({
+      where: { id: serviceId },
+      select: { id: true, active: true },
+    });
+    if (!service || service.active === false) {
+      throw new BadRequestException('Invalid service id');
+    }
+
+    const duplicateOpen = await this.prisma.verificationProfilRequest.findFirst(
+      {
+        where: {
+          userId: user.id,
+          ownerType: OwnerType.PROVIDER,
+          serviceId,
+          requestStatus: {
+            in: [ReviewStatus.PENDING, ReviewStatus.UNDER_REVIEW],
+          },
+        },
+        select: { id: true },
+      },
+    );
+    if (duplicateOpen) {
+      throw new BadRequestException(
+        'You already have an open request for this service',
+      );
+    }
+
+    const alreadyApproved =
+      await this.prisma.verificationProfilRequest.findFirst({
+        where: {
+          userId: user.id,
+          ownerType: OwnerType.PROVIDER,
+          serviceId,
+          requestStatus: ReviewStatus.APPROVED,
+        },
+        select: { id: true },
+      });
+    if (alreadyApproved) {
+      throw new BadRequestException(
+        'This service is already approved for your account',
+      );
+    }
+
+    const ownerComment =
+      dto.ownerComment != null && String(dto.ownerComment).trim() !== ''
+        ? String(dto.ownerComment).trim()
+        : null;
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const verificationRequest = await tx.verificationProfilRequest.create({
+        data: {
+          userId: user.id,
+          ownerType: OwnerType.PROVIDER,
+          serviceId,
+          requestStatus: ReviewStatus.PENDING,
+          ownerComment,
+        },
+      });
+
+      for (const doc of docs) {
+        await tx.document.create({
+          data: {
+            ownerUserId: user.id,
+            verificationRequestId: verificationRequest.id,
+            type: doc.type,
+            fichierUrl: doc.fichierUrl.trim(),
+          },
+        });
+      }
+
+      await this.givenServiceService.createPendingForOwner(
+        {
+          ownerType: OwnerType.PROVIDER,
+          ownerId: user.id,
+          serviceId,
+        },
+        tx,
+      );
+
+      return tx.verificationProfilRequest.findUniqueOrThrow({
+        where: { id: verificationRequest.id },
+        include: requestInclude,
+      });
+    });
+
+    return normalizeVerificationItem(created);
+  }
+
   async getVerificationRequestForAdmin(_user: User, id: string) {
     const row = await this.prisma.verificationProfilRequest.findUnique({
       where: { id },
@@ -391,7 +564,99 @@ export class VerificationService {
     if (!row) {
       throw new NotFoundException('Verification request not found');
     }
-    return normalizeVerificationItem(row);
+    const priorWhere: Prisma.VerificationProfilRequestWhereInput = {
+      userId: row.userId,
+      ownerType: row.ownerType,
+      id: { not: row.id },
+      createdAt: { lt: row.createdAt },
+    };
+    if (row.serviceId == null) {
+      priorWhere.serviceId = null;
+    } else {
+      priorWhere.serviceId = row.serviceId;
+    }
+    const prior = await this.prisma.verificationProfilRequest.findFirst({
+      where: priorWhere,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        requestStatus: true,
+        createdAt: true,
+        adminComment: true,
+        documents: {
+          select: priorDocumentSelect,
+          orderBy: { uploadedAt: 'asc' },
+        },
+      },
+    });
+    return {
+      ...normalizeVerificationItem(row),
+      priorSubmission: prior,
+    };
+  }
+
+  async reviewDocument(
+    _user: User,
+    requestId: string,
+    documentId: string,
+    dto: ReviewVerificationDocumentDto,
+  ) {
+    const request = await this.prisma.verificationProfilRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        documents: { select: { id: true } },
+      },
+    });
+    if (!request) {
+      throw new NotFoundException('Verification request not found');
+    }
+    if (
+      request.requestStatus !== ReviewStatus.PENDING &&
+      request.requestStatus !== ReviewStatus.UNDER_REVIEW
+    ) {
+      throw new BadRequestException(
+        'Documents can only be reviewed while the request is pending or under review',
+      );
+    }
+    const belongs = request.documents.some((d) => d.id === documentId);
+    if (!belongs) {
+      throw new NotFoundException('Document not found on this request');
+    }
+
+    if (dto.decision === 'accept') {
+      await this.prisma.document.update({
+        where: { id: documentId },
+        data: {
+          isAccepted: true,
+          validatedAt: new Date(),
+          rejectionReason: null,
+        },
+      });
+    } else {
+      const reason = dto.rejectionReason?.trim();
+      if (!reason) {
+        throw new BadRequestException(
+          'rejectionReason is required when rejecting a document',
+        );
+      }
+      await this.prisma.document.update({
+        where: { id: documentId },
+        data: {
+          isAccepted: false,
+          validatedAt: null,
+          rejectionReason: reason,
+        },
+      });
+    }
+
+    const updated = await this.prisma.verificationProfilRequest.findUnique({
+      where: { id: requestId },
+      include: requestInclude,
+    });
+    if (!updated) {
+      throw new NotFoundException('Verification request not found');
+    }
+    return normalizeVerificationItem(updated);
   }
 
   async approveRequest(_user: User, id: string) {
@@ -403,6 +668,22 @@ export class VerificationService {
     }
     if (existing.requestStatus === ReviewStatus.APPROVED) {
       throw new BadRequestException('Request already approved');
+    }
+
+    const docs = await this.prisma.document.findMany({
+      where: { verificationRequestId: id },
+      select: { id: true, isAccepted: true },
+    });
+    if (docs.length === 0) {
+      throw new BadRequestException(
+        'Cannot approve a request with no documents',
+      );
+    }
+    const allAccepted = docs.every((d) => d.isAccepted === true);
+    if (!allAccepted) {
+      throw new BadRequestException(
+        'Every document must be individually accepted before the request can be approved. Rejected or pending files block approval.',
+      );
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -453,6 +734,25 @@ export class VerificationService {
     if (!existing) {
       throw new NotFoundException('Verification request not found');
     }
+    const isProviderServiceExpansion =
+      existing.ownerType === OwnerType.PROVIDER;
+    const hasApprovedVerification = isProviderServiceExpansion
+      ? await this.prisma.verificationProfilRequest.findFirst({
+          where: {
+            userId: existing.userId,
+            ownerType: OwnerType.PROVIDER,
+            requestStatus: ReviewStatus.APPROVED,
+            id: { not: existing.id },
+          },
+          select: { id: true },
+        })
+      : null;
+    // Reject profile only on initial registration flow.
+    // If provider already has an approved verification, this is a new-service
+    // request and account status must stay unchanged.
+    const shouldRejectWholeAccount = !(
+      isProviderServiceExpansion && hasApprovedVerification
+    );
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.verificationProfilRequest.update({
@@ -462,10 +762,12 @@ export class VerificationService {
           adminComment: reason,
         },
       });
-      await tx.user.update({
-        where: { id: existing.userId },
-        data: { status: AccountStatus.REJECTED },
-      });
+      if (shouldRejectWholeAccount) {
+        await tx.user.update({
+          where: { id: existing.userId },
+          data: { status: AccountStatus.REJECTED },
+        });
+      }
       return tx.verificationProfilRequest.findUniqueOrThrow({
         where: { id },
         include: requestInclude,

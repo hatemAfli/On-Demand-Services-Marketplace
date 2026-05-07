@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ListVerificationRequestsQueryDto } from './dto/list-verification-requests-query.dto';
 import { RejectVerificationRequestDto } from './dto/reject-verification-request.dto';
+import { ReviewVerificationDocumentDto } from './dto/review-verification-document.dto';
 import { VerificationService } from './verification.service';
 
 @Controller('admin/verification-requests')
@@ -61,5 +62,15 @@ export class AdminVerificationController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.verificationService.markUnderReview(user, id);
+  }
+
+  @Patch(':id/documents/:documentId')
+  reviewDocument(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @Body() dto: ReviewVerificationDocumentDto,
+  ) {
+    return this.verificationService.reviewDocument(user, id, documentId, dto);
   }
 }

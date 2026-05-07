@@ -50,6 +50,33 @@ export type ProviderStackParamList = {
     serviceCategory?: string;
     serviceDescription?: string;
   };
+  ProviderRequestService: undefined;
+  ProviderVerificationRequestDetail: {
+    request: {
+      id: string;
+      requestStatus: string;
+      adminComment?: string | null;
+      createdAt: string;
+      service?: {
+        id: string;
+        name: string;
+        description?: string | null;
+        servicePhoto?: string | null;
+        photoUrl?: string | null;
+        imageUrl?: string | null;
+        category?: { name: string } | null;
+      } | null;
+      documents?: Array<{
+        id: string;
+        type: string;
+        fichierUrl: string;
+        uploadedAt: string;
+        validatedAt?: string | null;
+        isAccepted?: boolean | null;
+        rejectionReason?: string | null;
+      }>;
+    };
+  };
   ProviderMessages: undefined;
   ProviderNotifications: undefined;
   ProviderReclamations: undefined;
@@ -66,6 +93,8 @@ export type ProviderStackParamList = {
       fichierUrl: string;
       uploadedAt: string;
       validatedAt: string | null;
+      isAccepted?: boolean | null;
+      rejectionReason?: string | null;
       verificationRequest: {
         id: string;
         requestStatus: string;

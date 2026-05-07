@@ -6,6 +6,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ResubmitVerificationDto } from './dto/resubmit-verification.dto';
+import { CreateProviderServiceRequestDto } from './dto/create-provider-service-request.dto';
 import { VerificationService } from './verification.service';
 
 @Controller('verification-requests')
@@ -21,6 +22,11 @@ export class VerificationController {
     );
   }
 
+  @Get('me/requests')
+  getMyRequests(@CurrentUser() user: User) {
+    return this.verificationService.listVerificationRequestsForCurrentUser(user);
+  }
+
   @Get('me/documents')
   getMyDocuments(@CurrentUser() user: User) {
     return this.verificationService.getAllVerificationDocumentsForCurrentUser(
@@ -31,6 +37,17 @@ export class VerificationController {
   @Post('me/resubmit')
   resubmit(@CurrentUser() user: User, @Body() body: ResubmitVerificationDto) {
     return this.verificationService.resubmitVerificationForCurrentUser(
+      user,
+      body,
+    );
+  }
+
+  @Post('me/provider-service-request')
+  createProviderServiceRequest(
+    @CurrentUser() user: User,
+    @Body() body: CreateProviderServiceRequestDto,
+  ) {
+    return this.verificationService.createProviderServiceRequestForCurrentUser(
       user,
       body,
     );

@@ -13,6 +13,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { UpdateProviderGivenServiceDto } from './dto/update-provider-given-service.dto';
+import { UpdateProviderServiceGalleryDto } from './dto/update-provider-service-gallery.dto';
 import { GivenServiceService } from './given-service.service';
 
 /**
@@ -40,6 +41,27 @@ export class GivenServiceController {
     @Body() dto: UpdateProviderGivenServiceDto,
   ) {
     return this.givenServiceService.updateProviderGivenService(
+      user.id,
+      serviceId,
+      dto,
+    );
+  }
+
+  @Get(':serviceId/gallery')
+  getProviderServiceGallery(
+    @CurrentUser() user: { id: string },
+    @Param('serviceId', new ParseUUIDPipe()) serviceId: string,
+  ) {
+    return this.givenServiceService.getProviderServiceGallery(user.id, serviceId);
+  }
+
+  @Patch(':serviceId/gallery')
+  updateProviderServiceGallery(
+    @CurrentUser() user: { id: string },
+    @Param('serviceId', new ParseUUIDPipe()) serviceId: string,
+    @Body() dto: UpdateProviderServiceGalleryDto,
+  ) {
+    return this.givenServiceService.updateProviderServiceGallery(
       user.id,
       serviceId,
       dto,

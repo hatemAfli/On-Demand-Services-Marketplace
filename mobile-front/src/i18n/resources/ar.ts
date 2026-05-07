@@ -45,14 +45,16 @@ const ar = {
       "رابط الاسترداد نشط. اختر كلمة مرور قوية لحماية حسابك.",
     resetPasswordForcedHint: "يجب تحديث كلمة المرور للمتابعة.",
     resetPasswordUpdateButton: "تحديث كلمة المرور",
-    resetPasswordSuccessMessage: "تم تحديث كلمة المرور. يمكنك متابعة استخدام التطبيق.",
+    resetPasswordSuccessMessage:
+      "تم تحديث كلمة المرور. يمكنك متابعة استخدام التطبيق.",
     magicLoginTitle: "الدخول عبر رابط البريد",
     magicLoginSubtitle: "أدخل بريدك وسنرسل لك رابط دخول آمن.",
     sendLoginLink: "إرسال رابط الدخول",
     magicLoginAccountNotFound:
       "لا يوجد حساب بهذا البريد. يرجى التحقق من البريد أو إنشاء حساب أولاً.",
     magicLinkSentTitle: "تم إرسال رابط الدخول",
-    magicLinkSentMessage: "تم إرسال رابط الدخول إلى {{email}}. افتحه لتسجيل الدخول.",
+    magicLinkSentMessage:
+      "تم إرسال رابط الدخول إلى {{email}}. افتحه لتسجيل الدخول.",
     noAccount: "ليس لديك حساب؟",
     alreadyHaveAccount: "لديك حساب بالفعل؟",
     verifyEmail: "تأكيد البريد الإلكتروني",
@@ -210,9 +212,9 @@ const ar = {
   },
   company: {
     status: {
-      pendingTitle: "الشركة قيد المراجعة",
+      pendingTitle: "طلب الشركة في الانتظار",
       pendingMessage:
-        "شكراً على التسجيل. سيقوم فريقنا بمراجعة طلب شركتك قريباً. ستصلك رسالة عند اتخاذ قرار.",
+        "شكراً على التسجيل. طلب شركتك في انتظار مراجعة فريقنا. ستصلك رسالة عند اتخاذ قرار.",
       rejectedTitle: "لم يتم قبول الشركة",
       rejectedMessage:
         "لم تتم الموافقة على طلبك. اطّلع على الملاحظات أدناه، أرفق مستندات محدّثة، ثم أعد الإرسال.",
@@ -226,6 +228,11 @@ const ar = {
       unknownMessage: "لا يمكن استخدام حساب الشركة حالياً. تواصل مع الدعم.",
       signedInAs: "مسجل كـ {{email}}",
       adminFeedbackTitle: "ملاحظات الفريق",
+      priorRoundDocumentsTitle: "الملفات من آخر طلب",
+      docDecisionAccepted: "مقبول",
+      docDecisionRejected: "مرفوض",
+      docDecisionPending: "قيد المراجعة",
+      docRejectionNote: "ملاحظة",
       adminCommentEmpty: "لم يُضف تعليق تفصيلي.",
       resubmitHeading: "إرسال طلب جديد",
       resubmitHint:
@@ -450,8 +457,7 @@ const ar = {
       ProviderReclamations: "متابعة الشكاوى والرد عليها. قريباً.",
       ProviderOrders: "عرض الطلبات وإدارتها. قريباً.",
       ProviderSchedule: "التقويم والأوقات المتاحة. قريباً.",
-      ProviderSubscriptionPlan:
-        "إدارة خطتك والفوترة وخيارات الاشتراك. قريباً.",
+      ProviderSubscriptionPlan: "إدارة خطتك والفوترة وخيارات الاشتراك. قريباً.",
       ProviderRatings: "ملخص التقييمات والمراجعات. قريباً.",
       ProviderProfile: "تعديل ملفك المهني الظاهر للعملاء. قريباً.",
       ProviderSettings: "تفضيلات التطبيق والإشعارات والحساب. قريباً.",
@@ -553,7 +559,8 @@ const ar = {
       genderUnset: "غير محدد",
       genderFemale: "أنثى",
       genderMale: "ذكر",
-      yearsExperienceInvalid: "أدخل سنوات الخبرة بين 0 و 80، أو اترك الحقل فارغاً.",
+      yearsExperienceInvalid:
+        "أدخل سنوات الخبرة بين 0 و 80، أو اترك الحقل فارغاً.",
       saveProfileButton: "حفظ الملف",
       changeEmailTitle: "تغيير البريد الإلكتروني",
       changeEmailSubtitle: "أدخل بريدك الإلكتروني الجديد.",
@@ -616,6 +623,11 @@ const ar = {
       title: "تفاصيل المستند",
       type: "النوع",
       status: "الحالة",
+      adminFileDecision: "قرار المشرف على الملف",
+      fileAccepted: "مقبول",
+      fileRejected: "مرفوض",
+      filePending: "لم تُجرَ المراجعة بعد",
+      rejectionReasonLabel: "سبب الرفض (هذا الملف)",
       uploadedAt: "تاريخ الرفع",
       validatedAt: "تاريخ المصادقة",
       requestId: "معرّف الطلب",
@@ -636,9 +648,9 @@ const ar = {
       unknown: "مزود خدمة",
     },
     status: {
-      pendingTitle: "طلبك قيد المراجعة",
+      pendingTitle: "طلبك في الانتظار",
       pendingMessage:
-        "شكراً على التسجيل. سيقوم فريقنا بمراجعة حسابك قريباً. ستصلك رسالة بالبريد عند اتخاذ قرار.",
+        "شكراً على التسجيل. طلبك في انتظار مراجعة فريقنا. ستصلك رسالة بالبريد عند اتخاذ قرار.",
       rejectedTitle: "لم يتم قبول الطلب",
       rejectedMessage:
         "لم تتم الموافقة على طلبك. اطّلع على ملاحظات المشرف أدناه، أرفق مستندات محدّثة، وأضف تعليقاً إن رغبت، ثم أرسل طلباً جديداً.",
@@ -653,6 +665,11 @@ const ar = {
         "لا يمكن استخدام حسابك كمزود في التطبيق حالياً. يرجى التواصل مع الدعم.",
       signedInAs: "مسجل كـ {{email}}",
       adminFeedbackTitle: "ملاحظات الفريق",
+      priorRoundDocumentsTitle: "الملفات من آخر طلب",
+      docDecisionAccepted: "مقبول",
+      docDecisionRejected: "مرفوض",
+      docDecisionPending: "قيد المراجعة",
+      docRejectionNote: "ملاحظة",
       adminCommentEmpty: "لم يُضف تعليق تفصيلي.",
       resubmitHeading: "إرسال طلب جديد",
       resubmitHint:

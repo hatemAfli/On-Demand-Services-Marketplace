@@ -63,6 +63,14 @@ export const ProviderBlockedScreen: React.FC = () => {
   const { t, isRTL } = useAppTranslation();
   const status = user?.status;
   const [adminComment, setAdminComment] = useState<string | null>(null);
+  const [latestRoundDocs, setLatestRoundDocs] = useState<
+    {
+      id: string;
+      type: string;
+      isAccepted?: boolean | null;
+      rejectionReason?: string | null;
+    }[]
+  >([]);
   const [loadingComment, setLoadingComment] = useState(false);
   const [ownerComment, setOwnerComment] = useState("");
   const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
@@ -86,6 +94,7 @@ export const ProviderBlockedScreen: React.FC = () => {
   const config = useMemo((): BlockConfig => {
     switch (status) {
       case AccountStatus.PENDING:
+      case AccountStatus.UNDER_REVIEW:
         return {
           accent: "#B45309",
           softBg: "#FFFBEB",
@@ -157,6 +166,7 @@ export const ProviderBlockedScreen: React.FC = () => {
     let cancelled = false;
     if (status !== AccountStatus.REJECTED) {
       setAdminComment(null);
+      setLatestRoundDocs([]);
       setLoadingComment(false);
       return;
     }
@@ -168,11 +178,24 @@ export const ProviderBlockedScreen: React.FC = () => {
         const data = res.data as {
           adminComment?: string | null;
           requestStatus?: string;
+          documents?: {
+            id: string;
+            type: string;
+            isAccepted?: boolean | null;
+            rejectionReason?: string | null;
+          }[];
         } | null;
         const comment = String(data?.adminComment ?? "").trim();
-        if (!cancelled) setAdminComment(comment || null);
+        const docs = Array.isArray(data?.documents) ? data!.documents! : [];
+        if (!cancelled) {
+          setAdminComment(comment || null);
+          setLatestRoundDocs(docs);
+        }
       } catch {
-        if (!cancelled) setAdminComment(null);
+        if (!cancelled) {
+          setAdminComment(null);
+          setLatestRoundDocs([]);
+        }
       } finally {
         if (!cancelled) setLoadingComment(false);
       }
@@ -350,9 +373,7 @@ export const ProviderBlockedScreen: React.FC = () => {
         title: t("common.error"),
         message:
           msg ||
-          (e instanceof Error
-            ? e.message
-            : t("provider.status.resubmitError")),
+          (e instanceof Error ? e.message : t("provider.status.resubmitError")),
       });
     } finally {
       setSubmitting(false);
@@ -377,7 +398,10 @@ export const ProviderBlockedScreen: React.FC = () => {
           <View
             style={[
               styles.heroCard,
-              { borderColor: config.softBorder, backgroundColor: config.softBg },
+              {
+                borderColor: config.softBorder,
+                backgroundColor: config.softBg,
+              },
             ]}
           >
             <View
@@ -417,7 +441,12 @@ export const ProviderBlockedScreen: React.FC = () => {
                     size={20}
                     color={config.accent}
                   />
-                  <Text style={[styles.adminFeedbackTitle, { color: config.titleColor }]}>
+                  <Text
+                    style={[
+                      styles.adminFeedbackTitle,
+                      { color: config.titleColor },
+                    ]}
+                  >
                     {t("provider.status.adminFeedbackTitle")}
                   </Text>
                 </View>
@@ -433,6 +462,34 @@ export const ProviderBlockedScreen: React.FC = () => {
                     {adminComment ?? t("provider.status.adminCommentEmpty")}
                   </Text>
                 )}
+                {latestRoundDocs.length > 0 ? (
+                  <View style={styles.roundDocsBox}>
+                    <Text style={styles.roundDocsTitle}>
+                      {t("provider.status.priorRoundDocumentsTitle")}
+                    </Text>
+                    {latestRoundDocs.map((d) => {
+                      const dec =
+                        d.isAccepted === true
+                          ? t("provider.status.docDecisionAccepted")
+                          : d.isAccepted === false
+                            ? t("provider.status.docDecisionRejected")
+                            : t("provider.status.docDecisionPending");
+                      return (
+                        <View key={d.id} style={styles.roundDocRow}>
+                          <Text style={styles.roundDocMain}>
+                            {labelForDocType(d.type)} — {dec}
+                          </Text>
+                          {d.rejectionReason?.trim() ? (
+                            <Text style={styles.roundDocNote}>
+                              {t("provider.status.docRejectionNote")}:{" "}
+                              {d.rejectionReason.trim()}
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : null}
               </View>
             ) : null}
           </View>
@@ -480,7 +537,10 @@ export const ProviderBlockedScreen: React.FC = () => {
               {pendingDocs.map((d) => (
                 <View key={d.id} style={styles.docRow}>
                   {isImageMimeOrPath(d.mimeType, d.localUri) ? (
-                    <Image source={{ uri: d.localUri }} style={styles.docThumb} />
+                    <Image
+                      source={{ uri: d.localUri }}
+                      style={styles.docThumb}
+                    />
                   ) : (
                     <View style={styles.docThumbPlaceholder}>
                       <Ionicons
@@ -519,8 +579,14 @@ export const ProviderBlockedScreen: React.FC = () => {
                 activeOpacity={0.85}
                 disabled={submitting}
               >
-                <Ionicons name="add-circle-outline" size={22} color={DOC_ACCENT} />
-                <Text style={[styles.addDocButtonText, isRTL && styles.rtlText]}>
+                <Ionicons
+                  name="add-circle-outline"
+                  size={22}
+                  color={DOC_ACCENT}
+                />
+                <Text
+                  style={[styles.addDocButtonText, isRTL && styles.rtlText]}
+                >
                   {t("completeProfile.addVerificationDoc")}
                 </Text>
               </TouchableOpacity>
@@ -623,7 +689,11 @@ export const ProviderBlockedScreen: React.FC = () => {
               style={styles.typeModalRow}
               onPress={() => void pickVerificationFromFiles()}
             >
-              <Ionicons name="folder-open-outline" size={22} color={DOC_ACCENT} />
+              <Ionicons
+                name="folder-open-outline"
+                size={22}
+                color={DOC_ACCENT}
+              />
               <Text style={[styles.typeModalRowText, isRTL && styles.rtlText]}>
                 {t("completeProfile.addDocFromFiles")}
               </Text>
@@ -784,6 +854,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     color: "#374151",
+  },
+  roundDocsBox: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+    gap: 8,
+  },
+  roundDocsTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#374151",
+    marginBottom: 4,
+  },
+  roundDocRow: {
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#F3F4F6",
+  },
+  roundDocMain: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  roundDocNote: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#B91C1C",
+    lineHeight: 17,
   },
   commentLoadingRow: {
     flexDirection: "row",

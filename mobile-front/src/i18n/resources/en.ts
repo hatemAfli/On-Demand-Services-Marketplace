@@ -214,9 +214,9 @@ const en = {
   },
   company: {
     status: {
-      pendingTitle: "Company under review",
+      pendingTitle: "Company pending review",
       pendingMessage:
-        "Thank you for registering your company. Our administrators will review your submission soon. You will be notified by email when a decision is made.",
+        "Thank you for registering your company. Your submission is pending review by our administrators. You will be notified by email when a decision is made.",
       rejectedTitle: "Company not approved",
       rejectedMessage:
         "Your company application was not approved. Review the feedback below, attach updated documents, add a note if needed, and submit a new request.",
@@ -231,6 +231,11 @@ const en = {
         "Your company account cannot be used in the app right now. Please contact support.",
       signedInAs: "Signed in as {{email}}",
       adminFeedbackTitle: "Feedback from the team",
+      priorRoundDocumentsTitle: "Files from your last submission",
+      docDecisionAccepted: "Accepted",
+      docDecisionRejected: "Rejected",
+      docDecisionPending: "Pending review",
+      docRejectionNote: "Note",
       adminCommentEmpty: "No detailed feedback was provided.",
       resubmitHeading: "Send a new request",
       resubmitHint:
@@ -407,7 +412,8 @@ const en = {
       deleteAccount: "Delete account",
       deleteAccountHint: "Remove your data and access",
       deleteAccountTitle: "Delete account",
-      deleteAccountSubtitle: "Confirm with your password to deactivate this account.",
+      deleteAccountSubtitle:
+        "Confirm with your password to deactivate this account.",
       deleteAccountWarning:
         "Your profile data stays on file for legal and operational reasons, but your account will be marked deleted, your profile photo will be removed from our servers, and you will be signed out.",
       deleteAccountButton: "Delete my account",
@@ -578,7 +584,8 @@ const en = {
       genderUnset: "Not specified",
       genderFemale: "Female",
       genderMale: "Male",
-      yearsExperienceInvalid: "Enter years of experience between 0 and 80, or leave empty.",
+      yearsExperienceInvalid:
+        "Enter years of experience between 0 and 80, or leave empty.",
       saveProfileButton: "Save profile",
       changeEmailTitle: "Change email",
       changeEmailSubtitle: "Enter your new email address.",
@@ -641,6 +648,11 @@ const en = {
       title: "Document details",
       type: "Type",
       status: "Status",
+      adminFileDecision: "Admin file decision",
+      fileAccepted: "Accepted",
+      fileRejected: "Rejected",
+      filePending: "Not reviewed yet",
+      rejectionReasonLabel: "Rejection reason (this file)",
       uploadedAt: "Uploaded at",
       validatedAt: "Validated at",
       requestId: "Request ID",
@@ -661,9 +673,9 @@ const en = {
       unknown: "Provider",
     },
     status: {
-      pendingTitle: "Application under review",
+      pendingTitle: "Application pending",
       pendingMessage:
-        "Thank you for registering. Our administrators will review your account soon. You will be notified by email when a decision is made.",
+        "Thank you for registering. Your application is pending review by our administrators. You will be notified by email when a decision is made.",
       rejectedTitle: "Application not approved",
       rejectedMessage:
         "Your application was not approved. Review the administrator’s feedback below, attach updated documents, add a short note if needed, and send a new request.",
@@ -678,6 +690,11 @@ const en = {
         "Your provider account cannot be used in the app right now. Please contact support.",
       signedInAs: "Signed in as {{email}}",
       adminFeedbackTitle: "Feedback from the team",
+      priorRoundDocumentsTitle: "Files from your last submission",
+      docDecisionAccepted: "Accepted",
+      docDecisionRejected: "Rejected",
+      docDecisionPending: "Pending review",
+      docRejectionNote: "Note",
       adminCommentEmpty: "No detailed feedback was provided.",
       resubmitHeading: "Send a new request",
       resubmitHint:

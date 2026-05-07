@@ -32,6 +32,12 @@ type ProfileDocumentsScreenProps = {
   onPressDocument?: (doc: ProviderVerificationDocument) => void;
   onPressUploadNewCertificate?: () => void;
   onPressUploadDocument?: () => void;
+  onPressServiceSkill?: (service: {
+    id: string;
+    name: string;
+    categoryName: string;
+    description?: string | null;
+  }) => void;
   profile?: UserWithProfile | null;
   loading?: boolean;
   verificationRequest?: LatestVerificationRequest | null;
@@ -46,6 +52,8 @@ type LatestVerificationDocument = {
   fichierUrl: string;
   uploadedAt: string;
   validatedAt: string | null;
+  isAccepted?: boolean | null;
+  rejectionReason?: string | null;
 };
 
 type LatestVerificationRequest = {
@@ -67,7 +75,9 @@ type ProviderVerificationDocument = LatestVerificationDocument & {
     service?: {
       id: string;
       servicePhoto?: string | null;
+      isActiveForOwner?: boolean;
       name: string;
+      description?: string | null;
       category?: {
         slug: string;
         name: string;
@@ -130,9 +140,13 @@ export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
       name: string;
       categoryName: string;
       imageUrl: string | null;
+      description?: string | null;
     }> = [];
     for (const doc of verificationDocs) {
+      const requestStatus = doc.verificationRequest?.requestStatus;
+      if (requestStatus !== "APPROVED") continue;
       const service = doc.verificationRequest?.service;
+      if (!service?.isActiveForOwner) continue;
       const name = service?.name?.trim();
       if (!service?.id || !name) continue;
       const key = service.id;
@@ -148,6 +162,7 @@ export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
           service.servicePhoto?.trim() ||
           service.category?.iconUrl?.trim() ||
           null,
+        description: service.description ?? null,
       });
     }
     return services;
@@ -381,15 +396,23 @@ export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
                 </View>
               ) : (
                 verificationDocs.map((doc) => {
-                  const isApproved = Boolean(doc.validatedAt);
-                  const statusLabel = isApproved
+                  const reqStatus = doc.verificationRequest?.requestStatus;
+                  const isFileAccepted = doc.isAccepted === true;
+                  const isFileRejected = doc.isAccepted === false;
+                  const isApproved =
+                    isFileAccepted ||
+                    (doc.isAccepted == null &&
+                      Boolean(doc.validatedAt) &&
+                      reqStatus !== "REJECTED");
+                  const statusLabel = isFileAccepted
                     ? t("provider.profileDocuments.approved")
-                    : doc.verificationRequest?.requestStatus === "REJECTED"
+                    : isFileRejected
                       ? t("provider.profileDocuments.rejected")
-                      : doc.verificationRequest?.requestStatus ===
-                          "UNDER_REVIEW"
-                        ? t("provider.profileDocuments.underReview")
-                        : t("provider.profileDocuments.pending");
+                      : reqStatus === "REJECTED"
+                        ? t("provider.profileDocuments.rejected")
+                        : reqStatus === "UNDER_REVIEW"
+                          ? t("provider.profileDocuments.underReview")
+                          : t("provider.profileDocuments.pending");
                   return (
                     <TouchableOpacity
                       key={doc.id}
@@ -397,27 +420,33 @@ export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
                       activeOpacity={0.85}
                       style={[
                         styles.docCard,
-                        isApproved
-                          ? styles.docCardApproved
-                          : styles.docCardWarn,
+                        isFileRejected
+                          ? styles.docCardWarn
+                          : isApproved
+                            ? styles.docCardApproved
+                            : styles.docCardWarn,
                       ]}
                     >
                       <View style={styles.docLeft}>
                         <View
                           style={[
                             styles.docIconBox,
-                            isApproved
-                              ? styles.docIconBoxSuccess
-                              : styles.docIconBoxWarn,
+                            isFileRejected
+                              ? styles.docIconBoxWarn
+                              : isApproved
+                                ? styles.docIconBoxSuccess
+                                : styles.docIconBoxWarn,
                           ]}
                         >
                           <Text
                             style={[
                               styles.docIcon,
                               {
-                                color: isApproved
-                                  ? colors.success
-                                  : colors.warning,
+                                color: isFileRejected
+                                  ? colors.warning
+                                  : isApproved
+                                    ? colors.success
+                                    : colors.warning,
                               },
                             ]}
                           >
@@ -438,14 +467,24 @@ export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
                             <Text
                               style={[
                                 styles.docMeta,
-                                isApproved
-                                  ? styles.docMetaSuccess
-                                  : styles.docMetaWarn,
+                                isFileRejected
+                                  ? styles.docMetaWarn
+                                  : isApproved
+                                    ? styles.docMetaSuccess
+                                    : styles.docMetaWarn,
                               ]}
                             >
                               {statusLabel}
                             </Text>
                           </View>
+                          {isFileRejected && doc.rejectionReason?.trim() ? (
+                            <Text
+                              style={styles.docRejectionHint}
+                              numberOfLines={3}
+                            >
+                              {doc.rejectionReason.trim()}
+                            </Text>
+                          ) : null}
                           {doc.validatedAt ? (
                             <Text style={styles.validatedText}>
                               {t("provider.profileDocuments.validatedOn", {
@@ -475,7 +514,12 @@ export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
             <View style={styles.skillTagsWrap}>
               {providedServices.length > 0 ? (
                 providedServices.map((service) => (
-                  <View key={service.id} style={styles.serviceCard}>
+                  <TouchableOpacity
+                    key={service.id}
+                    style={styles.serviceCard}
+                    activeOpacity={0.88}
+                    onPress={() => props.onPressServiceSkill?.(service)}
+                  >
                     {service.imageUrl ? (
                       <Image
                         source={{ uri: service.imageUrl }}
@@ -498,8 +542,30 @@ export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
                         {service.categoryName}
                       </Text>
                     </View>
-                  </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={colors.textLight}
+                    />
+                  </TouchableOpacity>
                 ))
+              ) : props.loading ? (
+                <>
+                  <View style={styles.serviceCardSkeleton}>
+                    <View style={styles.serviceCardSkeletonImage} />
+                    <View style={styles.serviceCardSkeletonTextWrap}>
+                      <View style={styles.serviceCardSkeletonTitle} />
+                      <View style={styles.serviceCardSkeletonSubtitle} />
+                    </View>
+                  </View>
+                  <View style={styles.serviceCardSkeleton}>
+                    <View style={styles.serviceCardSkeletonImage} />
+                    <View style={styles.serviceCardSkeletonTextWrap}>
+                      <View style={styles.serviceCardSkeletonTitle} />
+                      <View style={styles.serviceCardSkeletonSubtitle} />
+                    </View>
+                  </View>
+                </>
               ) : (
                 <Text style={styles.skillsHint}>
                   {t("provider.profileDocuments.noSkills")}
@@ -1115,6 +1181,38 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.textMuted,
   },
+  serviceCardSkeleton: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    borderRadius: 14,
+    padding: 10,
+    backgroundColor: "#FFFFFF",
+  },
+  serviceCardSkeletonImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    marginRight: 10,
+    backgroundColor: "#E5E7EB",
+  },
+  serviceCardSkeletonTextWrap: {
+    flex: 1,
+    gap: 6,
+  },
+  serviceCardSkeletonTitle: {
+    width: "55%",
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "#E5E7EB",
+  },
+  serviceCardSkeletonSubtitle: {
+    width: "35%",
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#E5E7EB",
+  },
   skillsHint: {
     marginTop: 6,
     fontSize: 10,
@@ -1188,6 +1286,14 @@ const styles = StyleSheet.create({
   docMetaWarn: {
     color: colors.warning,
     fontWeight: "900",
+  },
+  docRejectionHint: {
+    marginTop: 6,
+    fontSize: 11,
+    lineHeight: 15,
+    color: "#B91C1C",
+    fontWeight: "600",
+    maxWidth: 220,
   },
   docMetaError: {
     color: colors.error,
@@ -1520,6 +1626,15 @@ export const ProviderProfileScreen: React.FC = () => {
       onPressEditPhoto={() => navigation.navigate("ProviderEditProfile")}
       onPressDocument={(doc) =>
         navigation.navigate("ProviderDocumentDetails", { document: doc })
+      }
+      onPressServiceSkill={(service) =>
+        navigation.navigate("ProviderManageService", {
+          mode: "edit",
+          serviceId: service.id,
+          serviceName: service.name,
+          serviceCategory: service.categoryName,
+          serviceDescription: service.description ?? undefined,
+        })
       }
     />
   );

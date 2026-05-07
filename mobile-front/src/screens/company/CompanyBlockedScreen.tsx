@@ -64,6 +64,14 @@ export const CompanyBlockedScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const status = user?.status;
   const [adminComment, setAdminComment] = useState<string | null>(null);
+  const [latestRoundDocs, setLatestRoundDocs] = useState<
+    {
+      id: string;
+      type: string;
+      isAccepted?: boolean | null;
+      rejectionReason?: string | null;
+    }[]
+  >([]);
   const [loadingComment, setLoadingComment] = useState(false);
   const [ownerComment, setOwnerComment] = useState("");
   const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
@@ -87,6 +95,7 @@ export const CompanyBlockedScreen: React.FC = () => {
   const config = useMemo((): BlockConfig => {
     switch (status) {
       case AccountStatus.PENDING:
+      case AccountStatus.UNDER_REVIEW:
         return {
           accent: "#B45309",
           softBg: "#FFFBEB",
@@ -158,6 +167,7 @@ export const CompanyBlockedScreen: React.FC = () => {
     let cancelled = false;
     if (status !== AccountStatus.REJECTED) {
       setAdminComment(null);
+      setLatestRoundDocs([]);
       setLoadingComment(false);
       return;
     }
@@ -169,11 +179,24 @@ export const CompanyBlockedScreen: React.FC = () => {
         const data = res.data as {
           adminComment?: string | null;
           requestStatus?: string;
+          documents?: {
+            id: string;
+            type: string;
+            isAccepted?: boolean | null;
+            rejectionReason?: string | null;
+          }[];
         } | null;
         const comment = String(data?.adminComment ?? "").trim();
-        if (!cancelled) setAdminComment(comment || null);
+        const docs = Array.isArray(data?.documents) ? data!.documents! : [];
+        if (!cancelled) {
+          setAdminComment(comment || null);
+          setLatestRoundDocs(docs);
+        }
       } catch {
-        if (!cancelled) setAdminComment(null);
+        if (!cancelled) {
+          setAdminComment(null);
+          setLatestRoundDocs([]);
+        }
       } finally {
         if (!cancelled) setLoadingComment(false);
       }
@@ -444,6 +467,34 @@ export const CompanyBlockedScreen: React.FC = () => {
                     {adminComment ?? t("company.status.adminCommentEmpty")}
                   </Text>
                 )}
+                {latestRoundDocs.length > 0 ? (
+                  <View style={styles.roundDocsBox}>
+                    <Text style={styles.roundDocsTitle}>
+                      {t("company.status.priorRoundDocumentsTitle")}
+                    </Text>
+                    {latestRoundDocs.map((d) => {
+                      const dec =
+                        d.isAccepted === true
+                          ? t("company.status.docDecisionAccepted")
+                          : d.isAccepted === false
+                            ? t("company.status.docDecisionRejected")
+                            : t("company.status.docDecisionPending");
+                      return (
+                        <View key={d.id} style={styles.roundDocRow}>
+                          <Text style={styles.roundDocMain}>
+                            {labelForDocType(d.type)} — {dec}
+                          </Text>
+                          {d.rejectionReason?.trim() ? (
+                            <Text style={styles.roundDocNote}>
+                              {t("company.status.docRejectionNote")}:{" "}
+                              {d.rejectionReason.trim()}
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : null}
               </View>
             ) : null}
           </View>
@@ -808,6 +859,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     color: "#374151",
+  },
+  roundDocsBox: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+    gap: 8,
+  },
+  roundDocsTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#374151",
+    marginBottom: 4,
+  },
+  roundDocRow: {
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#F3F4F6",
+  },
+  roundDocMain: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  roundDocNote: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#B91C1C",
+    lineHeight: 17,
   },
   commentLoadingRow: {
     flexDirection: "row",

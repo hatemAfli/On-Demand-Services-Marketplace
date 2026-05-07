@@ -308,14 +308,23 @@ export const ProviderEditProfileScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
       <StatusBar barStyle="dark-content" />
+
+      {/* Floating back button */}
       <View style={[styles.topBackContainer, { top: insets.top + 6 }]}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
           activeOpacity={0.8}
         >
-          <Text style={styles.backText}>
-            {isRTL ? "→" : "←"} {t("common.back")}
+          <View style={styles.backBtnInner}>
+            <Ionicons
+              name={isRTL ? "chevron-forward" : "chevron-back"}
+              size={18}
+              color="#1A1A2E"
+            />
+          </View>
+          <Text style={[styles.backText, isRTL && styles.rtlText]}>
+            {t("common.back")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -327,160 +336,190 @@ export const ProviderEditProfileScreen: React.FC = () => {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: insets.top + 60, paddingBottom: 24 + insets.bottom },
+            { paddingTop: insets.top + 64, paddingBottom: 32 + insets.bottom },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* Avatar hero */}
+          <View style={styles.avatarHero}>
+            <TouchableOpacity
+              style={styles.avatarTouchable}
+              onPress={() => void onPickPhoto()}
+              activeOpacity={0.85}
+            >
+              <View style={styles.avatarOuterRing}>
+                <View style={styles.avatarRingInner}>
+                  {displayAvatarUri ? (
+                    <Image
+                      source={{ uri: displayAvatarUri }}
+                      style={styles.avatarImg}
+                    />
+                  ) : (
+                    <View style={styles.avatarPlaceholder}>
+                      <Ionicons name="person" size={40} color="#F08E10" />
+                    </View>
+                  )}
+                </View>
+              </View>
+              <View style={styles.avatarEditBadge}>
+                <Ionicons name="camera" size={13} color="#FFF" />
+              </View>
+            </TouchableOpacity>
+            <Text style={[styles.avatarHeroTitle, isRTL && styles.rtlText]}>
+              {t("provider.settings.editProfileTitle")}
+            </Text>
+          </View>
+
+          {/* Personal info card */}
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionIconWrap}>
+              <Ionicons name="person-outline" size={13} color="#F08E10" />
+            </View>
+            <Text style={[styles.sectionLabel, isRTL && styles.rtlText]}>
+              {t("completeProfile.firstNameLabel").replace(" *", "")} &amp;
+              location
+            </Text>
+          </View>
           <View style={styles.card}>
-            <View style={styles.headerRow}>
-              <View style={styles.iconWrap}>
-                <Ionicons name="person-outline" size={20} color="#4F46E5" />
-              </View>
-              <View style={styles.headerTextWrap}>
-                <Text style={[styles.title, isRTL && styles.rtlText]}>
-                  {t("provider.settings.editProfileTitle")}
-                </Text>
-              </View>
-            </View>
+            <Input
+              label={t("completeProfile.firstNameLabel")}
+              value={firstName}
+              onChangeText={setFirstName}
+              leftIcon="person-outline"
+            />
+            <View style={styles.cardDivider} />
+            <Input
+              label={t("completeProfile.lastNameLabel")}
+              value={lastName}
+              onChangeText={setLastName}
+              leftIcon="person-outline"
+            />
+            <View style={styles.cardDivider} />
+            <Input
+              label={t("completeProfile.cityLabel")}
+              value={city}
+              onChangeText={setCity}
+              leftIcon="business-outline"
+            />
+            <View style={styles.cardDivider} />
+            <Input
+              label={t("completeProfile.addressLabel")}
+              value={address}
+              onChangeText={setAddress}
+              leftIcon="location-outline"
+            />
+          </View>
 
-            <View style={styles.avatarSection}>
-              <TouchableOpacity
-                style={styles.avatarTouchable}
-                onPress={() => void onPickPhoto()}
-                activeOpacity={0.85}
-              >
-                <View style={styles.avatarOuterRing}>
-                  <View style={styles.avatarRingInner}>
-                    {displayAvatarUri ? (
-                      <Image
-                        source={{ uri: displayAvatarUri }}
-                        style={styles.avatarImg}
-                      />
-                    ) : (
-                      <View style={styles.avatarPlaceholder}>
-                        <Ionicons name="person" size={38} color="#F08E10" />
-                      </View>
-                    )}
-                  </View>
-                </View>
-                <View style={styles.avatarEditBadge}>
-                  <Ionicons name="camera" size={14} color="#FFF" />
-                </View>
-              </TouchableOpacity>
+          {/* Professional card */}
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionIconWrap}>
+              <Ionicons name="briefcase-outline" size={13} color="#F08E10" />
             </View>
-
-            <View style={styles.form}>
-              <Input
-                label={t("completeProfile.firstNameLabel")}
-                value={firstName}
-                onChangeText={setFirstName}
-                leftIcon="person-outline"
-              />
-              <Input
-                label={t("completeProfile.lastNameLabel")}
-                value={lastName}
-                onChangeText={setLastName}
-                leftIcon="person-outline"
-              />
-              <Input
-                label={t("completeProfile.cityLabel")}
-                value={city}
-                onChangeText={setCity}
-                leftIcon="business-outline"
-              />
-              <Input
-                label={t("completeProfile.addressLabel")}
-                value={address}
-                onChangeText={setAddress}
-                leftIcon="location-outline"
-              />
-            </View>
-
-            <Text style={[styles.subsectionTitle, isRTL && styles.rtlText]}>
+            <Text style={[styles.sectionLabel, isRTL && styles.rtlText]}>
               {t("provider.settings.editProfileProfessionalSection")}
             </Text>
-            <View style={styles.form}>
-              <Input
-                label={t("provider.settings.taglineLabel")}
-                value={tagline}
-                onChangeText={setTagline}
-                placeholder={t("provider.settings.taglinePlaceholder")}
-                leftIcon="megaphone-outline"
-                maxLength={220}
-              />
-              <Input
-                label={t("provider.settings.bioLabel")}
-                value={bio}
-                onChangeText={setBio}
-                placeholder={t("provider.settings.bioPlaceholder")}
-                leftIcon="document-text-outline"
-                multiline
-                numberOfLines={5}
-              />
-              <Input
-                label={t("provider.settings.yearsExperienceLabel")}
-                value={yearsStr}
-                onChangeText={setYearsStr}
-                placeholder={t("provider.settings.yearsExperiencePlaceholder")}
-                leftIcon="time-outline"
-                keyboardType="number-pad"
-              />
-              <Input
-                label={t("provider.settings.languagesLabel")}
-                value={languagesStr}
-                onChangeText={setLanguagesStr}
-                placeholder={t("provider.settings.languagesPlaceholder")}
-                leftIcon="language-outline"
-              />
-              <Text style={[styles.fieldHint, isRTL && styles.rtlText]}>
-                {t("provider.settings.languagesHint")}
-              </Text>
-              <Text style={[styles.genderFieldLabel, isRTL && styles.rtlText]}>
-                {t("provider.settings.genderLabel")}
-              </Text>
-              <View style={styles.genderChips}>
-                {(
-                  [
-                    {
-                      value: null as ProviderGender | null,
-                      labelKey: "provider.settings.genderUnset",
-                    },
-                    {
-                      value: "FEMALE" as const,
-                      labelKey: "provider.settings.genderFemale",
-                    },
-                    {
-                      value: "MALE" as const,
-                      labelKey: "provider.settings.genderMale",
-                    },
-                  ] as const
-                ).map((opt) => {
-                  const active = (gender ?? null) === (opt.value ?? null);
-                  return (
-                    <TouchableOpacity
-                      key={String(opt.value ?? "unset")}
-                      style={[
-                        styles.genderChip,
-                        active && styles.genderChipActive,
-                      ]}
-                      onPress={() => setGender(opt.value)}
-                      activeOpacity={0.85}
-                    >
-                      <Text
-                        style={[
-                          styles.genderChipText,
-                          active && styles.genderChipTextActive,
-                        ]}
-                      >
-                        {t(opt.labelKey)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+          </View>
+          <View style={styles.card}>
+            <Input
+              label={t("provider.settings.taglineLabel")}
+              value={tagline}
+              onChangeText={setTagline}
+              placeholder={t("provider.settings.taglinePlaceholder")}
+              leftIcon="megaphone-outline"
+              maxLength={220}
+            />
+            <View style={styles.cardDivider} />
+            <Input
+              label={t("provider.settings.bioLabel")}
+              value={bio}
+              onChangeText={setBio}
+              placeholder={t("provider.settings.bioPlaceholder")}
+              leftIcon="document-text-outline"
+              multiline
+              numberOfLines={5}
+            />
+            <View style={styles.cardDivider} />
+            <Input
+              label={t("provider.settings.yearsExperienceLabel")}
+              value={yearsStr}
+              onChangeText={setYearsStr}
+              placeholder={t("provider.settings.yearsExperiencePlaceholder")}
+              leftIcon="time-outline"
+              keyboardType="number-pad"
+            />
+            <View style={styles.cardDivider} />
+            <Input
+              label={t("provider.settings.languagesLabel")}
+              value={languagesStr}
+              onChangeText={setLanguagesStr}
+              placeholder={t("provider.settings.languagesPlaceholder")}
+              leftIcon="language-outline"
+            />
+            <Text style={[styles.fieldHint, isRTL && styles.rtlText]}>
+              {t("provider.settings.languagesHint")}
+            </Text>
+            <View style={styles.cardDivider} />
 
+            {/* Gender */}
+            <Text style={[styles.genderFieldLabel, isRTL && styles.rtlText]}>
+              {t("provider.settings.genderLabel")}
+            </Text>
+            <View style={styles.genderChips}>
+              {(
+                [
+                  {
+                    value: "FEMALE" as const,
+                    labelKey: "provider.settings.genderFemale",
+                    icon: "female-outline",
+                  },
+                  {
+                    value: "MALE" as const,
+                    labelKey: "provider.settings.genderMale",
+                    icon: "male-outline",
+                  },
+                ] as const
+              ).map((opt) => {
+                const active = (gender ?? null) === (opt.value ?? null);
+                return (
+                  <TouchableOpacity
+                    key={String(opt.value ?? "unset")}
+                    style={[
+                      styles.genderChip,
+                      active && styles.genderChipActive,
+                    ]}
+                    onPress={() => setGender(opt.value)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={opt.icon as any}
+                      size={13}
+                      color={active ? "#F08E10" : "#9B9BB0"}
+                    />
+                    <Text
+                      style={[
+                        styles.genderChipText,
+                        active && styles.genderChipTextActive,
+                      ]}
+                    >
+                      {t(opt.labelKey)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Map card */}
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionIconWrap}>
+              <Ionicons name="map-outline" size={13} color="#F08E10" />
+            </View>
+            <Text style={[styles.sectionLabel, isRTL && styles.rtlText]}>
+              {t("completeProfile.addressLabel")}
+            </Text>
+          </View>
+          <View style={styles.mapCard}>
             <View style={styles.mapWrap}>
               {USE_OSM_WEB_MAP ? (
                 <OsmLocationPicker
@@ -522,34 +561,43 @@ export const ProviderEditProfileScreen: React.FC = () => {
                 activeOpacity={0.85}
               >
                 {locating ? (
-                  <ActivityIndicator color="#0A0E1A" size="small" />
+                  <ActivityIndicator color="#7C5CFC" size="small" />
                 ) : (
-                  <Ionicons name="locate" size={24} color="#0A0E1A" />
+                  <Ionicons name="locate" size={22} color="#7C5CFC" />
                 )}
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={[
-                styles.saveButton,
-                (!isDirty || saving) && styles.saveButtonDisabled,
-              ]}
-              onPress={() => void onSave()}
-              disabled={!isDirty || saving}
-              activeOpacity={0.9}
-            >
-              {saving ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <View style={styles.saveButtonContent}>
-                  <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
-                  <Text style={styles.saveButtonText}>
-                    {t("provider.settings.saveProfileButton")}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            {latitude && longitude ? (
+              <View style={styles.coordsRow}>
+                <Ionicons name="pin-outline" size={12} color="#9B9BB0" />
+                <Text style={styles.coordsText}>
+                  {Number(latitude).toFixed(5)}, {Number(longitude).toFixed(5)}
+                </Text>
+              </View>
+            ) : null}
           </View>
+
+          {/* Save button */}
+          <TouchableOpacity
+            style={[
+              styles.saveButton,
+              (!isDirty || saving) && styles.saveButtonDisabled,
+            ]}
+            onPress={() => void onSave()}
+            disabled={!isDirty || saving}
+            activeOpacity={0.85}
+          >
+            {saving ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <View style={styles.saveButtonContent}>
+                <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.saveButtonText}>
+                  {t("provider.settings.saveProfileButton")}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -584,123 +632,179 @@ export const ProviderEditProfileScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F1F5F9" },
+  root: { flex: 1, backgroundColor: "#F4F3FA" },
   container: { flex: 1 },
-  topBackContainer: { position: "absolute", left: 24, zIndex: 10 },
-  backButton: { paddingVertical: 8, paddingHorizontal: 8 },
-  backText: { color: "#4F46E5", fontSize: 16, fontWeight: "600" },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    justifyContent: "center",
-  },
-  card: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    width: "100%",
-    maxWidth: 420,
-    alignSelf: "center",
-  },
-  headerRow: {
+
+  /* Back button */
+  topBackContainer: { position: "absolute", left: 16, zIndex: 10 },
+  backButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    marginBottom: 14,
+    gap: 6,
+    paddingVertical: 4,
   },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "#EEF2FF",
+  backBtnInner: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  headerTextWrap: { flex: 1 },
-  title: {
-    fontSize: 20,
-    lineHeight: 24,
+  backText: {
+    color: "#1A1A2E",
+    fontSize: 14,
     fontWeight: "700",
-    color: "#0F172A",
-    letterSpacing: -0.3,
   },
-  avatarSection: { alignItems: "center", marginBottom: 12 },
+
+  /* Scroll */
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+  },
+
+  /* Avatar hero */
+  avatarHero: {
+    alignItems: "center",
+    marginBottom: 28,
+    paddingTop: 8,
+  },
   avatarTouchable: {
     alignSelf: "center",
-    marginBottom: 8,
+    marginBottom: 14,
     position: "relative",
   },
   avatarOuterRing: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 104,
+    height: 104,
+    borderRadius: 52,
     backgroundColor: "#F08E10",
     padding: 4,
     shadowColor: "#F08E10",
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
     elevation: 5,
   },
   avatarRingInner: {
     flex: 1,
-    borderRadius: 46,
+    borderRadius: 48,
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
     borderWidth: 2,
     borderColor: "#FFFFFF",
   },
-  avatarImg: { width: "100%", height: "100%", backgroundColor: "#E2E8F0" },
+  avatarImg: { width: "100%", height: "100%", backgroundColor: "#EBEBF5" },
   avatarPlaceholder: {
     flex: 1,
     minHeight: 88,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFF7ED",
-    borderWidth: 1,
-    borderColor: "#FDBA74",
   },
   avatarEditBadge: {
     position: "absolute",
-    right: -2,
-    bottom: -2,
+    right: 0,
+    bottom: 0,
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "#F08E10",
+    backgroundColor: "#7C5CFC",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: "#FFFFFF",
-    shadowColor: "#F08E10",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
+    shadowColor: "#7C5CFC",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
     elevation: 4,
   },
-  form: { gap: 8, marginBottom: 10 },
-  subsectionTitle: {
-    fontSize: 13,
+  avatarHeroTitle: {
+    fontSize: 22,
     fontWeight: "800",
-    color: "#64748B",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginTop: 6,
-    marginBottom: 4,
+    color: "#1A1A2E",
+    letterSpacing: -0.4,
   },
+  avatarHeroSubtitle: {
+    fontSize: 12,
+    color: "#9B9BB0",
+    fontWeight: "500",
+    marginTop: 3,
+  },
+
+  /* Section header */
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+    marginTop: 6,
+    paddingHorizontal: 2,
+  },
+  sectionIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: "#FFF7ED",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#F08E10",
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+  },
+
+  /* Card */
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: "#F4F3FA",
+    marginVertical: 6,
+  },
+
+  /* Field hint */
   fieldHint: {
     fontSize: 11,
-    color: "#94A3B8",
-    marginTop: -4,
-    marginBottom: 4,
+    color: "#9B9BB0",
+    marginTop: 2,
+    marginBottom: 2,
+    fontWeight: "500",
   },
+
+  /* Gender */
   genderFieldLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#334155",
-    marginBottom: 6,
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6B6B80",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginTop: 4,
+    marginBottom: 8,
   },
   genderChips: {
     flexDirection: "row",
@@ -709,70 +813,107 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   genderChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E8E8F0",
+    backgroundColor: "#FAFAFA",
   },
   genderChipActive: {
-    borderColor: "#6366F1",
-    backgroundColor: "#EEF2FF",
+    borderColor: "#FDBA74",
+    backgroundColor: "#FFF7ED",
   },
   genderChipText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#9B9BB0",
   },
   genderChipTextActive: {
-    color: "#4338CA",
+    color: "#F08E10",
+    fontWeight: "700",
+  },
+
+  /* Map */
+  mapCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    overflow: "hidden",
+    marginBottom: 24,
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   mapWrap: {
     height: 260,
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
-    marginBottom: 10,
+    position: "relative",
   },
   map: { width: "100%", height: "100%" },
   mapFab: {
     position: "absolute",
     bottom: 14,
     right: 14,
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    shadowColor: "#7C5CFC",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
     elevation: 4,
   },
-  mapFabDisabled: { opacity: 0.65 },
+  mapFabDisabled: { opacity: 0.55 },
+  coordsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#F4F3FA",
+  },
+  coordsText: {
+    fontSize: 11,
+    color: "#9B9BB0",
+    fontWeight: "500",
+    fontVariant: ["tabular-nums"],
+  },
+
+  /* Save button */
   saveButton: {
     alignSelf: "center",
-    minWidth: 200,
-    height: 48,
+    minWidth: 210,
+    height: 52,
     borderRadius: 999,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#7C5CFC",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#4338CA",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 3,
-    marginTop: 4,
+    shadowColor: "#7C5CFC",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 6,
   },
-  saveButtonDisabled: { opacity: 0.6 },
+  saveButtonDisabled: { opacity: 0.45, shadowOpacity: 0 },
   saveButtonContent: { flexDirection: "row", alignItems: "center", gap: 8 },
   saveButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
     letterSpacing: 0.2,
   },
+
   rtlText: { textAlign: "right", writingDirection: "rtl" },
 });

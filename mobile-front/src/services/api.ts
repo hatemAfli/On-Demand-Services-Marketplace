@@ -124,6 +124,14 @@ export const api = {
     data: Record<string, unknown>,
   ) => apiClient.patch(`/providers/me/given-services/${serviceId}`, data),
 
+  getProviderServiceGallery: (serviceId: string) =>
+    apiClient.get(`/providers/me/given-services/${serviceId}/gallery`),
+
+  updateProviderServiceGallery: (
+    serviceId: string,
+    data: { imageUrls: string[] },
+  ) => apiClient.patch(`/providers/me/given-services/${serviceId}/gallery`, data),
+
   // Company endpoints
   getCompanyProfile: () => apiClient.get("/companies/me"),
   updateCompanyProfile: (data: any) => apiClient.put("/companies/me", data),
@@ -185,9 +193,20 @@ export const api = {
   rejectVerificationRequest: (id: string, data: { reason: string }) =>
     apiClient.post(`/admin/verification-requests/${id}/reject`, data),
 
+  reviewVerificationDocument: (
+    requestId: string,
+    documentId: string,
+    data: { decision: "accept" | "reject"; rejectionReason?: string },
+  ) =>
+    apiClient.patch(
+      `/admin/verification-requests/${requestId}/documents/${documentId}`,
+      data,
+    ),
+
   // Current provider/company admin — latest own verification request
   getMyLatestVerificationRequest: () =>
     apiClient.get("/verification-requests/me/latest"),
+  getMyVerificationRequests: () => apiClient.get("/verification-requests/me/requests"),
   getMyVerificationDocuments: () =>
     apiClient.get("/verification-requests/me/documents"),
 
@@ -195,6 +214,12 @@ export const api = {
     ownerComment?: string | null;
     documents: { type: string; fichierUrl: string }[];
   }) => apiClient.post("/verification-requests/me/resubmit", data),
+
+  createProviderServiceRequest: (data: {
+    serviceId: string;
+    ownerComment?: string | null;
+    documents: { type: string; fichierUrl: string }[];
+  }) => apiClient.post("/verification-requests/me/provider-service-request", data),
 
   getLatestLegalDocument: (type: "TERMS" | "PRIVACY") =>
     apiClient.get<{

@@ -4,12 +4,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AdminDashboardScreen } from "./AdminDashboardScreen";
-import { AdminUsersScreen } from "./AdminUsersScreen";
-import { AdminValidationsScreen } from "./AdminValidationsScreen";
-import { AdminValidationProviderDetailScreen } from "./AdminValidationProviderDetailScreen";
+import { AdminUsersScreen } from "./users/AdminUsersScreen";
+import { AdminValidationsScreen } from "./validations/AdminValidationsScreen";
+import { AdminValidationProviderDetailScreen } from "./validations/AdminValidationProviderDetailScreen";
 import { AdminReclamationsScreen } from "./AdminReclamationsScreen";
 import { AdminProfileScreen } from "./AdminProfileScreen";
-import type { AdminValidationsStackParamList } from "./adminValidationsNavigation";
+import type { AdminValidationsStackParamList } from "./validations/adminValidationsNavigation";
 
 type AdminTabParamList = {
   DashboardTab: undefined;

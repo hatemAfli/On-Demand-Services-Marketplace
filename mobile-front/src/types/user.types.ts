@@ -9,6 +9,7 @@ export enum UserRole {
 
 export enum AccountStatus {
   PENDING = "PENDING",
+  UNDER_REVIEW = "UNDER_REVIEW",
   ACTIVE = "ACTIVE",
   REJECTED = "REJECTED",
   SUSPENDED = "SUSPENDED",
