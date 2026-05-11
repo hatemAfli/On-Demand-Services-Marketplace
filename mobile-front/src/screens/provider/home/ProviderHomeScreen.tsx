@@ -456,10 +456,10 @@ export const ProviderHomeScreen: React.FC = () => {
       onPressNotifications={() => navigation.navigate("ProviderNotifications")}
       onPressCall={() => {}}
       onPressChat={() => navigation.navigate("ProviderMessages")}
-      onPressNavigate={() => navigation.navigate("ProviderSchedule")}
-      onPressUpdateStatus={() => navigation.navigate("ProviderSchedule")}
-      onPressViewAllScheduled={() => navigation.navigate("ProviderSchedule")}
-      onPressScheduledItem={() => navigation.navigate("ProviderSchedule")}
+      onPressNavigate={() => navigation.navigate("ProviderCalendar")}
+      onPressUpdateStatus={() => navigation.navigate("ProviderCalendar")}
+      onPressViewAllScheduled={() => navigation.navigate("ProviderCalendar")}
+      onPressScheduledItem={() => navigation.navigate("ProviderCalendar")}
     />
   );
 };

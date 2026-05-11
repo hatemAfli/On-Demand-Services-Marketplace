@@ -7,7 +7,6 @@ import type { ClientStackParamList } from "../../navigation/types";
 import { useAuth } from "../../context/AuthContext";
 import { Header } from "./home/Header";
 import { ActiveOrderCard } from "./home/ActiveOrderCard";
-import { PromotionalBanners } from "./home/PromotionalBanners";
 import { ServiceCategories } from "./home/ServiceCategories";
 import { RecommendedSection } from "./home/RecommendedSection";
 import { PopularNearYou } from "./home/PopularNearYou";
@@ -36,6 +35,8 @@ export const ClientHomeScreen: React.FC = () => {
           avatarUri={user?.client?.imageUrl}
           city={user?.client?.city}
           address={user?.client?.address}
+          onSearchPress={() => navigation.navigate("ClientHomeSearch")}
+          onProfilePress={() => navigation.navigate("ClientSettings")}
           onNotificationsPress={() =>
             navigation.navigate("ClientNotifications")
           }
@@ -48,7 +49,6 @@ export const ClientHomeScreen: React.FC = () => {
           }
         >
           <ActiveOrderCard />
-          <PromotionalBanners />
           <ServiceCategories refreshSignal={categoriesRefreshSignal} />
           <RecommendedSection />
           <PopularNearYou

@@ -4,7 +4,7 @@ import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import {
   ServiceDiscoveryCard,
   type ServiceCardDisplay,
-} from "../category-services/ServiceDiscoveryCard";
+} from "../category-services/ListOfServicesScreen";
 import { styles } from "./styles";
 
 type RecommendedSeed = {
@@ -166,6 +166,8 @@ export const RecommendedSection: React.FC = () => {
               key={item.id}
               style={{ width: cardWidth, marginRight: 16 }}
               service={card}
+              isFavorite={false}
+              onToggleFavorite={() => {}}
               providersCountLabel={t("client.categoryServices.cardProvidersCount", {
                 count: card.activeGivenCount,
               })}

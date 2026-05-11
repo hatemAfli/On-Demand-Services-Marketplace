@@ -12,6 +12,7 @@ import * as SecureStore from "expo-secure-store";
 import { Alert, Platform, ToastAndroid } from "react-native";
 import * as Linking from "expo-linking";
 import { authService } from "../services/auth.service";
+import { ensureClientCoordsCached } from "../services/client-location-cache";
 import {
   authUrlIndicatesPasswordRecovery,
   handleAuthDeepLink,
@@ -93,8 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [session, setSession] = useState<Session | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [pendingPasswordRecovery, setPendingPasswordRecovery] =
-    useState(false);
+  const [pendingPasswordRecovery, setPendingPasswordRecovery] = useState(false);
   const userRef = useRef<UserWithProfile | null>(null);
 
   /**
@@ -508,6 +508,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     !user &&
     getRoleFromSession(session) !== UserRole.PLATFORM_ADMIN;
   const isAuthenticated = !!session && !!user;
+
+  useEffect(() => {
+    if (
+      !isAuthenticated ||
+      user?.role !== UserRole.CLIENT ||
+      !session?.user?.id
+    ) {
+      return;
+    }
+    // Ask once after login/restore and cache coordinates for future searches.
+    void ensureClientCoordsCached(session.user.id);
+  }, [isAuthenticated, session?.user?.id, user?.role]);
 
   const value: AuthContextType = {
     user,

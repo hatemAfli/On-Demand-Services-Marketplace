@@ -11,6 +11,10 @@ import { GivenServiceModule } from './modules/given-service/given-service.module
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { ProvidersModule } from './modules/providers/providers.module';
+import { SearchModule } from './modules/search/search.module';
+import { FavoritesModule } from './modules/favorites/favorites.module';
+import { AvailabilityModule } from './modules/availability/availability.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -32,6 +36,10 @@ import { AppService } from './app.service';
     AdminUsersModule,
     CompaniesModule,
     ProvidersModule,
+    SearchModule,
+    FavoritesModule,
+    AvailabilityModule,
+    AppointmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

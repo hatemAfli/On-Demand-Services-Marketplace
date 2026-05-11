@@ -62,7 +62,7 @@ const MENU_ITEMS = [
     icon: "receipt-outline",
   },
   {
-    key: "ProviderSchedule",
+    key: "ProviderCalendar",
     labelKey: "provider.sidebar.menu.schedule",
     icon: "calendar-outline",
   },

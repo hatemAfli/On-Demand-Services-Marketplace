@@ -89,19 +89,6 @@ export const ServiceCategories: React.FC<ServiceCategoriesProps> = ({
         <Text style={[styles.categoriesTitle, isRTL && { textAlign: "right" }]}>
           {t("client.home.categoriesTitle")}
         </Text>
-        {showCategoryToggle ? (
-          <TouchableOpacity
-            onPress={() => setCategoriesExpanded((v) => !v)}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.viewAllButton}>
-              {categoriesExpanded
-                ? t("client.home.categoriesViewLess")
-                : t("client.home.categoriesViewMore")}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
       </View>
       {loading ? (
         <View style={{ paddingVertical: 24, alignItems: "center" }}>
@@ -172,6 +159,20 @@ export const ServiceCategories: React.FC<ServiceCategoriesProps> = ({
           })}
         </View>
       )}
+      {!loading && !error && categories.length > 0 && showCategoryToggle ? (
+        <TouchableOpacity
+          onPress={() => setCategoriesExpanded((v) => !v)}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ alignSelf: "flex-end", marginTop: 8 }}
+        >
+          <Text style={styles.viewAllButton}>
+            {categoriesExpanded
+              ? t("client.home.categoriesViewLess")
+              : t("client.home.categoriesViewMore")}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 };

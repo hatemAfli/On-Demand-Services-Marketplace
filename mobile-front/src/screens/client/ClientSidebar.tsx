@@ -37,11 +37,6 @@ const MENU_ITEMS: {
     icon: "home-outline",
   },
   {
-    key: "ClientSearchProvider",
-    labelKey: "client.sidebar.menu.searchProvider",
-    icon: "search-outline",
-  },
-  {
     key: "ClientMessages",
     labelKey: "client.sidebar.menu.messages",
     icon: "chatbubbles-outline",
@@ -52,8 +47,8 @@ const MENU_ITEMS: {
     icon: "alert-circle-outline",
   },
   {
-    key: "ClientReservation",
-    labelKey: "client.sidebar.menu.reservation",
+    key: "ClientAppointments",
+    labelKey: "client.sidebar.menu.appointments",
     icon: "calendar-outline",
   },
   {
@@ -164,60 +159,66 @@ export const ClientSidebar: React.FC<Props> = ({
         </View>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.sectionTitle}>{t("client.sidebar.mySpace")}</Text>
-
-        {MENU_ITEMS.map((item) => {
-          const isActive = item.key === currentRouteName;
-          return (
-            <TouchableOpacity
-              key={item.key}
-              style={[styles.itemRow, isActive && styles.itemRowActive]}
-              onPress={() => {
-                navigation.navigate(item.key);
-                onClose();
-              }}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={item.icon}
-                size={20}
-                color={isActive ? "#4338ca" : "#4F46E5"}
-              />
-              <Text style={[styles.itemLabel, isActive && styles.itemLabelActive]}>
-                {t(item.labelKey)}
-              </Text>
-              <Ionicons
-                name={I18nManager.isRTL ? "chevron-back" : "chevron-forward"}
-                size={16}
-                color={isActive ? "#6366f1" : "#9ca3af"}
-              />
-            </TouchableOpacity>
-          );
-        })}
-
-        <View style={styles.separator} />
-
-        <TouchableOpacity
-          style={[styles.itemRow, styles.logoutRow]}
-          onPress={handleLogout}
-          activeOpacity={0.85}
+      <View style={styles.contentArea}>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
         >
-          <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-          <Text style={[styles.itemLabel, styles.logoutLabel]}>
-            {t("client.sidebar.logout")}
-          </Text>
-          <Ionicons
-            name={I18nManager.isRTL ? "chevron-back" : "chevron-forward"}
-            size={16}
-            color="#f87171"
-          />
-        </TouchableOpacity>
-      </ScrollView>
+          <Text style={styles.sectionTitle}>{t("client.sidebar.mySpace")}</Text>
+
+          {MENU_ITEMS.map((item) => {
+            const isActive = item.key === currentRouteName;
+            return (
+              <TouchableOpacity
+                key={item.key}
+                style={[styles.itemRow, isActive && styles.itemRowActive]}
+                onPress={() => {
+                  navigation.navigate(item.key);
+                  onClose();
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={item.icon}
+                  size={20}
+                  color={isActive ? "#4338ca" : "#4F46E5"}
+                />
+                <Text
+                  style={[styles.itemLabel, isActive && styles.itemLabelActive]}
+                >
+                  {t(item.labelKey)}
+                </Text>
+                <Ionicons
+                  name={I18nManager.isRTL ? "chevron-back" : "chevron-forward"}
+                  size={16}
+                  color={isActive ? "#6366f1" : "#9ca3af"}
+                />
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        <View style={styles.logoutSection}>
+          <View style={styles.separator} />
+
+          <TouchableOpacity
+            style={[styles.itemRow, styles.logoutRow]}
+            onPress={handleLogout}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+            <Text style={[styles.itemLabel, styles.logoutLabel]}>
+              {t("client.sidebar.logout")}
+            </Text>
+            <Ionicons
+              name={I18nManager.isRTL ? "chevron-back" : "chevron-forward"}
+              size={16}
+              color="#f87171"
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 };
@@ -330,13 +331,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   content: {
-    flex: 1,
     paddingHorizontal: 14,
   },
   contentContainer: {
     paddingTop: 10,
     paddingBottom: 16,
     flexGrow: 1,
+  },
+  contentArea: {
+    flex: 1,
   },
   sectionTitle: {
     color: "#64748b",
@@ -375,8 +378,12 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: "#e2e8f0",
-    marginTop: 14,
+    marginTop: 10,
     marginBottom: 10,
+  },
+  logoutSection: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
   },
   logoutRow: {
     backgroundColor: "#fff1f2",

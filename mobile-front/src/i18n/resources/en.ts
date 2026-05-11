@@ -262,7 +262,10 @@ const en = {
       ClientSearchProvider: "Search provider",
       ClientMessages: "Messages",
       ClientReclamation: "Reclamation",
-      ClientReservation: "Reservation",
+      ClientAppointments: "Appointments",
+      ClientAppointmentDetail: "Appointment details",
+      ClientLeaveReview: "Leave a review",
+      ClientReportProblem: "Report a problem",
       ClientFavorites: "Favorites",
       ClientNotifications: "Notifications",
       ClientSettings: "Profile & Setting",
@@ -274,6 +277,8 @@ const en = {
       ClientDeleteAccount: "Delete account",
       ClientTerms: "Terms",
       ClientPrivacy: "Privacy",
+      ClientSlotPicker: "Choose a time",
+      ClientBookingConfirmation: "Request sent",
     },
     sidebar: {
       mySpace: "My space",
@@ -286,6 +291,7 @@ const en = {
         messages: "Messages",
         reclamation: "Reclamation",
         reservation: "Reservation",
+        appointments: "Appointments",
         favorites: "Favorites",
         notifications: "Notifications",
         profile: "Profile",
@@ -476,6 +482,9 @@ const en = {
         "View and manage your orders and job requests. Coming soon.",
       ProviderSchedule:
         "Your calendar and time slots will be configured here. Coming soon.",
+      ProviderCalendar:
+        "View your bookings by week and open appointment details.",
+      ProviderAppointmentDetail: "Appointment details.",
       ProviderSubscriptionPlan:
         "Manage your plan, billing, and subscription options. Coming soon.",
       ProviderRatings:
@@ -494,6 +503,9 @@ const en = {
       ProviderReclamations: "Reclamations",
       ProviderOrders: "Orders",
       ProviderSchedule: "Schedule",
+      ProviderDaysOff: "Days off",
+      ProviderCalendar: "My calendar",
+      ProviderAppointmentDetail: "Appointment",
       ProviderSubscriptionPlan: "Subscription & Plan",
       ProviderRatings: "Ratings",
       ProviderProfile: "Profile",

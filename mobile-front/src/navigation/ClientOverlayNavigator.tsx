@@ -16,12 +16,20 @@ import { useAppTranslation } from "../hooks/useAppTranslation";
 import { ClientSidebar } from "../screens/client/ClientSidebar";
 
 import { ClientHomeScreen } from "../screens/client/ClientHomeView";
-import { CategoryServicesScreen } from "../screens/client/category-services/CategoryServicesScreen";
-import { ClientSearchProviderScreen } from "../screens/client/ClientSearchProviderScreen";
+import { ClientHomeSearchScreen } from "../screens/client/home/ClientHomeSearchScreen";
+import { ListOfServicesScreen } from "../screens/client/category-services/ListOfServicesScreen";
+import { ClientSearchProviderScreen } from "../screens/client/search";
+import { ClientProviderProfileScreen } from "../screens/client/provider/ClientProviderProfileScreen";
+import { ClientSlotPickerScreen } from "../screens/client/appointments/ClientSlotPickerScreen";
+import { ClientBookingConfirmationScreen } from "../screens/client/appointments/ClientBookingConfirmationScreen";
 import { ClientMessagesScreen } from "../screens/client/ClientMessagesScreen";
 import { ClientReclamationScreen } from "../screens/client/ClientReclamationScreen";
-import { ClientReservationScreen } from "../screens/client/ClientReservationScreen";
-import { ClientFavoritesScreen } from "../screens/client/ClientFavoritesScreen";
+import { ClientAppointmentsScreen } from "../screens/client/appointments/ClientAppointmentsScreen";
+import { ClientAppointmentDetailScreen } from "../screens/client/appointments/ClientAppointmentDetailScreen";
+import { ClientLeaveReviewScreen } from "../screens/client/appointments/ClientLeaveReviewScreen";
+import { ClientReportProblemScreen } from "../screens/client/appointments/ClientReportProblemScreen";
+import { ClientFavoritesScreen } from "../screens/client/favorite/ClientFavoritesScreen";
+import { ClientFavoritesListScreen } from "../screens/client/favorite/ClientFavoritesListScreen";
 import { ClientNotificationsScreen } from "../screens/client/ClientNotificationsScreen";
 import {
   ClientChangeEmailScreen,
@@ -88,7 +96,13 @@ export const ClientOverlayNavigator: React.FC = () => {
         }}
         screenOptions={({ route }) => ({
           headerShown:
+            route.name !== "ClientHomeSearch" &&
             route.name !== "ClientCategoryServices" &&
+            route.name !== "ClientSearchProvider" &&
+            route.name !== "ClientProviderProfile" &&
+            route.name !== "ClientSlotPicker" &&
+            route.name !== "ClientBookingConfirmation" &&
+            route.name !== "ClientFavoritesList" &&
             route.name !== "ClientEditProfile" &&
             route.name !== "ClientChangeEmail" &&
             route.name !== "ClientChangePhone" &&
@@ -118,12 +132,29 @@ export const ClientOverlayNavigator: React.FC = () => {
       >
         <Stack.Screen name="ClientHome" component={ClientHomeScreen} />
         <Stack.Screen
+          name="ClientHomeSearch"
+          component={ClientHomeSearchScreen}
+        />
+        <Stack.Screen
           name="ClientCategoryServices"
-          component={CategoryServicesScreen}
+          component={ListOfServicesScreen}
         />
         <Stack.Screen
           name="ClientSearchProvider"
           component={ClientSearchProviderScreen}
+        />
+        <Stack.Screen
+          name="ClientProviderProfile"
+          component={ClientProviderProfileScreen}
+        />
+        <Stack.Screen
+          name="ClientSlotPicker"
+          component={ClientSlotPickerScreen}
+        />
+        <Stack.Screen
+          name="ClientBookingConfirmation"
+          component={ClientBookingConfirmationScreen}
+          options={{ gestureEnabled: false }}
         />
         <Stack.Screen name="ClientMessages" component={ClientMessagesScreen} />
         <Stack.Screen
@@ -131,12 +162,28 @@ export const ClientOverlayNavigator: React.FC = () => {
           component={ClientReclamationScreen}
         />
         <Stack.Screen
-          name="ClientReservation"
-          component={ClientReservationScreen}
+          name="ClientAppointments"
+          component={ClientAppointmentsScreen}
+        />
+        <Stack.Screen
+          name="ClientAppointmentDetail"
+          component={ClientAppointmentDetailScreen}
+        />
+        <Stack.Screen
+          name="ClientLeaveReview"
+          component={ClientLeaveReviewScreen}
+        />
+        <Stack.Screen
+          name="ClientReportProblem"
+          component={ClientReportProblemScreen}
         />
         <Stack.Screen
           name="ClientFavorites"
           component={ClientFavoritesScreen}
+        />
+        <Stack.Screen
+          name="ClientFavoritesList"
+          component={ClientFavoritesListScreen}
         />
         <Stack.Screen
           name="ClientNotifications"

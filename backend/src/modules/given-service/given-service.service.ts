@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  Locale,
   OwnerType,
   PricingType,
   Prisma,
@@ -103,6 +104,132 @@ export class GivenServiceService {
       );
     }
     return given;
+  }
+
+  async getGivenServiceForClient(givenServiceId: string, localeRaw?: string) {
+    const locale: Locale = localeRaw?.toUpperCase() === 'AR' ? 'AR' : 'EN';
+
+    const given = await this.prisma.givenService.findUnique({
+      where: { id: givenServiceId },
+      include: {
+        service: {
+          include: {
+            translations: { where: { locale } },
+            category: {
+              include: { translations: { where: { locale } } },
+            },
+          },
+        },
+        galleries: {
+          select: { id: true, imageUrl: true },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+
+    if (!given || !given.active) {
+      throw new NotFoundException('Given service not found.');
+    }
+
+    if (given.ownerType === OwnerType.PROVIDER) {
+      const provider = await this.prisma.provider.findUnique({
+        where: { id: given.ownerId },
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      });
+
+      if (!provider) throw new NotFoundException('Provider not found.');
+
+      return {
+        givenServiceId: given.id,
+        serviceId: given.serviceId,
+        serviceName: given.service.translations[0]?.name ?? '',
+        categoryName: given.service.category.translations[0]?.name ?? '',
+        pricingType: given.pricingType,
+        price: given.price,
+        minimumHours: given.minimumHours ?? null,
+        estimatedDurationMinutes: given.estimatedDurationMinutes ?? null,
+        description: given.description ?? null,
+        whatIsIncluded: given.whatIsIncluded ?? null,
+        whatIsNotIncluded: given.whatIsNotIncluded ?? null,
+        toolsProvidedByProvider: given.toolsProvidedByProvider ?? null,
+        clientMustProvide: given.clientMustProvide ?? null,
+        averageRating: Number(given.averageRating ?? 0),
+        totalReviews: Number(given.totalReviews ?? 0),
+        totalCompletedJobs: Number(given.totalCompletedJobs ?? 0),
+        galleries: given.galleries,
+        bookingProviderId: provider.id,
+        owner: {
+          id: provider.id,
+          type: 'PROVIDER',
+          displayName:
+            `${provider.user?.firstName ?? ''} ${provider.user?.lastName ?? ''}`.trim(),
+          photoUrl: provider.photoUrl ?? null,
+          tagline: provider.tagline ?? null,
+          bio: provider.bio ?? null,
+          yearsOfExperience: provider.yearsOfExperience ?? null,
+          languagesSpoken: provider.languagesSpoken ?? [],
+          paymentMethodsAccepted: provider.paymentMethodsAccepted ?? [],
+          averageRating: Number(given.averageRating ?? 0),
+          totalReviews: Number(provider.totalReviews ?? 0),
+          cancellationRate: Number(provider.cancellationRate ?? 0),
+          gender: provider.gender ?? null,
+        },
+      };
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: given.ownerId },
+    });
+    if (!company) throw new NotFoundException('Company not found.');
+
+    const companyProvider = await this.prisma.provider.findFirst({
+      where: { companyId: company.id },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return {
+      givenServiceId: given.id,
+      serviceId: given.serviceId,
+      serviceName: given.service.translations[0]?.name ?? '',
+      categoryName: given.service.category.translations[0]?.name ?? '',
+      pricingType: given.pricingType,
+      price: given.price,
+      minimumHours: given.minimumHours ?? null,
+      estimatedDurationMinutes: given.estimatedDurationMinutes ?? null,
+      description: given.description ?? null,
+      whatIsIncluded: given.whatIsIncluded ?? null,
+      whatIsNotIncluded: given.whatIsNotIncluded ?? null,
+      toolsProvidedByProvider: given.toolsProvidedByProvider ?? null,
+      clientMustProvide: given.clientMustProvide ?? null,
+      averageRating: Number(given.averageRating ?? 0),
+      totalReviews: Number(given.totalReviews ?? 0),
+      totalCompletedJobs: Number(given.totalCompletedJobs ?? 0),
+      galleries: given.galleries,
+      bookingProviderId: companyProvider?.id ?? null,
+      owner: {
+        id: company.id,
+        type: 'COMPANY',
+        displayName: company.companyName,
+        photoUrl: company.logo ?? null,
+        tagline: null,
+        bio: null,
+        yearsOfExperience: null,
+        languagesSpoken: [],
+        paymentMethodsAccepted: [],
+        averageRating: Number(company.averageRating ?? 0),
+        totalReviews: Number(company.totalReviews ?? 0),
+        cancellationRate: 0,
+        gender: null,
+      },
+    };
   }
 
   async getProviderServiceGallery(userId: string, serviceId: string) {
@@ -242,4 +369,3 @@ export class GivenServiceService {
     });
   }
 }
-

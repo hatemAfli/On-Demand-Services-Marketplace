@@ -7,6 +7,69 @@ import type { UserRole } from "../types";
 import i18n from "../i18n";
 import { supabase } from "./supabase";
 
+type FavoriteType = "CATEGORY" | "SERVICE" | "PROVIDER";
+
+export type ProviderAvailabilityDayOfWeek =
+  | "MONDAY"
+  | "TUESDAY"
+  | "WEDNESDAY"
+  | "THURSDAY"
+  | "FRIDAY"
+  | "SATURDAY"
+  | "SUNDAY";
+
+export type ProviderAvailabilityDay = {
+  id?: string;
+  providerId?: string;
+  dayOfWeek: ProviderAvailabilityDayOfWeek;
+  isWorking: boolean;
+  startTime: string;
+  endTime: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type UpsertProviderAvailabilityPayload = {
+  days: Array<{
+    dayOfWeek: ProviderAvailabilityDayOfWeek;
+    isWorking: boolean;
+    startTime: string;
+    endTime: string;
+  }>;
+};
+
+export type ProviderDayOffItem = {
+  id: string;
+  providerId?: string;
+  date: string;
+  reason?: string | null;
+  createdAt?: string;
+};
+
+/** Matches Prisma `AppointmentStatus`. */
+export type AppointmentStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "REFUSED"
+  | "RESCHEDULED"
+  | "CANCELLED_CLIENT"
+  | "CANCELLED_PROVIDER"
+  | "EN_ROUTE"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "DISPUTED";
+
+export type ProviderCalendarAppointment = {
+  id: string;
+  status: AppointmentStatus;
+  scheduledDate: string;
+  scheduledTime: string;
+  durationMinutes: number | null;
+  notes: string | null;
+  givenService: { serviceName: string; categoryName: string };
+  client: { firstName: string; lastName: string; imageUrl: string | null };
+};
+
 // Storage keys
 const ACCESS_TOKEN_KEY = "accessToken";
 const REFRESH_TOKEN_KEY = "refreshToken";
@@ -101,6 +164,35 @@ export const api = {
   getClientMe: () => apiClient.get("/clients/me"),
   updateClientMe: (data: Record<string, unknown>) =>
     apiClient.patch("/clients/me", data),
+  getClientSearchHistory: (params?: { lang?: "en" | "ar" }) =>
+    apiClient.get("/clients/me/search-history", { params }),
+  addClientSearchHistory: (data: { serviceId: string; query?: string }) =>
+    apiClient.post("/clients/me/search-history", data),
+  clearClientSearchHistory: () => apiClient.delete("/clients/me/search-history"),
+  getClientFavorites: (params?: { type?: FavoriteType; lang?: "en" | "ar" }) =>
+    apiClient.get<{
+      items: {
+        id: string;
+        type: FavoriteType;
+        targetId: string;
+        title: string;
+        subtitle: string | null;
+        imageUrl: string | null;
+        givenServiceId?: string;
+        createdAt: string;
+      }[];
+    }>("/favorites", {
+      params: {
+        ...params,
+        lang: params?.lang ?? (i18n.language?.startsWith("ar") ? "ar" : "en"),
+      },
+    }),
+  createClientFavorite: (data: { type: FavoriteType; targetId: string }) =>
+    apiClient.post("/favorites", data),
+  deleteClientFavorite: (type: FavoriteType, targetId: string) =>
+    apiClient.delete(`/favorites/${type}/${targetId}`),
+  clearClientFavorites: (type?: FavoriteType) =>
+    apiClient.delete("/favorites", { params: { type } }),
   softDeleteClientAccount: (data: { password: string }) =>
     apiClient.post<{ message: string; deletedAt: string }>(
       "/clients/me/soft-delete",
@@ -110,6 +202,75 @@ export const api = {
   // Provider endpoints
   getProviderProfile: () => apiClient.get("/providers/me"),
   updateProviderProfile: (data: any) => apiClient.patch("/providers/me", data),
+
+  /** Provider weekly availability (GET/PATCH `/availability/me`). */
+  getMyAvailability: () =>
+    apiClient.get<ProviderAvailabilityDay[]>("/availability/me"),
+
+  upsertAvailability: (payload: UpsertProviderAvailabilityPayload) =>
+    apiClient.patch<ProviderAvailabilityDay[]>("/availability/me", payload),
+
+  getMyDaysOff: (from?: string, to?: string) =>
+    apiClient.get<ProviderDayOffItem[]>("/availability/days-off/me", {
+      params: { from, to },
+    }),
+
+  createDayOff: (payload: { date: string; reason?: string }) =>
+    apiClient.post<ProviderDayOffItem>("/availability/days-off", payload),
+
+  deleteDayOff: (id: string) =>
+    apiClient.delete(`/availability/days-off/${id}`),
+
+  getProviderCalendar: (from: string, to: string) =>
+    apiClient.get<unknown[]>("/appointments/calendar", {
+      params: { from, to },
+    }),
+
+  getAppointmentById: (id: string) =>
+    apiClient.get<unknown>(`/appointments/${id}`),
+
+  getMyAppointmentsAsClient: (status?: AppointmentStatus) =>
+    apiClient.get<unknown[]>("/appointments/me/client", {
+      params: status ? { status } : {},
+    }),
+
+  clientRespondReschedule: (
+    appointmentId: string,
+    payload: { action: "CONFIRMED" | "CANCELLED_CLIENT" },
+  ) =>
+    apiClient.patch<{
+      id: string;
+      status: AppointmentStatus;
+      scheduledDate: string;
+      scheduledTime: string;
+      rescheduleDate: string | null;
+      rescheduleTime: string | null;
+    }>(`/appointments/${appointmentId}/client-respond`, payload),
+
+  providerRespond: (
+    id: string,
+    payload: {
+      action: "CONFIRMED" | "REFUSED" | "RESCHEDULED";
+      refusalReason?: string;
+      rescheduleDate?: string;
+      rescheduleTime?: string;
+    },
+  ) => apiClient.patch(`/appointments/${id}/respond`, payload),
+
+  recordExecution: (
+    id: string,
+    payload: {
+      action: "EN_ROUTE" | "START" | "END";
+      photoUrls?: string[];
+    },
+  ) => apiClient.patch(`/appointments/${id}/execution`, payload),
+
+  cancelAppointment: (id: string, data?: { reason?: string }) =>
+    apiClient.patch(`/appointments/${id}/cancel`, data ?? {}),
+
+  clientConfirm: (id: string, payload: { type: "START" | "END" }) =>
+    apiClient.patch<unknown>(`/appointments/${id}/confirm`, payload),
+
   softDeleteProviderAccount: (data: { password: string }) =>
     apiClient.post<{ message: string; deletedAt: string }>(
       "/providers/me/soft-delete",
@@ -165,6 +326,42 @@ export const api = {
         lang: i18n.language?.startsWith("ar") ? "ar" : "en",
       },
     }),
+
+  searchProviders: (params: {
+    serviceId: string;
+    city?: string;
+    clientLat?: number;
+    clientLng?: number;
+    maxPrice?: number;
+    minRating?: number;
+    ownerType?: "PROVIDER" | "COMPANY";
+    pricingType?: string;
+    isAvailableImmediately?: boolean;
+    isTopProvider?: boolean;
+    gender?: string;
+    sort?: string;
+    locale?: string;
+    page?: number;
+    limit?: number;
+  }) => apiClient.get("/search/providers", { params }),
+
+  getGivenServiceDetails: (givenServiceId: string, params?: { locale?: string }) =>
+    apiClient.get(`/given-services/${givenServiceId}`, { params }),
+
+  getAvailableSlots: (providerId: string, date: string, duration: number) =>
+    apiClient.get<string[]>(`/availability/${providerId}/slots`, {
+      params: { date, duration },
+    }),
+
+  createAppointment: (payload: {
+    givenServiceId: string;
+    providerId: string;
+    scheduledDate: string;
+    scheduledTime: string;
+    notes?: string;
+    photoUrls?: string[];
+  }) =>
+    apiClient.post<{ id: string }>("/appointments", payload),
 
   // Platform admin — verification queue
   listAdminUsers: (params?: {

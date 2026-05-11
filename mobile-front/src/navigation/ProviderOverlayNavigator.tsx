@@ -9,6 +9,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useWindowDimensions } from "react-native";
 import type { ProviderStackParamList } from "./types";
+import { ProviderSidebarProvider } from "./ProviderSidebarContext";
 import { COLORS } from "../constants";
 import { useAppTranslation } from "../hooks/useAppTranslation";
 
@@ -20,10 +21,13 @@ import { ProviderManageServiceScreen } from "../screens/provider/services/Provid
 import { ProviderRequestServiceScreen } from "../screens/provider/services/ProviderRequestServiceScreen";
 import { ProviderVerificationRequestDetailScreen } from "../screens/provider/services/ProviderVerificationRequestDetailScreen";
 import { ProviderMessagesScreen } from "../screens/provider/ProviderMessagesScreen";
-import { ProviderNotificationsScreen } from "../screens/provider/ProviderNotificationsScreen";
+import { ProviderNotificationsScreen } from "../screens/provider/notifications/ProviderNotificationsScreen";
 import { ProviderReclamationsScreen } from "../screens/provider/ProviderReclamationsScreen";
 import { ProviderOrdersScreen } from "../screens/provider/ProviderOrdersScreen";
-import { ProviderScheduleScreen } from "../screens/provider/ProviderScheduleScreen";
+import { ProviderScheduleScreen } from "../screens/provider/schedule/ProviderScheduleScreen";
+import { ProviderDaysOffScreen } from "../screens/provider/schedule/ProviderDaysOffScreen";
+import { ProviderCalendarScreen } from "../screens/provider/schedule/ProviderCalendarScreen";
+import { ProviderAppointmentDetailScreen } from "../screens/provider/schedule/ProviderAppointmentDetailScreen";
 import { ProviderSubscriptionPlanScreen } from "../screens/provider/subscription-plan/ProviderSubscriptionPlanScreen";
 import { ProviderRatingsScreen } from "../screens/provider/rating/ProviderRatingsScreen";
 import { ProviderProfileScreen } from "../screens/provider/setting/ProviderProfileScreen";
@@ -75,6 +79,7 @@ export const ProviderOverlayNavigator: React.FC = () => {
 
   return (
     <React.Fragment>
+      <ProviderSidebarProvider openSidebar={() => setIsSidebarOpen(true)}>
       <Stack.Navigator
         initialRouteName="ProviderHome"
         screenListeners={{
@@ -103,7 +108,11 @@ export const ProviderOverlayNavigator: React.FC = () => {
             route.name !== "ProviderDeleteAccount" &&
             route.name !== "ProviderManageService" &&
             route.name !== "ProviderRequestService" &&
-            route.name !== "ProviderVerificationRequestDetail",
+            route.name !== "ProviderVerificationRequestDetail" &&
+            route.name !== "ProviderSchedule" &&
+            route.name !== "ProviderDaysOff" &&
+            route.name !== "ProviderCalendar" &&
+            route.name !== "ProviderAppointmentDetail",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
             backgroundColor: COLORS.background,
@@ -162,6 +171,18 @@ export const ProviderOverlayNavigator: React.FC = () => {
           component={ProviderScheduleScreen}
         />
         <Stack.Screen
+          name="ProviderDaysOff"
+          component={ProviderDaysOffScreen}
+        />
+        <Stack.Screen
+          name="ProviderCalendar"
+          component={ProviderCalendarScreen}
+        />
+        <Stack.Screen
+          name="ProviderAppointmentDetail"
+          component={ProviderAppointmentDetailScreen}
+        />
+        <Stack.Screen
           name="ProviderSubscriptionPlan"
           component={ProviderSubscriptionPlanScreen}
         />
@@ -204,6 +225,7 @@ export const ProviderOverlayNavigator: React.FC = () => {
         <Stack.Screen name="ProviderTerms" component={TermsScreen} />
         <Stack.Screen name="ProviderPrivacy" component={PrivacyScreen} />
       </Stack.Navigator>
+      </ProviderSidebarProvider>
 
       <Animated.View
         pointerEvents={isSidebarOpen ? "auto" : "none"}

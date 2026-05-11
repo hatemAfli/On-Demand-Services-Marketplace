@@ -14,13 +14,42 @@ export type AuthStackParamList = {
 
 export type ClientStackParamList = {
   ClientHome: undefined;
+  ClientHomeSearch: undefined;
   /** Marketplace services listed under one category (from home grid). */
   ClientCategoryServices: { categoryId: string; categoryName: string };
-  ClientSearchProvider: undefined;
+  ClientSearchProvider:
+    | {
+        serviceId: string;
+        serviceName: string;
+        serviceImage?: string;
+        clientLat?: number;
+        clientLng?: number;
+      }
+    | undefined;
+  ClientProviderProfile: { givenServiceId: string };
+  ClientSlotPicker: {
+    providerId: string;
+    givenServiceId: string;
+    providerName: string;
+    serviceName: string;
+    estimatedDurationMinutes: number;
+  };
+  ClientBookingConfirmation: {
+    appointmentId: string;
+    providerName: string;
+    serviceName: string;
+    scheduledDate: string;
+    scheduledTime: string;
+  };
   ClientMessages: undefined;
   ClientReclamation: undefined;
-  ClientReservation: undefined;
+  /** Client bookings / appointments list (preferred name for new flows). */
+  ClientAppointments: undefined;
+  ClientAppointmentDetail: { appointmentId: string };
+  ClientLeaveReview: { appointmentId: string; providerId: string };
+  ClientReportProblem: { appointmentId: string; providerId: string };
   ClientFavorites: undefined;
+  ClientFavoritesList: { type: "CATEGORY" | "SERVICE" | "PROVIDER" };
   ClientNotifications: undefined;
   ClientSettings: undefined;
   ClientEditProfile: undefined;
@@ -36,7 +65,16 @@ export type ClientStackParamList = {
 /** Client stack screens that do not require params (e.g. drawer / root shortcuts). */
 export type ClientStackRouteWithoutParams = Exclude<
   keyof ClientStackParamList,
-  "ClientCategoryServices"
+  | "ClientCategoryServices"
+  | "ClientSearchProvider"
+  | "ClientProviderProfile"
+  | "ClientSlotPicker"
+  | "ClientBookingConfirmation"
+  | "ClientAppointmentDetail"
+  | "ClientLeaveReview"
+  | "ClientReportProblem"
+  | "ClientHomeSearch"
+  | "ClientFavoritesList"
 >;
 
 export type ProviderStackParamList = {
@@ -82,6 +120,9 @@ export type ProviderStackParamList = {
   ProviderReclamations: undefined;
   ProviderOrders: undefined;
   ProviderSchedule: undefined;
+  ProviderDaysOff: undefined;
+  ProviderCalendar: undefined;
+  ProviderAppointmentDetail: { appointmentId: string };
   ProviderSubscriptionPlan: undefined;
   ProviderRatings: undefined;
   ProviderProfile: undefined;
