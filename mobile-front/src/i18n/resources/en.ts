@@ -267,7 +267,8 @@ const en = {
       ClientLeaveReview: "Leave a review",
       ClientReportProblem: "Report a problem",
       ClientFavorites: "Favorites",
-      ClientNotifications: "Notifications",
+      Notifications: "Notifications",
+      NotificationDetail: "Notification",
       ClientSettings: "Profile & Setting",
       ClientEditProfile: "Edit profile",
       ClientChangeEmail: "Change email",
@@ -478,8 +479,6 @@ const en = {
         "Alerts about bookings, reviews, and platform updates will show here. Coming soon.",
       ProviderReclamations:
         "Track and respond to reclamations from clients. Coming soon.",
-      ProviderOrders:
-        "View and manage your orders and job requests. Coming soon.",
       ProviderSchedule:
         "Your calendar and time slots will be configured here. Coming soon.",
       ProviderCalendar:
@@ -499,9 +498,9 @@ const en = {
       ProviderDashboard: "Dashboard",
       ProviderServices: "Services",
       ProviderMessages: "Messages",
-      ProviderNotifications: "Notifications",
+      Notifications: "Notifications",
+      NotificationDetail: "Notification",
       ProviderReclamations: "Reclamations",
-      ProviderOrders: "Orders",
       ProviderSchedule: "Schedule",
       ProviderDaysOff: "Days off",
       ProviderCalendar: "My calendar",
@@ -522,7 +521,6 @@ const en = {
         messages: "Messages",
         notifications: "Notifications",
         reclamations: "Reclamations",
-        orders: "Orders",
         schedule: "Schedule",
         subscriptionPlan: "Subscription & Plan",
         ratings: "Ratings",
@@ -536,6 +534,7 @@ const en = {
       noLocation: "Add your city in profile",
       locationCity: "{{city}}",
       statServices: "Services",
+      statOrders: "Orders",
       sectionAccount: "Account",
       menuProfile: "Profile & Documents",
       menuProfileHint: "Identity and verification files",

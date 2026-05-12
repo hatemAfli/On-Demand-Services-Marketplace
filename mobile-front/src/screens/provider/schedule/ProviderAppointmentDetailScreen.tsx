@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
@@ -16,8 +16,12 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { COLORS } from "../../../constants";
+import { AuthNoticeModal, ConfirmModal } from "../../../components/common";
 import type { ProviderStackParamList } from "../../../navigation/types";
 import { api } from "../../../services/api";
 import { uploadAppointmentJobPhoto } from "../../../services/appointmentJobPhotosUpload";
@@ -28,10 +32,46 @@ type Props = NativeStackScreenProps<
   "ProviderAppointmentDetail"
 >;
 
+type ProviderAppointmentNoticeModal = {
+  title: string;
+  message: string;
+  primaryLabel: string;
+  onPrimary?: () => void;
+} | null;
 type TranslationRow = { locale: string; name: string };
-
 type ConfirmationRow = { role: string; type: string };
 
+// ─── Design tokens ────────────────────────────────────────
+const C = {
+  bg: "#F7F8FC",
+  white: "#FFFFFF",
+  border: "#EAECF4",
+  borderLight: "#F0F2F8",
+  text: "#0F172A",
+  textSub: "#64748B",
+  textLight: "#94A3B8",
+  accent: "#4F46E5",
+  accentBg: "#EEF2FF",
+  accentBorder: "#C7D2FE",
+  success: "#059669",
+  successBg: "#ECFDF5",
+  successBdr: "#A7F3D0",
+  error: "#DC2626",
+  errorBg: "#FEF2F2",
+  errorBdr: "#FECACA",
+  warning: "#D97706",
+  warningBg: "#FFFBEB",
+  warningBdr: "#FDE68A",
+  purple: "#7C3AED",
+  purpleBg: "#F5F3FF",
+  purpleBdr: "#DDD6FE",
+  amber: "#D97706",
+  amberBg: "#FFFBEB",
+  amberBdr: "#FCD34D",
+  shadow: "rgba(0,0,0,0.06)",
+};
+
+// ─── Types / parsers (all unchanged) ─────────────────────
 type ProviderAppointmentDetailModel = {
   id: string;
   status: string;
@@ -70,34 +110,27 @@ function pickName(translations: TranslationRow[] | undefined): string {
     ""
   );
 }
-
 function parseStringArray(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
   return v.filter((x): x is string => typeof x === "string");
 }
-
 function normalizeDateKey(v: unknown): string {
-  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v))
+    return v.slice(0, 10);
   return "";
 }
-
 function parseConfirmations(raw: unknown): ConfirmationRow[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
-    .map((x) => ({
-      role: String(x.role ?? ""),
-      type: String(x.type ?? ""),
-    }));
+    .map((x) => ({ role: String(x.role ?? ""), type: String(x.type ?? "") }));
 }
-
 function parseAppointment(raw: unknown): ProviderAppointmentDetailModel | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const id = r.id;
   if (typeof id !== "string") return null;
   const status = typeof r.status === "string" ? r.status : "UNKNOWN";
-
   let serviceName = "";
   let categoryName = "";
   let price = 0;
@@ -112,12 +145,12 @@ function parseAppointment(raw: unknown): ProviderAppointmentDetailModel | null {
       const s = svc as Record<string, unknown>;
       serviceName = pickName(s.translations as TranslationRow[] | undefined);
       const cat = s.category as Record<string, unknown> | undefined;
-      if (cat && typeof cat === "object") {
-        categoryName = pickName(cat.translations as TranslationRow[] | undefined);
-      }
+      if (cat && typeof cat === "object")
+        categoryName = pickName(
+          cat.translations as TranslationRow[] | undefined,
+        );
     }
   }
-
   let firstName = "";
   let lastName = "";
   let imageUrl: string | null = null;
@@ -125,7 +158,6 @@ function parseAppointment(raw: unknown): ProviderAppointmentDetailModel | null {
   if (client && typeof client === "object") {
     const c = client as Record<string, unknown>;
     if (typeof c.imageUrl === "string") imageUrl = c.imageUrl;
-    else if (c.imageUrl === null) imageUrl = null;
     const user = c.user;
     if (user && typeof user === "object") {
       const u = user as Record<string, unknown>;
@@ -133,18 +165,14 @@ function parseAppointment(raw: unknown): ProviderAppointmentDetailModel | null {
       if (typeof u.lastName === "string") lastName = u.lastName;
     }
   }
-
   return {
     id,
     status,
     scheduledDate: normalizeDateKey(r.scheduledDate),
     scheduledTime: typeof r.scheduledTime === "string" ? r.scheduledTime : "",
-    notes: typeof r.notes === "string" ? r.notes : (r.notes as null) ?? null,
+    notes: typeof r.notes === "string" ? r.notes : null,
     photoUrls: parseStringArray(r.photoUrls),
-    refusalReason:
-      typeof r.refusalReason === "string"
-        ? r.refusalReason
-        : (r.refusalReason as null) ?? null,
+    refusalReason: typeof r.refusalReason === "string" ? r.refusalReason : null,
     rescheduleDate: r.rescheduleDate
       ? normalizeDateKey(r.rescheduleDate)
       : null,
@@ -158,9 +186,7 @@ function parseAppointment(raw: unknown): ProviderAppointmentDetailModel | null {
     beforePhotoUrls: parseStringArray(r.beforePhotoUrls),
     afterPhotoUrls: parseStringArray(r.afterPhotoUrls),
     cancellationReason:
-      typeof r.cancellationReason === "string"
-        ? r.cancellationReason
-        : (r.cancellationReason as null) ?? null,
+      typeof r.cancellationReason === "string" ? r.cancellationReason : null,
     givenService: {
       serviceName: serviceName || "Service",
       categoryName: categoryName || "Category",
@@ -171,47 +197,44 @@ function parseAppointment(raw: unknown): ProviderAppointmentDetailModel | null {
     confirmations: parseConfirmations(r.confirmations),
   };
 }
-
 function clientInitials(first: string, last: string): string {
   const a = first.trim().charAt(0).toUpperCase();
   const b = last.trim().charAt(0).toUpperCase();
   if (a && b) return `${a}${b}`;
   return (a || b || "?").slice(0, 2);
 }
-
 function formatSectionDate(yyyyMmDd: string): string {
   const [y, m, d] = yyyyMmDd.split("-").map(Number);
   if (!y || !m || !d) return yyyyMmDd;
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString("en-GB", {
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
     weekday: "long",
     day: "numeric",
     month: "short",
     year: "numeric",
   });
 }
-
 function formatElapsed(totalSeconds: number): string {
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
   const s = totalSeconds % 60;
-  if (h > 0) {
+  if (h > 0)
     return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  }
   return `${m}:${String(s).padStart(2, "0")}`;
 }
-
 function toYyyyMmDd(d: Date): string {
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${mo}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-
 function addDays(d: Date, n: number): Date {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   x.setDate(x.getDate() + n);
   return x;
+}
+function hasConfirmation(
+  confirmations: ConfirmationRow[],
+  role: string,
+  type: string,
+) {
+  return confirmations.some((c) => c.role === role && c.type === type);
 }
 
 const RESCHEDULE_HOURS = Array.from({ length: 17 }, (_, i) =>
@@ -219,14 +242,172 @@ const RESCHEDULE_HOURS = Array.from({ length: 17 }, (_, i) =>
 ) as string[];
 const RESCHEDULE_MINUTES = ["00", "15", "30", "45"] as const;
 
-function hasConfirmation(
-  confirmations: ConfirmationRow[],
-  role: string,
-  type: string,
-): boolean {
-  return confirmations.some((c) => c.role === role && c.type === type);
+// ─── Status config ────────────────────────────────────────
+function statusConfig(status: string) {
+  switch (status) {
+    case "PENDING":
+      return {
+        label: "Awaiting response",
+        icon: "hourglass-outline" as const,
+        bg: C.amberBg,
+        border: C.amberBdr,
+        text: C.amber,
+      };
+    case "CONFIRMED":
+      return {
+        label: "Confirmed",
+        icon: "checkmark-circle-outline" as const,
+        bg: C.accentBg,
+        border: C.accentBorder,
+        text: C.accent,
+      };
+    case "EN_ROUTE":
+      return {
+        label: "En route",
+        icon: "navigate-outline" as const,
+        bg: C.purpleBg,
+        border: C.purpleBdr,
+        text: C.purple,
+      };
+    case "IN_PROGRESS":
+      return {
+        label: "In progress",
+        icon: "play-circle-outline" as const,
+        bg: C.accentBg,
+        border: C.accentBorder,
+        text: C.accent,
+      };
+    case "COMPLETED":
+      return {
+        label: "Completed",
+        icon: "trophy-outline" as const,
+        bg: C.successBg,
+        border: C.successBdr,
+        text: C.success,
+      };
+    case "REFUSED":
+      return {
+        label: "Refused",
+        icon: "close-circle-outline" as const,
+        bg: C.errorBg,
+        border: C.errorBdr,
+        text: C.error,
+      };
+    case "CANCELLED_CLIENT":
+      return {
+        label: "Cancelled by client",
+        icon: "close-circle-outline" as const,
+        bg: C.errorBg,
+        border: C.errorBdr,
+        text: C.error,
+      };
+    case "CANCELLED_PROVIDER":
+      return {
+        label: "Cancelled by you",
+        icon: "close-circle-outline" as const,
+        bg: C.errorBg,
+        border: C.errorBdr,
+        text: C.error,
+      };
+    case "RESCHEDULED":
+      return {
+        label: "Reschedule proposed",
+        icon: "time-outline" as const,
+        bg: C.amberBg,
+        border: C.amberBdr,
+        text: C.amber,
+      };
+    default:
+      return {
+        label: status,
+        icon: "help-circle-outline" as const,
+        bg: C.bg,
+        border: C.border,
+        text: C.textSub,
+      };
+  }
 }
 
+// ─── Reusable subcomponents ───────────────────────────────
+function InfoRow({
+  icon,
+  label,
+  value,
+  valueColor,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  valueColor?: string;
+}) {
+  return (
+    <View style={s.infoRow}>
+      <View style={s.infoIconBox}>
+        <Ionicons name={icon} size={14} color={C.textSub} />
+      </View>
+      <Text style={s.infoLabel}>{label}</Text>
+      <Text style={[s.infoValue, valueColor ? { color: valueColor } : {}]}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function SectionBlock({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={s.sectionBlock}>
+      <View style={s.sectionTitleRow}>
+        <View style={s.sectionBar} />
+        <Text style={s.sectionTitle}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function PhotoRow({
+  uris,
+  onAdd,
+  label,
+  disabled,
+}: {
+  uris: string[];
+  onAdd: () => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <View style={s.photoRowWrap}>
+      <Text style={s.photoRowLabel}>{label}</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.photoRowScroll}
+      >
+        {uris.map((uri) => (
+          <Image key={uri} source={{ uri }} style={s.photoThumb} />
+        ))}
+        <TouchableOpacity
+          style={s.addPhotoBtn}
+          onPress={onAdd}
+          disabled={disabled}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="camera-outline" size={20} color={C.accent} />
+          <Text style={s.addPhotoLabel}>Add</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────
 export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
   navigation,
   route,
@@ -234,6 +415,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
   const { appointmentId } = route.params;
   const insets = useSafeAreaInsets();
 
+  // ── State (all unchanged) ─────────────────────────────
   const [appointment, setAppointment] =
     useState<ProviderAppointmentDetailModel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -242,34 +424,41 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
   const [refusalReason, setRefusalReason] = useState("");
   const [rescheduleSheetVisible, setRescheduleSheetVisible] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
   const [rescheduleDateKey, setRescheduleDateKey] = useState(() =>
     toYyyyMmDd(addDays(new Date(), 1)),
   );
   const [rescheduleHour, setRescheduleHour] = useState("09");
   const [rescheduleMinute, setRescheduleMinute] = useState("00");
-
   const [beforeLocalUris, setBeforeLocalUris] = useState<string[]>([]);
   const [afterLocalUris, setAfterLocalUris] = useState<string[]>([]);
+  const [noticeModal, setNoticeModal] =
+    useState<ProviderAppointmentNoticeModal>(null);
+  const [confirmCancelVisible, setConfirmCancelVisible] = useState(false);
 
+  // ── Load (unchanged) ──────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.getAppointmentById(appointmentId);
-      const parsed = parseAppointment(res.data);
-      setAppointment(parsed);
+      setAppointment(parseAppointment(res.data));
     } catch {
-      Alert.alert("Error", "Could not load this appointment.");
       setAppointment(null);
+      setNoticeModal({
+        title: "Error",
+        message: "Could not load this appointment.",
+        primaryLabel: "OK",
+        onPrimary: () => navigation.goBack(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [appointmentId]);
+  }, [appointmentId, navigation]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  // ── Timer (unchanged) ─────────────────────────────────
   useEffect(() => {
     if (
       !appointment ||
@@ -280,9 +469,8 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
       return;
     }
     const started = new Date(appointment.startedAt).getTime();
-    const tick = () => {
+    const tick = () =>
       setElapsedSeconds(Math.max(0, Math.floor((Date.now() - started) / 1000)));
-    };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -293,14 +481,22 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     return hasConfirmation(appointment.confirmations, "PROVIDER", "END");
   }, [appointment]);
 
+  const waitingClientStart = useMemo(() => {
+    if (!appointment || appointment.status !== "IN_PROGRESS") return false;
+    if (appointment.startedAt) return false;
+    return (
+      hasConfirmation(appointment.confirmations, "PROVIDER", "START") &&
+      !hasConfirmation(appointment.confirmations, "CLIENT", "START")
+    );
+  }, [appointment]);
+
   const rescheduleDayChips = useMemo(() => {
     const out: { key: string; label: string }[] = [];
     const start = new Date();
     for (let i = 1; i <= 45; i++) {
       const d = addDays(start, i);
-      const key = toYyyyMmDd(d);
       out.push({
-        key,
+        key: toYyyyMmDd(d),
         label: d.toLocaleDateString("en-GB", {
           weekday: "short",
           day: "numeric",
@@ -311,20 +507,29 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     return out;
   }, []);
 
+  // ── Actions (all unchanged) ───────────────────────────
   const runAction = useCallback(
-    async (fn: () => Promise<unknown>, successMessage?: string) => {
+    async (
+      fn: () => Promise<unknown>,
+      opts?: { successMessage?: string; onSuccess?: () => void },
+    ) => {
       setActionLoading(true);
       try {
         await fn();
-        if (successMessage) {
-          Alert.alert("", successMessage);
-        }
         await load();
         setRefuseMode(false);
         setRefusalReason("");
         setRescheduleSheetVisible(false);
         setBeforeLocalUris([]);
         setAfterLocalUris([]);
+        opts?.onSuccess?.();
+        if (opts?.successMessage) {
+          setNoticeModal({
+            title: "Success",
+            message: opts.successMessage,
+            primaryLabel: "OK",
+          });
+        }
       } catch (e: unknown) {
         let msg = "";
         if (e && typeof e === "object" && "response" in e) {
@@ -335,7 +540,11 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
             else if (Array.isArray(m)) msg = m.map(String).join(", ");
           }
         }
-        Alert.alert("Error", msg || "Something went wrong. Please try again.");
+        setNoticeModal({
+          title: "Error",
+          message: msg || "Something went wrong. Please try again.",
+          primaryLabel: "OK",
+        });
       } finally {
         setActionLoading(false);
       }
@@ -343,17 +552,19 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     [load],
   );
 
-  const onAccept = () => {
+  const onAccept = () =>
     void runAction(
       () => api.providerRespond(appointmentId, { action: "CONFIRMED" }),
-      "Appointment accepted.",
+      { successMessage: "Appointment accepted." },
     );
-  };
-
   const onRefuseSubmit = () => {
     const reason = refusalReason.trim();
     if (!reason) {
-      Alert.alert("Reason required", "Please enter a reason for refusal.");
+      setNoticeModal({
+        title: "Reason required",
+        message: "Please enter a reason for refusal.",
+        primaryLabel: "OK",
+      });
       return;
     }
     void runAction(
@@ -362,11 +573,10 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
           action: "REFUSED",
           refusalReason: reason,
         }),
-      "Appointment refused.",
+      { successMessage: "Appointment refused." },
     );
   };
-
-  const onProposeReschedule = () => {
+  const onProposeReschedule = () =>
     void runAction(
       () =>
         api.providerRespond(appointmentId, {
@@ -374,41 +584,22 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
           rescheduleDate: rescheduleDateKey,
           rescheduleTime: `${rescheduleHour}:${rescheduleMinute}`,
         }),
-      "New time proposed.",
+      { successMessage: "New time proposed." },
     );
-  };
-
-  const onMarkEnRoute = () => {
+  const onMarkEnRoute = () =>
     void runAction(
       () => api.recordExecution(appointmentId, { action: "EN_ROUTE" }),
-      "You are marked en route.",
+      { successMessage: "You are marked en route." },
     );
-  };
-
-  const onCancelConfirmed = () => {
-    Alert.alert(
-      "Cancel appointment",
-      "Are you sure you want to cancel this appointment?",
-      [
-        { text: "No", style: "cancel" },
-        {
-          text: "Yes, cancel",
-          style: "destructive",
-          onPress: () => {
-            void runAction(
-              () => api.cancelAppointment(appointmentId, {}),
-              "Appointment cancelled.",
-            );
-          },
-        },
-      ],
-    );
-  };
-
+  const onCancelConfirmed = () => setConfirmCancelVisible(true);
   const pickPhoto = async (target: "before" | "after") => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission", "Photo library access is required.");
+      setNoticeModal({
+        title: "Permission needed",
+        message: "Photo library access is required.",
+        primaryLabel: "OK",
+      });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -417,14 +608,10 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     });
     const asset = result.assets?.[0];
     if (!result.canceled && asset?.uri) {
-      if (target === "before") {
-        setBeforeLocalUris((u) => [...u, asset.uri]);
-      } else {
-        setAfterLocalUris((u) => [...u, asset.uri]);
-      }
+      if (target === "before") setBeforeLocalUris((u) => [...u, asset.uri]);
+      else setAfterLocalUris((u) => [...u, asset.uri]);
     }
   };
-
   const uploadLocals = async (uris: string[]): Promise<string[]> => {
     const urls: string[] = [];
     for (const uri of uris) {
@@ -433,447 +620,579 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     }
     return urls;
   };
-
-  const onStartService = () => {
+  const onStartService = () =>
     void runAction(async () => {
       const photoUrls =
-        beforeLocalUris.length > 0 ? await uploadLocals(beforeLocalUris) : undefined;
+        beforeLocalUris.length > 0
+          ? await uploadLocals(beforeLocalUris)
+          : undefined;
       await api.recordExecution(appointmentId, {
         action: "START",
         ...(photoUrls?.length ? { photoUrls } : {}),
       });
-    }, "Service started.");
-  };
-
-  const onEndService = () => {
+    }, { successMessage: "Service started." });
+  const onEndService = () =>
     void runAction(async () => {
       const photoUrls =
-        afterLocalUris.length > 0 ? await uploadLocals(afterLocalUris) : undefined;
+        afterLocalUris.length > 0
+          ? await uploadLocals(afterLocalUris)
+          : undefined;
       await api.recordExecution(appointmentId, {
         action: "END",
         ...(photoUrls?.length ? { photoUrls } : {}),
       });
-    }, "End recorded. Waiting for client confirmation.");
-  };
+    }, {
+      successMessage: "End recorded. Waiting for client confirmation.",
+    });
 
   const clientName =
     `${appointment?.client.firstName ?? ""} ${appointment?.client.lastName ?? ""}`.trim() ||
     "Client";
 
+  // ── Render ────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
-      <View style={styles.header}>
+    <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
+      <StatusBar barStyle="dark-content" backgroundColor={C.white} />
+
+      {/* Header */}
+      <View style={s.header}>
         <TouchableOpacity
-          style={styles.backBtn}
+          style={s.backBtn}
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.85}
         >
-          <Ionicons name="chevron-back" size={22} color={COLORS.text.primary} />
+          <Ionicons name="chevron-back" size={22} color={C.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Appointment</Text>
-        <View style={styles.headerRightSpacer} />
+        <Text style={s.headerTitle}>Appointment</Text>
+        <View style={s.headerRightSpacer} />
       </View>
 
       {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+        <View style={s.centered}>
+          <ActivityIndicator size="large" color={C.accent} />
         </View>
       ) : !appointment ? (
-        <View style={styles.centered}>
-          <Text style={styles.muted}>Nothing to show.</Text>
+        <View style={s.centered}>
+          <Text style={s.muted}>Nothing to show.</Text>
         </View>
       ) : (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + 24 },
-          ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.clientCard}>
-            {appointment.client.imageUrl ? (
-              <Image
-                source={{ uri: appointment.client.imageUrl }}
-                style={styles.avatarImg}
-                accessibilityIgnoresInvertColors
-              />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarFallbackText}>
-                  {clientInitials(
-                    appointment.client.firstName,
-                    appointment.client.lastName,
-                  )}
+        (() => {
+          const cfg = statusConfig(appointment.status);
+          return (
+            <ScrollView
+              style={s.scroll}
+              contentContainerStyle={[
+                s.scrollContent,
+                { paddingBottom: insets.bottom + 32 },
+              ]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* ── Status banner ── */}
+              <View
+                style={[
+                  s.statusBanner,
+                  { backgroundColor: cfg.bg, borderColor: cfg.border },
+                ]}
+              >
+                <Ionicons name={cfg.icon} size={18} color={cfg.text} />
+                <Text style={[s.statusBannerText, { color: cfg.text }]}>
+                  {cfg.label}
                 </Text>
               </View>
-            )}
-            <View style={styles.clientCardBody}>
-              <Text style={styles.clientName}>{clientName}</Text>
-              <Text style={styles.serviceTitle} numberOfLines={2}>
-                {appointment.givenService.serviceName}
-              </Text>
-              <Text style={styles.serviceMeta} numberOfLines={1}>
-                {appointment.givenService.categoryName} ·{" "}
-                {appointment.givenService.price > 0
-                  ? `${appointment.givenService.price} ${appointment.givenService.pricingType}`
-                  : appointment.givenService.pricingType}
-              </Text>
-              <Text style={styles.dateLine}>
-                {formatSectionDate(appointment.scheduledDate)} ·{" "}
-                {appointment.scheduledTime}
-              </Text>
-            </View>
-          </View>
 
-          {appointment.status === "PENDING" && (
-            <View style={styles.section}>
-              {appointment.notes ? (
-                <View style={styles.notesBox}>
-                  <Text style={styles.notesLabel}>Client notes</Text>
-                  <Text style={styles.notesText}>{appointment.notes}</Text>
-                </View>
-              ) : null}
-              {appointment.photoUrls.length > 0 ? (
-                <View style={styles.attachBlock}>
-                  <Text style={styles.attachLabel}>Attached photos</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.attachScroll}
-                  >
-                    {appointment.photoUrls.map((uri) => (
-                      <Image
-                        key={uri}
-                        source={{ uri }}
-                        style={styles.attachThumb}
-                        accessibilityIgnoresInvertColors
-                      />
-                    ))}
-                  </ScrollView>
-                </View>
-              ) : null}
-
-              <TouchableOpacity
-                style={[styles.btnPrimary, styles.btnAccept]}
-                onPress={onAccept}
-                disabled={actionLoading}
-                activeOpacity={0.9}
-              >
-                {actionLoading ? (
-                  <ActivityIndicator color={COLORS.white} />
-                ) : (
-                  <Text style={styles.btnPrimaryText}>Accept</Text>
-                )}
-              </TouchableOpacity>
-
-              {!refuseMode ? (
-                <TouchableOpacity
-                  style={styles.btnRefuseOutline}
-                  onPress={() => setRefuseMode(true)}
-                  disabled={actionLoading}
-                  activeOpacity={0.9}
-                >
-                  <Text style={styles.btnRefuseOutlineText}>Refuse</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.refuseBox}>
-                  <TextInput
-                    style={styles.refuseInput}
-                    placeholder="Reason for refusal"
-                    placeholderTextColor={COLORS.gray[400]}
-                    value={refusalReason}
-                    onChangeText={setRefusalReason}
-                    multiline
-                  />
-                  <TouchableOpacity
-                    style={styles.btnRefuseSolid}
-                    onPress={onRefuseSubmit}
-                    disabled={actionLoading}
-                    activeOpacity={0.9}
-                  >
-                    <Text style={styles.btnPrimaryText}>Confirm refusal</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setRefuseMode(false);
-                      setRefusalReason("");
-                    }}
-                    disabled={actionLoading}
-                  >
-                    <Text style={styles.linkMuted}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={styles.linkWrap}
-                onPress={() => setRescheduleSheetVisible(true)}
-                disabled={actionLoading}
-              >
-                <Text style={styles.linkText}>Propose new time</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {appointment.status === "CONFIRMED" && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Appointment details</Text>
-              <View style={styles.recapCard}>
-                <Text style={styles.recapLine}>
-                  {formatSectionDate(appointment.scheduledDate)}
-                </Text>
-                <Text style={styles.recapLine}>Time: {appointment.scheduledTime}</Text>
-                <Text style={styles.recapLine}>
-                  {appointment.givenService.serviceName} ·{" "}
-                  {appointment.givenService.categoryName}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.btnPrimary}
-                onPress={onMarkEnRoute}
-                disabled={actionLoading}
-                activeOpacity={0.9}
-              >
-                {actionLoading ? (
-                  <ActivityIndicator color={COLORS.white} />
-                ) : (
-                  <Text style={styles.btnPrimaryText}>Mark as En Route</Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.linkWrap}
-                onPress={onCancelConfirmed}
-                disabled={actionLoading}
-              >
-                <Text style={styles.cancelLink}>Cancel appointment</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {appointment.status === "EN_ROUTE" && (
-            <View style={styles.section}>
-              <View style={styles.banner}>
-                <Ionicons name="navigate" size={22} color={COLORS.primary} />
-                <Text style={styles.bannerText}>
-                  You are on the way — client has been notified
-                </Text>
-              </View>
-              <Text style={styles.hint}>
-                Optional: add “before” photos, then start the service.
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.evidenceScroll}
-              >
-                {beforeLocalUris.map((uri) => (
+              {/* ── Client card ── */}
+              <View style={s.clientCard}>
+                {appointment.client.imageUrl ? (
                   <Image
-                    key={uri}
-                    source={{ uri }}
-                    style={styles.evidenceThumb}
+                    source={{ uri: appointment.client.imageUrl }}
+                    style={s.avatarImg}
                   />
-                ))}
-                <TouchableOpacity
-                  style={styles.addPhotoBtn}
-                  onPress={() => void pickPhoto("before")}
-                  disabled={actionLoading}
-                >
-                  <Ionicons name="add" size={28} color={COLORS.primary} />
-                  <Text style={styles.addPhotoLabel}>Add</Text>
-                </TouchableOpacity>
-              </ScrollView>
-              <TouchableOpacity
-                style={styles.btnPrimary}
-                onPress={onStartService}
-                disabled={actionLoading}
-                activeOpacity={0.9}
-              >
-                {actionLoading ? (
-                  <ActivityIndicator color={COLORS.white} />
                 ) : (
-                  <Text style={styles.btnPrimaryText}>Start Service</Text>
+                  <View style={s.avatarFallback}>
+                    <Text style={s.avatarFallbackText}>
+                      {clientInitials(
+                        appointment.client.firstName,
+                        appointment.client.lastName,
+                      )}
+                    </Text>
+                  </View>
                 )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {appointment.status === "IN_PROGRESS" && (
-            <View style={styles.section}>
-              <View style={styles.timerBox}>
-                <Text style={styles.timerLabel}>Elapsed</Text>
-                <Text style={styles.timerValue}>
-                  {formatElapsed(elapsedSeconds)}
-                </Text>
+                <View style={s.clientCardBody}>
+                  <Text style={s.clientName}>{clientName}</Text>
+                  <Text style={s.serviceName} numberOfLines={1}>
+                    {appointment.givenService.serviceName}
+                  </Text>
+                  <View style={s.categoryChip}>
+                    <Text style={s.categoryChipText}>
+                      {appointment.givenService.categoryName}
+                    </Text>
+                  </View>
+                </View>
               </View>
 
-              {waitingClientEnd ? (
-                <View style={styles.waitingBanner}>
-                  <ActivityIndicator color={COLORS.primary} />
-                  <Text style={styles.waitingText}>
-                    Waiting for client to confirm end…
-                  </Text>
-                </View>
-              ) : (
-                <>
-                  <Text style={styles.hint}>
-                    Add “after” photos (optional), then end the service.
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.evidenceScroll}
-                  >
-                    {afterLocalUris.map((uri) => (
-                      <Image
-                        key={uri}
-                        source={{ uri }}
-                        style={styles.evidenceThumb}
-                      />
-                    ))}
-                    <TouchableOpacity
-                      style={styles.addPhotoBtn}
-                      onPress={() => void pickPhoto("after")}
-                      disabled={actionLoading}
-                    >
-                      <Ionicons name="add" size={28} color={COLORS.primary} />
-                      <Text style={styles.addPhotoLabel}>Add</Text>
-                    </TouchableOpacity>
-                  </ScrollView>
+              {/* ── Booking info row ── */}
+              <View style={s.infoCard}>
+                <InfoRow
+                  icon="calendar-outline"
+                  label="Date"
+                  value={formatSectionDate(appointment.scheduledDate)}
+                />
+                <View style={s.infoDivider} />
+                <InfoRow
+                  icon="time-outline"
+                  label="Time"
+                  value={appointment.scheduledTime}
+                />
+                <View style={s.infoDivider} />
+                <InfoRow
+                  icon="pricetag-outline"
+                  label="Price"
+                  value={`${appointment.givenService.price} · ${appointment.givenService.pricingType}`}
+                  valueColor={C.accent}
+                />
+              </View>
+
+              {/* ══════════ PENDING ══════════ */}
+              {appointment.status === "PENDING" && (
+                <View style={s.section}>
+                  {appointment.notes ? (
+                    <SectionBlock title="Client notes">
+                      <View style={s.notesBox}>
+                        <Text style={s.notesText}>{appointment.notes}</Text>
+                      </View>
+                    </SectionBlock>
+                  ) : null}
+
+                  {appointment.photoUrls.length > 0 && (
+                    <SectionBlock title="Attached photos">
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={s.attachScroll}
+                      >
+                        {appointment.photoUrls.map((uri) => (
+                          <Image
+                            key={uri}
+                            source={{ uri }}
+                            style={s.attachThumb}
+                          />
+                        ))}
+                      </ScrollView>
+                    </SectionBlock>
+                  )}
+
+                  {/* Accept */}
                   <TouchableOpacity
-                    style={[styles.btnPrimary, { backgroundColor: COLORS.secondaryDark }]}
-                    onPress={onEndService}
+                    style={[s.btn, s.btnSuccess]}
+                    onPress={onAccept}
                     disabled={actionLoading}
-                    activeOpacity={0.9}
+                    activeOpacity={0.88}
                   >
                     {actionLoading ? (
-                      <ActivityIndicator color={COLORS.white} />
+                      <ActivityIndicator color={C.white} />
                     ) : (
-                      <Text style={styles.btnPrimaryText}>End Service</Text>
+                      <>
+                        <Ionicons
+                          name="checkmark-circle-outline"
+                          size={18}
+                          color={C.white}
+                        />
+                        <Text style={s.btnText}>Accept appointment</Text>
+                      </>
                     )}
                   </TouchableOpacity>
-                </>
+
+                  {/* Refuse */}
+                  {!refuseMode ? (
+                    <TouchableOpacity
+                      style={[s.btn, s.btnOutlineError]}
+                      onPress={() => setRefuseMode(true)}
+                      disabled={actionLoading}
+                      activeOpacity={0.88}
+                    >
+                      <Ionicons
+                        name="close-circle-outline"
+                        size={18}
+                        color={C.error}
+                      />
+                      <Text style={[s.btnText, { color: C.error }]}>
+                        Refuse
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={s.refuseBox}>
+                      <TextInput
+                        style={s.refuseInput}
+                        placeholder="Reason for refusal…"
+                        placeholderTextColor={C.textLight}
+                        value={refusalReason}
+                        onChangeText={setRefusalReason}
+                        multiline
+                      />
+                      <TouchableOpacity
+                        style={[s.btn, s.btnError]}
+                        onPress={onRefuseSubmit}
+                        disabled={actionLoading}
+                        activeOpacity={0.88}
+                      >
+                        {actionLoading ? (
+                          <ActivityIndicator color={C.white} />
+                        ) : (
+                          <Text style={s.btnText}>Confirm refusal</Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={s.textLink}
+                        onPress={() => {
+                          setRefuseMode(false);
+                          setRefusalReason("");
+                        }}
+                        disabled={actionLoading}
+                      >
+                        <Text style={s.textLinkMuted}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* Propose new time */}
+                  <TouchableOpacity
+                    style={s.proposeLink}
+                    onPress={() => setRescheduleSheetVisible(true)}
+                    disabled={actionLoading}
+                  >
+                    <Ionicons name="time-outline" size={15} color={C.accent} />
+                    <Text style={s.proposeLinkText}>
+                      Propose a different time
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
-            </View>
-          )}
 
-          {appointment.status === "COMPLETED" && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Summary</Text>
-              <View style={styles.recapCard}>
-                {appointment.startedAt ? (
-                  <Text style={styles.recapLine}>
-                    Started:{" "}
-                    {new Date(appointment.startedAt).toLocaleString(undefined, {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </Text>
-                ) : null}
-                {appointment.completedAt ? (
-                  <Text style={styles.recapLine}>
-                    Ended:{" "}
-                    {new Date(appointment.completedAt).toLocaleString(undefined, {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </Text>
-                ) : null}
-                {appointment.durationMinutes != null ? (
-                  <Text style={styles.recapLine}>
-                    Duration: {appointment.durationMinutes} min
-                  </Text>
-                ) : null}
-              </View>
-              {appointment.beforePhotoUrls.length > 0 ? (
-                <View style={styles.gridBlock}>
-                  <Text style={styles.gridTitle}>Before</Text>
-                  <View style={styles.photoGrid}>
-                    {appointment.beforePhotoUrls.map((uri) => (
-                      <Image
-                        key={uri}
-                        source={{ uri }}
-                        style={styles.gridPhoto}
-                        accessibilityIgnoresInvertColors
+              {/* ══════════ CONFIRMED ══════════ */}
+              {appointment.status === "CONFIRMED" && (
+                <View style={s.section}>
+                  <TouchableOpacity
+                    style={[s.btn, s.btnAccent]}
+                    onPress={onMarkEnRoute}
+                    disabled={actionLoading}
+                    activeOpacity={0.88}
+                  >
+                    {actionLoading ? (
+                      <ActivityIndicator color={C.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="navigate-outline"
+                          size={18}
+                          color={C.white}
+                        />
+                        <Text style={s.btnText}>Mark as En Route</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.textLink}
+                    onPress={onCancelConfirmed}
+                    disabled={actionLoading}
+                  >
+                    <Text style={[s.textLinkMuted, { color: C.error }]}>
+                      Cancel appointment
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* ══════════ EN ROUTE ══════════ */}
+              {appointment.status === "EN_ROUTE" && (
+                <View style={s.section}>
+                  <View
+                    style={[
+                      s.alertBanner,
+                      { backgroundColor: C.purpleBg, borderColor: C.purpleBdr },
+                    ]}
+                  >
+                    <Ionicons
+                      name="navigate-circle"
+                      size={24}
+                      color={C.purple}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.alertBannerTitle, { color: C.purple }]}>
+                        You are on the way
+                      </Text>
+                      <Text style={s.alertBannerSub}>
+                        Client has been notified
+                      </Text>
+                    </View>
+                  </View>
+
+                  <PhotoRow
+                    uris={beforeLocalUris}
+                    label="Before photos (optional)"
+                    onAdd={() => void pickPhoto("before")}
+                    disabled={actionLoading}
+                  />
+
+                  <TouchableOpacity
+                    style={[s.btn, s.btnAccent]}
+                    onPress={onStartService}
+                    disabled={actionLoading}
+                    activeOpacity={0.88}
+                  >
+                    {actionLoading ? (
+                      <ActivityIndicator color={C.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="play-circle-outline"
+                          size={18}
+                          color={C.white}
+                        />
+                        <Text style={s.btnText}>Start Service</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* ══════════ IN PROGRESS ══════════ */}
+              {appointment.status === "IN_PROGRESS" && (
+                <View style={s.section}>
+                  {waitingClientStart ? (
+                    <View
+                      style={[
+                        s.alertBanner,
+                        { backgroundColor: C.amberBg, borderColor: C.amberBdr },
+                      ]}
+                    >
+                      <ActivityIndicator color={C.amber} size="small" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.alertBannerTitle, { color: C.amber }]}>
+                          Waiting for client
+                        </Text>
+                        <Text style={s.alertBannerSub}>
+                          The timer starts after the client confirms the service has
+                          started
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+                  {/* Live timer card */}
+                  <View style={s.timerCard}>
+                    <Text style={s.timerLabel}>Time elapsed</Text>
+                    <Text style={s.timerValue}>
+                      {formatElapsed(elapsedSeconds)}
+                    </Text>
+                    {appointment.startedAt && (
+                      <Text style={s.timerStarted}>
+                        Started at{" "}
+                        {new Date(appointment.startedAt).toLocaleTimeString(
+                          undefined,
+                          { hour: "2-digit", minute: "2-digit" },
+                        )}
+                      </Text>
+                    )}
+                  </View>
+
+                  {waitingClientEnd ? (
+                    <View
+                      style={[
+                        s.alertBanner,
+                        { backgroundColor: C.amberBg, borderColor: C.amberBdr },
+                      ]}
+                    >
+                      <ActivityIndicator color={C.amber} size="small" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.alertBannerTitle, { color: C.amber }]}>
+                          Waiting for client
+                        </Text>
+                        <Text style={s.alertBannerSub}>
+                          Client must confirm service completion
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <>
+                      <PhotoRow
+                        uris={afterLocalUris}
+                        label="After photos (optional)"
+                        onAdd={() => void pickPhoto("after")}
+                        disabled={actionLoading}
                       />
-                    ))}
+                      <TouchableOpacity
+                        style={[s.btn, s.btnSuccess]}
+                        onPress={onEndService}
+                        disabled={actionLoading}
+                        activeOpacity={0.88}
+                      >
+                        {actionLoading ? (
+                          <ActivityIndicator color={C.white} />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="checkmark-done-circle-outline"
+                              size={18}
+                              color={C.white}
+                            />
+                            <Text style={s.btnText}>End Service</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              )}
+
+              {/* ══════════ COMPLETED ══════════ */}
+              {appointment.status === "COMPLETED" && (
+                <View style={s.section}>
+                  <View
+                    style={[
+                      s.alertBanner,
+                      {
+                        backgroundColor: C.successBg,
+                        borderColor: C.successBdr,
+                      },
+                    ]}
+                  >
+                    <Ionicons name="trophy" size={24} color={C.success} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.alertBannerTitle, { color: C.success }]}>
+                        Service completed ✓
+                      </Text>
+                      {appointment.durationMinutes != null && (
+                        <Text style={s.alertBannerSub}>
+                          Duration: {appointment.durationMinutes} min
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  <SectionBlock title="Summary">
+                    <View style={s.summaryCard}>
+                      {appointment.startedAt && (
+                        <InfoRow
+                          icon="play-circle-outline"
+                          label="Started"
+                          value={new Date(appointment.startedAt).toLocaleString(
+                            undefined,
+                            { dateStyle: "medium", timeStyle: "short" },
+                          )}
+                        />
+                      )}
+                      {appointment.completedAt && (
+                        <InfoRow
+                          icon="checkmark-circle-outline"
+                          label="Ended"
+                          value={new Date(
+                            appointment.completedAt,
+                          ).toLocaleString(undefined, {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })}
+                        />
+                      )}
+                      {appointment.durationMinutes != null && (
+                        <InfoRow
+                          icon="time-outline"
+                          label="Duration"
+                          value={`${appointment.durationMinutes} min`}
+                          valueColor={C.accent}
+                        />
+                      )}
+                    </View>
+                  </SectionBlock>
+
+                  {appointment.beforePhotoUrls.length > 0 && (
+                    <SectionBlock title="Before">
+                      <View style={s.photoGrid}>
+                        {appointment.beforePhotoUrls.map((uri) => (
+                          <Image
+                            key={uri}
+                            source={{ uri }}
+                            style={s.gridPhoto}
+                          />
+                        ))}
+                      </View>
+                    </SectionBlock>
+                  )}
+                  {appointment.afterPhotoUrls.length > 0 && (
+                    <SectionBlock title="After">
+                      <View style={s.photoGrid}>
+                        {appointment.afterPhotoUrls.map((uri) => (
+                          <Image
+                            key={uri}
+                            source={{ uri }}
+                            style={s.gridPhoto}
+                          />
+                        ))}
+                      </View>
+                    </SectionBlock>
+                  )}
+                </View>
+              )}
+
+              {/* ══════════ CLOSED STATES ══════════ */}
+              {["REFUSED", "CANCELLED_CLIENT", "CANCELLED_PROVIDER"].includes(
+                appointment.status,
+              ) && (
+                <View style={s.section}>
+                  <View
+                    style={[
+                      s.alertBanner,
+                      { backgroundColor: C.errorBg, borderColor: C.errorBdr },
+                    ]}
+                  >
+                    <Ionicons name="close-circle" size={24} color={C.error} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.alertBannerTitle, { color: C.error }]}>
+                        {cfg.label}
+                      </Text>
+                      {(appointment.refusalReason ||
+                        appointment.cancellationReason) && (
+                        <Text style={s.alertBannerSub}>
+                          {appointment.refusalReason ??
+                            appointment.cancellationReason}
+                        </Text>
+                      )}
+                    </View>
                   </View>
                 </View>
-              ) : null}
-              {appointment.afterPhotoUrls.length > 0 ? (
-                <View style={styles.gridBlock}>
-                  <Text style={styles.gridTitle}>After</Text>
-                  <View style={styles.photoGrid}>
-                    {appointment.afterPhotoUrls.map((uri) => (
-                      <Image
-                        key={uri}
-                        source={{ uri }}
-                        style={styles.gridPhoto}
-                        accessibilityIgnoresInvertColors
-                      />
-                    ))}
+              )}
+
+              {/* ══════════ RESCHEDULED ══════════ */}
+              {appointment.status === "RESCHEDULED" && (
+                <View style={s.section}>
+                  <View
+                    style={[
+                      s.alertBanner,
+                      { backgroundColor: C.amberBg, borderColor: C.amberBdr },
+                    ]}
+                  >
+                    <Ionicons name="time" size={24} color={C.amber} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.alertBannerTitle, { color: C.amber }]}>
+                        Awaiting client response
+                      </Text>
+                      <Text style={s.alertBannerSub}>
+                        Proposed:{" "}
+                        {appointment.rescheduleDate
+                          ? formatSectionDate(appointment.rescheduleDate)
+                          : "—"}{" "}
+                        at {appointment.rescheduleTime ?? "—"}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              ) : null}
-            </View>
-          )}
-
-          {(appointment.status === "REFUSED" ||
-            appointment.status === "CANCELLED_CLIENT" ||
-            appointment.status === "CANCELLED_PROVIDER") && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Closed</Text>
-              <View style={styles.recapCard}>
-                <Text style={styles.recapLine}>Status: {appointment.status}</Text>
-                {appointment.status === "REFUSED" && appointment.refusalReason ? (
-                  <Text style={styles.reasonText}>{appointment.refusalReason}</Text>
-                ) : null}
-                {(appointment.status === "CANCELLED_CLIENT" ||
-                  appointment.status === "CANCELLED_PROVIDER") &&
-                appointment.cancellationReason ? (
-                  <Text style={styles.reasonText}>
-                    {appointment.cancellationReason}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-          )}
-
-          {appointment.status === "RESCHEDULED" && (
-            <View style={styles.section}>
-              <Text style={styles.readonlyText}>
-                Awaiting client response to your proposed time:
-              </Text>
-              <Text style={styles.proposedTimeText}>
-                {appointment.rescheduleDate
-                  ? formatSectionDate(appointment.rescheduleDate)
-                  : "—"}{" "}
-                at {appointment.rescheduleTime ?? "—"}
-              </Text>
-            </View>
-          )}
-
-          {![
-            "PENDING",
-            "CONFIRMED",
-            "EN_ROUTE",
-            "IN_PROGRESS",
-            "COMPLETED",
-            "REFUSED",
-            "CANCELLED_CLIENT",
-            "CANCELLED_PROVIDER",
-            "RESCHEDULED",
-          ].includes(appointment.status) && (
-            <View style={styles.section}>
-              <Text style={styles.muted}>Status: {appointment.status}</Text>
-            </View>
-          )}
-        </ScrollView>
+              )}
+            </ScrollView>
+          );
+        })()
       )}
 
+      {/* ══════════ RESCHEDULE SHEET ══════════ */}
       <Modal
         visible={rescheduleSheetVisible}
         animationType="slide"
@@ -882,529 +1201,586 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
           !actionLoading && setRescheduleSheetVisible(false)
         }
       >
-        <View style={styles.modalRoot}>
+        <View style={s.modalRoot}>
           <Pressable
-            style={styles.sheetBackdrop}
+            style={s.sheetBackdrop}
             onPress={() => !actionLoading && setRescheduleSheetVisible(false)}
           />
           <View
             style={[
-              styles.sheetCard,
-              { paddingBottom: Math.max(insets.bottom, 16) },
+              s.sheetCard,
+              { paddingBottom: Math.max(insets.bottom, 20) },
             ]}
           >
-          <Text style={styles.sheetTitle}>Propose new time</Text>
-          <Text style={styles.sheetSubtitle}>Pick a date</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.dateChipsRow}
-          >
-            {rescheduleDayChips.map((chip) => {
-              const sel = chip.key === rescheduleDateKey;
-              return (
-                <TouchableOpacity
-                  key={chip.key}
-                  style={[styles.dateChip, sel && styles.dateChipSelected]}
-                  onPress={() => setRescheduleDateKey(chip.key)}
-                >
-                  <Text
-                    style={[styles.dateChipText, sel && styles.dateChipTextSelected]}
+            {/* Sheet handle */}
+            <View style={s.sheetHandleRow}>
+              <View style={s.sheetHandle} />
+            </View>
+
+            <Text style={s.sheetTitle}>Propose new time</Text>
+
+            <Text style={s.sheetSub}>Choose a date</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.dateChipsRow}
+            >
+              {rescheduleDayChips.map((chip) => {
+                const sel = chip.key === rescheduleDateKey;
+                return (
+                  <TouchableOpacity
+                    key={chip.key}
+                    style={[s.dateChip, sel && s.dateChipSelected]}
+                    onPress={() => setRescheduleDateKey(chip.key)}
                   >
-                    {chip.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-          <Text style={styles.sheetSubtitle}>Time</Text>
-          <View style={styles.timePickRow}>
-            <ScrollView style={styles.timeCol} showsVerticalScrollIndicator={false}>
-              {RESCHEDULE_HOURS.map((h) => (
-                <TouchableOpacity
-                  key={h}
-                  style={[
-                    styles.timeChip,
-                    rescheduleHour === h && styles.timeChipSelected,
-                  ]}
-                  onPress={() => setRescheduleHour(h)}
-                >
-                  <Text
-                    style={[
-                      styles.timeChipText,
-                      rescheduleHour === h && styles.timeChipTextSelected,
-                    ]}
-                  >
-                    {h}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[s.dateChipText, sel && s.dateChipTextSelected]}
+                    >
+                      {chip.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
-            <ScrollView style={styles.timeCol} showsVerticalScrollIndicator={false}>
-              {RESCHEDULE_MINUTES.map((m) => (
-                <TouchableOpacity
-                  key={m}
-                  style={[
-                    styles.timeChip,
-                    rescheduleMinute === m && styles.timeChipSelected,
-                  ]}
-                  onPress={() => setRescheduleMinute(m)}
+
+            <Text style={s.sheetSub}>Select time</Text>
+            <View style={s.timePickRow}>
+              {/* Hours */}
+              <View style={s.timeColWrap}>
+                <Text style={s.timeColLabel}>Hour</Text>
+                <ScrollView
+                  style={s.timeCol}
+                  showsVerticalScrollIndicator={false}
                 >
-                  <Text
-                    style={[
-                      styles.timeChipText,
-                      rescheduleMinute === m && styles.timeChipTextSelected,
-                    ]}
-                  >
-                    {m}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-          <TouchableOpacity
-            style={styles.btnPrimary}
-            onPress={onProposeReschedule}
-            disabled={actionLoading}
-            activeOpacity={0.9}
-          >
-            {actionLoading ? (
-              <ActivityIndicator color={COLORS.white} />
-            ) : (
-              <Text style={styles.btnPrimaryText}>Send proposal</Text>
-            )}
-          </TouchableOpacity>
+                  {RESCHEDULE_HOURS.map((h) => (
+                    <TouchableOpacity
+                      key={h}
+                      style={[
+                        s.timeChip,
+                        rescheduleHour === h && s.timeChipSelected,
+                      ]}
+                      onPress={() => setRescheduleHour(h)}
+                    >
+                      <Text
+                        style={[
+                          s.timeChipText,
+                          rescheduleHour === h && s.timeChipTextSelected,
+                        ]}
+                      >
+                        {h}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+              <Text style={s.timeColon}>:</Text>
+              {/* Minutes */}
+              <View style={s.timeColWrap}>
+                <Text style={s.timeColLabel}>Min</Text>
+                <ScrollView
+                  style={s.timeCol}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {RESCHEDULE_MINUTES.map((m) => (
+                    <TouchableOpacity
+                      key={m}
+                      style={[
+                        s.timeChip,
+                        rescheduleMinute === m && s.timeChipSelected,
+                      ]}
+                      onPress={() => setRescheduleMinute(m)}
+                    >
+                      <Text
+                        style={[
+                          s.timeChipText,
+                          rescheduleMinute === m && s.timeChipTextSelected,
+                        ]}
+                      >
+                        {m}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+
+            {/* Preview */}
+            <View style={s.timePreview}>
+              <Ionicons name="time-outline" size={14} color={C.accent} />
+              <Text style={s.timePreviewText}>
+                {rescheduleDayChips.find((c) => c.key === rescheduleDateKey)
+                  ?.label ?? rescheduleDateKey}{" "}
+                · {rescheduleHour}:{rescheduleMinute}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[s.btn, s.btnAccent, { marginTop: 16 }]}
+              onPress={onProposeReschedule}
+              disabled={actionLoading}
+              activeOpacity={0.88}
+            >
+              {actionLoading ? (
+                <ActivityIndicator color={C.white} />
+              ) : (
+                <>
+                  <Ionicons name="send-outline" size={16} color={C.white} />
+                  <Text style={s.btnText}>Send proposal</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      {noticeModal ? (
+        <AuthNoticeModal
+          visible
+          onClose={() => setNoticeModal(null)}
+          title={noticeModal.title}
+          message={noticeModal.message}
+          primaryLabel={noticeModal.primaryLabel}
+          onPrimary={() => {
+            noticeModal.onPrimary?.();
+          }}
+        />
+      ) : null}
+
+      <ConfirmModal
+        visible={confirmCancelVisible}
+        onDismiss={() => !actionLoading && setConfirmCancelVisible(false)}
+        loading={actionLoading}
+        title="Cancel appointment"
+        message="Are you sure you want to cancel this appointment?"
+        cancelLabel="No"
+        confirmLabel="Yes, cancel"
+        confirmVariant="destructive"
+        onConfirm={() =>
+          void runAction(
+            () => api.cancelAppointment(appointmentId, {}),
+            {
+              successMessage: "Appointment cancelled.",
+              onSuccess: () => setConfirmCancelVisible(false),
+            },
+          )
+        }
+      />
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-  },
+// ─── Styles ───────────────────────────────────────────────
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.white },
+  scroll: { flex: 1, backgroundColor: C.bg },
+  scrollContent: { padding: 16, gap: 12 },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  muted: { fontSize: 15, color: C.textSub, fontWeight: "600" },
+
+  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
+    backgroundColor: C.white,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: COLORS.gray[50],
+    backgroundColor: C.bg,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: C.border,
   },
   headerTitle: {
     flex: 1,
     textAlign: "center",
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
-    color: COLORS.text.primary,
+    color: C.text,
+    letterSpacing: -0.3,
   },
-  headerRightSpacer: {
-    width: 40,
-  },
-  centered: {
-    flex: 1,
+  headerRightSpacer: { width: 40 },
+
+  // Status banner
+  statusBanner: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
   },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-  },
-  muted: {
-    fontSize: 15,
-    color: COLORS.text.secondary,
-    fontWeight: "600",
-  },
+  statusBannerText: { fontSize: 13, fontWeight: "700", letterSpacing: 0.1 },
+
+  // Client card
   clientCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
     padding: 16,
-    backgroundColor: COLORS.gray[50],
-    borderRadius: 16,
+    backgroundColor: C.white,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 20,
+    borderColor: C.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: C.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 1,
+        shadowRadius: 8,
+      },
+      android: { elevation: 1 },
+    }),
   },
-  avatarImg: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.gray[200],
-  },
+  avatarImg: { width: 60, height: 60, borderRadius: 18, backgroundColor: C.bg },
   avatarFallback: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: COLORS.primary,
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: C.accentBg,
+    borderWidth: 1,
+    borderColor: C.accentBorder,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarFallbackText: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: COLORS.white,
-  },
-  clientCardBody: {
-    flex: 1,
-    minWidth: 0,
-  },
+  avatarFallbackText: { fontSize: 20, fontWeight: "800", color: C.accent },
+  clientCardBody: { flex: 1, gap: 4 },
   clientName: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: COLORS.text.primary,
-    marginBottom: 4,
-  },
-  serviceTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: COLORS.text.primary,
-  },
-  serviceMeta: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.text.secondary,
-    marginTop: 2,
-  },
-  dateLine: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.primary,
-    marginTop: 6,
-  },
-  section: {
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: COLORS.text.primary,
-    marginBottom: 10,
-  },
-  notesBox: {
-    backgroundColor: COLORS.gray[50],
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 14,
-  },
-  notesLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.text.tertiary,
-    marginBottom: 6,
-    textTransform: "uppercase",
-  },
-  notesText: {
-    fontSize: 15,
-    color: COLORS.text.primary,
-    lineHeight: 22,
-  },
-  attachBlock: {
-    marginBottom: 16,
-  },
-  attachLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.text.secondary,
-    marginBottom: 8,
-  },
-  attachScroll: {
-    gap: 10,
-  },
-  attachThumb: {
-    width: 96,
-    height: 96,
-    borderRadius: 12,
-    backgroundColor: COLORS.gray[200],
-  },
-  btnPrimary: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  btnAccept: {
-    backgroundColor: COLORS.secondary,
-    marginTop: 0,
-  },
-  btnPrimaryText: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: COLORS.white,
-  },
-  btnRefuseOutline: {
-    marginTop: 12,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: COLORS.error,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  btnRefuseOutlineText: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: COLORS.error,
-  },
-  refuseBox: {
-    marginTop: 12,
-    gap: 10,
-  },
-  refuseInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    padding: 12,
-    minHeight: 88,
-    textAlignVertical: "top",
-    fontSize: 15,
-    color: COLORS.text.primary,
-    backgroundColor: COLORS.gray[50],
-  },
-  btnRefuseSolid: {
-    backgroundColor: COLORS.error,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  linkWrap: {
-    marginTop: 16,
-    alignItems: "center",
-  },
-  linkText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: COLORS.primary,
-  },
-  linkMuted: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.text.secondary,
-    textAlign: "center",
-    marginTop: 4,
-  },
-  cancelLink: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.error,
-  },
-  recapCard: {
-    backgroundColor: COLORS.gray[50],
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 12,
-    gap: 6,
-  },
-  recapLine: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text.primary,
-  },
-  banner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#EEF2FF",
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
-    marginBottom: 12,
-  },
-  bannerText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.primaryDark,
-  },
-  hint: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.text.secondary,
-    marginBottom: 10,
-  },
-  evidenceScroll: {
-    gap: 10,
-    marginBottom: 14,
-  },
-  evidenceThumb: {
-    width: 88,
-    height: 88,
-    borderRadius: 12,
-    backgroundColor: COLORS.gray[200],
-  },
-  addPhotoBtn: {
-    width: 88,
-    height: 88,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderStyle: "dashed",
-    borderColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.gray[50],
-  },
-  addPhotoLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: COLORS.primary,
-    marginTop: 2,
-  },
-  timerBox: {
-    alignItems: "center",
-    paddingVertical: 20,
-    marginBottom: 12,
-  },
-  timerLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.text.secondary,
-    marginBottom: 4,
-  },
-  timerValue: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: COLORS.primary,
-    fontVariant: ["tabular-nums"],
-  },
-  waitingBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 16,
-    backgroundColor: COLORS.gray[50],
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  waitingText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "700",
-    color: COLORS.text.primary,
-  },
-  gridBlock: {
-    marginTop: 16,
-  },
-  gridTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: COLORS.text.primary,
-    marginBottom: 10,
-  },
-  photoGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  gridPhoto: {
-    width: 104,
-    height: 104,
-    borderRadius: 10,
-    backgroundColor: COLORS.gray[200],
-  },
-  reasonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text.secondary,
-    marginTop: 8,
-    lineHeight: 22,
-  },
-  readonlyText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text.secondary,
-    lineHeight: 22,
-  },
-  proposedTimeText: {
     fontSize: 17,
     fontWeight: "800",
-    color: COLORS.text.primary,
-    marginTop: 8,
+    color: C.text,
+    letterSpacing: -0.3,
   },
-  modalRoot: {
-    flex: 1,
-    justifyContent: "flex-end",
+  serviceName: { fontSize: 14, fontWeight: "600", color: C.textSub },
+  categoryChip: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: C.accentBg,
+    borderWidth: 1,
+    borderColor: C.accentBorder,
   },
+  categoryChipText: { fontSize: 11, fontWeight: "700", color: C.accent },
+
+  // Info card
+  infoCard: {
+    backgroundColor: C.white,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: C.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 1,
+        shadowRadius: 8,
+      },
+      android: { elevation: 1 },
+    }),
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+  },
+  infoIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: C.bg,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.borderLight,
+  },
+  infoLabel: { fontSize: 13, color: C.textSub, fontWeight: "600", flex: 1 },
+  infoValue: { fontSize: 13, fontWeight: "700", color: C.text },
+  infoDivider: { height: 1, backgroundColor: C.borderLight },
+
+  // Section
+  section: { gap: 10 },
+  sectionBlock: { gap: 8 },
+  sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sectionBar: {
+    width: 3,
+    height: 14,
+    borderRadius: 2,
+    backgroundColor: C.accent,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: C.text,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+
+  // Notes
+  notesBox: {
+    backgroundColor: C.bg,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  notesText: { fontSize: 14, color: C.text, lineHeight: 21 },
+
+  // Photos
+  attachScroll: { gap: 10, paddingVertical: 4 },
+  attachThumb: {
+    width: 90,
+    height: 90,
+    borderRadius: 14,
+    backgroundColor: C.bg,
+  },
+  photoRowWrap: { gap: 8 },
+  photoRowLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: C.textSub,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  photoRowScroll: { gap: 10, paddingVertical: 4 },
+  photoThumb: {
+    width: 82,
+    height: 82,
+    borderRadius: 14,
+    backgroundColor: C.bg,
+  },
+  addPhotoBtn: {
+    width: 82,
+    height: 82,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: C.accentBorder,
+    backgroundColor: C.accentBg,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  addPhotoLabel: { fontSize: 11, fontWeight: "700", color: C.accent },
+  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  gridPhoto: {
+    width: 100,
+    height: 100,
+    borderRadius: 14,
+    backgroundColor: C.bg,
+  },
+
+  // Buttons
+  btn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 16,
+    paddingVertical: 15,
+  },
+  btnText: { fontSize: 15, fontWeight: "800", color: C.white },
+  btnAccent: {
+    backgroundColor: C.accent,
+    ...Platform.select({
+      ios: {
+        shadowColor: C.accent,
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.28,
+        shadowRadius: 10,
+      },
+      android: { elevation: 5 },
+    }),
+  },
+  btnSuccess: {
+    backgroundColor: C.success,
+    ...Platform.select({
+      ios: {
+        shadowColor: C.success,
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+      },
+      android: { elevation: 4 },
+    }),
+  },
+  btnError: { backgroundColor: C.error },
+  btnOutlineError: {
+    borderWidth: 1.5,
+    borderColor: C.errorBdr,
+    backgroundColor: C.errorBg,
+  },
+  textLink: { alignItems: "center", paddingVertical: 10 },
+  textLinkMuted: { fontSize: 14, fontWeight: "700", color: C.textSub },
+  proposeLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+  },
+  proposeLinkText: { fontSize: 14, fontWeight: "700", color: C.accent },
+
+  // Refuse
+  refuseBox: { gap: 8 },
+  refuseInput: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 14,
+    padding: 14,
+    minHeight: 88,
+    textAlignVertical: "top",
+    fontSize: 14,
+    color: C.text,
+    backgroundColor: C.bg,
+  },
+
+  // Alert banner
+  alertBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  alertBannerTitle: { fontSize: 14, fontWeight: "800" },
+  alertBannerSub: {
+    fontSize: 12,
+    color: C.textSub,
+    marginTop: 3,
+    lineHeight: 17,
+  },
+
+  // Timer card
+  timerCard: {
+    alignItems: "center",
+    backgroundColor: C.white,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingVertical: 24,
+    gap: 6,
+    ...Platform.select({
+      ios: {
+        shadowColor: C.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 1,
+        shadowRadius: 8,
+      },
+      android: { elevation: 1 },
+    }),
+  },
+  timerLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: C.textLight,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  timerValue: {
+    fontSize: 44,
+    fontWeight: "800",
+    color: C.accent,
+    letterSpacing: 2,
+    fontVariant: ["tabular-nums"],
+  },
+  timerStarted: { fontSize: 12, color: C.textSub },
+
+  // Summary
+  summaryCard: {
+    backgroundColor: C.bg,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+  },
+
+  // Sheet
+  modalRoot: { flex: 1, justifyContent: "flex-end" },
   sheetBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(17,24,39,0.45)",
+    backgroundColor: "rgba(15,23,42,0.5)",
   },
   sheetCard: {
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: C.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 8,
+    maxHeight: "90%",
     borderTopWidth: 1,
-    borderColor: COLORS.border,
-    maxHeight: "88%",
+    borderColor: C.border,
+  },
+  sheetHandleRow: { alignItems: "center", paddingBottom: 16 },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: C.border,
   },
   sheetTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: COLORS.text.primary,
-    marginBottom: 6,
+    color: C.text,
+    letterSpacing: -0.3,
+    marginBottom: 4,
   },
-  sheetSubtitle: {
-    fontSize: 13,
+  sheetSub: {
+    fontSize: 12,
     fontWeight: "700",
-    color: COLORS.text.secondary,
-    marginTop: 12,
-    marginBottom: 8,
+    color: C.textSub,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    marginTop: 14,
+    marginBottom: 10,
   },
-  dateChipsRow: {
-    gap: 8,
-    paddingVertical: 4,
-  },
+  dateChipsRow: { gap: 8, paddingVertical: 4 },
   dateChip: {
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: COLORS.gray[100],
+    backgroundColor: C.bg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: C.border,
   },
-  dateChipSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  dateChipText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.text.primary,
-  },
-  dateChipTextSelected: {
-    color: COLORS.white,
-  },
+  dateChipSelected: { backgroundColor: C.accent, borderColor: C.accent },
+  dateChipText: { fontSize: 13, fontWeight: "700", color: C.text },
+  dateChipTextSelected: { color: C.white },
   timePickRow: {
     flexDirection: "row",
-    gap: 12,
-    maxHeight: 200,
-    marginBottom: 16,
+    alignItems: "center",
+    gap: 4,
+    maxHeight: 180,
+    marginBottom: 4,
   },
-  timeCol: {
-    flex: 1,
+  timeColWrap: { flex: 1, gap: 4 },
+  timeColLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: C.textLight,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    textAlign: "center",
+  },
+  timeCol: { flex: 1 },
+  timeColon: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: C.textSub,
+    paddingBottom: 20,
   },
   timeChip: {
     paddingVertical: 10,
@@ -1413,15 +1789,19 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   timeChipSelected: {
-    backgroundColor: COLORS.gray[100],
+    backgroundColor: C.accentBg,
+    borderWidth: 1,
+    borderColor: C.accentBorder,
   },
-  timeChipText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.gray[500],
+  timeChipText: { fontSize: 16, fontWeight: "600", color: C.textSub },
+  timeChipTextSelected: { color: C.accent, fontWeight: "800" },
+  timePreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    justifyContent: "center",
+    paddingTop: 10,
+    paddingBottom: 4,
   },
-  timeChipTextSelected: {
-    color: COLORS.primary,
-    fontWeight: "800",
-  },
+  timePreviewText: { fontSize: 14, fontWeight: "700", color: C.accent },
 });

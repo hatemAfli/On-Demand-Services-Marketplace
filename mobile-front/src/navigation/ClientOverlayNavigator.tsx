@@ -15,7 +15,7 @@ import { useAppTranslation } from "../hooks/useAppTranslation";
 
 import { ClientSidebar } from "../screens/client/ClientSidebar";
 
-import { ClientHomeScreen } from "../screens/client/ClientHomeView";
+import { ClientHomeScreen } from "../screens/client/home/ClientHomeScreen";
 import { ClientHomeSearchScreen } from "../screens/client/home/ClientHomeSearchScreen";
 import { ListOfServicesScreen } from "../screens/client/category-services/ListOfServicesScreen";
 import { ClientSearchProviderScreen } from "../screens/client/search";
@@ -30,7 +30,8 @@ import { ClientLeaveReviewScreen } from "../screens/client/appointments/ClientLe
 import { ClientReportProblemScreen } from "../screens/client/appointments/ClientReportProblemScreen";
 import { ClientFavoritesScreen } from "../screens/client/favorite/ClientFavoritesScreen";
 import { ClientFavoritesListScreen } from "../screens/client/favorite/ClientFavoritesListScreen";
-import { ClientNotificationsScreen } from "../screens/client/ClientNotificationsScreen";
+import { NotificationsScreen } from "../screens/shared/NotificationsScreen";
+import { NotificationDetailScreen } from "../screens/shared/NotificationDetailScreen";
 import {
   ClientChangeEmailScreen,
   ClientChangePhoneScreen,
@@ -110,7 +111,9 @@ export const ClientOverlayNavigator: React.FC = () => {
             route.name !== "ClientSavedAddresses" &&
             route.name !== "ClientDeleteAccount" &&
             route.name !== "ClientTerms" &&
-            route.name !== "ClientPrivacy",
+            route.name !== "ClientPrivacy" &&
+            route.name !== "Notifications" &&
+            route.name !== "NotificationDetail",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
             backgroundColor: COLORS.background,
@@ -185,9 +188,11 @@ export const ClientOverlayNavigator: React.FC = () => {
           name="ClientFavoritesList"
           component={ClientFavoritesListScreen}
         />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen
-          name="ClientNotifications"
-          component={ClientNotificationsScreen}
+          name="NotificationDetail"
+          component={NotificationDetailScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen name="ClientSettings" component={ClientSettingsScreen} />
         <Stack.Screen

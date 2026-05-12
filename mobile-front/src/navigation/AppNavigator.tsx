@@ -14,6 +14,7 @@ import { AdminNavigator } from "../screens/admin";
 import { ForcedPasswordResetScreen } from "../screens/auth/ForcedPasswordResetScreen";
 import { UserRole } from "../types";
 import { COLORS } from "../constants";
+import { navigationRef } from "./rootNavigationRef";
 
 const RecoveryStack = createNativeStackNavigator();
 
@@ -69,7 +70,7 @@ export const AppNavigator: React.FC = () => {
   const completeProfileRole = getRoleFromSession(session);
 
   return (
-    <NavigationContainer key={rootNavKey}>
+    <NavigationContainer ref={navigationRef} key={rootNavKey}>
       {isAuthenticated && pendingPasswordRecovery ? (
         <PasswordRecoveryNavigator />
       ) : isAuthenticated ? (

@@ -7,10 +7,12 @@ import {
 import {
   AppointmentConfirmationType,
   AppointmentStatus,
+  NotificationType,
   OwnerType,
 } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { AvailabilityService } from '../availability/availability.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ClientRespondRescheduleDto, ClientRescheduleAction } from './dto/client-respond-reschedule.dto';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { ExecutionAction, ExecutionActionDto } from './dto/execution-action.dto';
@@ -21,6 +23,7 @@ export class AppointmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly availabilityService: AvailabilityService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createAppointment(clientId: string, dto: CreateAppointmentDto) {
@@ -66,7 +69,7 @@ export class AppointmentsService {
       throw new BadRequestException('Selected slot is not available');
     }
 
-    return this.prisma.appointment.create({
+    const appointment = await this.prisma.appointment.create({
       data: {
         clientId,
         givenServiceId: dto.givenServiceId,
@@ -78,6 +81,46 @@ export class AppointmentsService {
         photoUrls: dto.photoUrls ?? [],
       },
     });
+
+    const [client, providerUser, givenServiceDetails] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: clientId },
+        select: { firstName: true, lastName: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: dto.providerId },
+        select: { firstName: true, lastName: true },
+      }),
+      this.prisma.givenService.findUnique({
+        where: { id: dto.givenServiceId },
+        select: {
+          service: {
+            select: {
+              translations: {
+                select: { name: true },
+                orderBy: { locale: 'asc' },
+                take: 1,
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const clientName = this.buildDisplayName(client?.firstName, client?.lastName, 'A client');
+    const serviceName =
+      givenServiceDetails?.service.translations[0]?.name?.trim() || 'requested service';
+    const formattedDate = this.formatDateForNotification(dto.scheduledDate);
+
+    void this.notificationsService.send({
+      userId: appointment.providerId,
+      type: NotificationType.APPOINTMENT_NEW_REQUEST,
+      title: 'New booking request',
+      body: `${clientName} requested ${serviceName} on ${formattedDate} at ${dto.scheduledTime}`,
+      data: { appointmentId: appointment.id, screen: 'ProviderAppointmentDetail' },
+    });
+
+    return appointment;
   }
 
   async getMyAppointmentsAsClient(clientId: string, status?: AppointmentStatus) {
@@ -160,7 +203,16 @@ export class AppointmentsService {
   ) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
-      select: { id: true, providerId: true, status: true },
+      select: {
+        id: true,
+        providerId: true,
+        clientId: true,
+        status: true,
+        scheduledDate: true,
+        scheduledTime: true,
+        rescheduleDate: true,
+        rescheduleTime: true,
+      },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
     if (appointment.providerId !== providerId) {
@@ -174,23 +226,60 @@ export class AppointmentsService {
     }
 
     if (dto.action === ProviderRespondAction.CONFIRMED) {
-      return this.prisma.appointment.update({
+      const updated = await this.prisma.appointment.update({
         where: { id: appointmentId },
         data: {
           status: AppointmentStatus.CONFIRMED,
           refusalReason: null,
         },
       });
+      const providerUser = await this.prisma.user.findUnique({
+        where: { id: providerId },
+        select: { firstName: true, lastName: true },
+      });
+      const providerName = this.buildDisplayName(
+        providerUser?.firstName,
+        providerUser?.lastName,
+        'Your provider',
+      );
+      const formattedDate = this.formatDateForNotification(
+        appointment.scheduledDate.toISOString().slice(0, 10),
+      );
+      void this.notificationsService.send({
+        userId: appointment.clientId,
+        type: NotificationType.APPOINTMENT_CONFIRMED,
+        title: 'Appointment confirmed ✓',
+        body: `${providerName} confirmed your booking for ${formattedDate} at ${appointment.scheduledTime}`,
+        data: { appointmentId, screen: 'ClientAppointmentDetail' },
+      });
+      return updated;
     }
 
     if (dto.action === ProviderRespondAction.REFUSED) {
-      return this.prisma.appointment.update({
+      const updated = await this.prisma.appointment.update({
         where: { id: appointmentId },
         data: {
           status: AppointmentStatus.REFUSED,
           refusalReason: dto.refusalReason?.trim() || null,
         },
       });
+      const providerUser = await this.prisma.user.findUnique({
+        where: { id: providerId },
+        select: { firstName: true, lastName: true },
+      });
+      const providerName = this.buildDisplayName(
+        providerUser?.firstName,
+        providerUser?.lastName,
+        'Your provider',
+      );
+      void this.notificationsService.send({
+        userId: appointment.clientId,
+        type: NotificationType.APPOINTMENT_REFUSED,
+        title: 'Booking request refused',
+        body: `${providerName} could not accept your request. Reason: ${dto.refusalReason?.trim() || 'Not specified'}`,
+        data: { appointmentId, screen: 'ClientAppointmentDetail' },
+      });
+      return updated;
     }
 
     if (!dto.rescheduleDate || !dto.rescheduleTime) {
@@ -198,7 +287,7 @@ export class AppointmentsService {
         'rescheduleDate and rescheduleTime are required for RESCHEDULED action',
       );
     }
-    return this.prisma.appointment.update({
+    const updated = await this.prisma.appointment.update({
       where: { id: appointmentId },
       data: {
         status: AppointmentStatus.RESCHEDULED,
@@ -206,6 +295,24 @@ export class AppointmentsService {
         rescheduleTime: dto.rescheduleTime,
       },
     });
+    const providerUser = await this.prisma.user.findUnique({
+      where: { id: providerId },
+      select: { firstName: true, lastName: true },
+    });
+    const providerName = this.buildDisplayName(
+      providerUser?.firstName,
+      providerUser?.lastName,
+      'Your provider',
+    );
+    const formattedRescheduleDate = this.formatDateForNotification(dto.rescheduleDate);
+    void this.notificationsService.send({
+      userId: appointment.clientId,
+      type: NotificationType.APPOINTMENT_RESCHEDULED,
+      title: 'New time proposed',
+      body: `${providerName} proposed a new time: ${formattedRescheduleDate} at ${dto.rescheduleTime}`,
+      data: { appointmentId, screen: 'ClientAppointmentDetail' },
+    });
+    return updated;
   }
 
   async clientRespondReschedule(
@@ -218,6 +325,7 @@ export class AppointmentsService {
       select: {
         id: true,
         clientId: true,
+        providerId: true,
         status: true,
         rescheduleDate: true,
         rescheduleTime: true,
@@ -233,7 +341,7 @@ export class AppointmentsService {
       if (!appointment.rescheduleDate || !appointment.rescheduleTime) {
         throw new BadRequestException('Missing proposed reschedule values');
       }
-      return this.prisma.appointment.update({
+      const updated = await this.prisma.appointment.update({
         where: { id: appointmentId },
         data: {
           status: AppointmentStatus.CONFIRMED,
@@ -243,9 +351,25 @@ export class AppointmentsService {
           rescheduleTime: null,
         },
       });
+      const clientUser = await this.prisma.user.findUnique({
+        where: { id: clientId },
+        select: { firstName: true, lastName: true },
+      });
+      const clientName = this.buildDisplayName(clientUser?.firstName, clientUser?.lastName, 'Client');
+      const formattedDate = this.formatDateForNotification(
+        appointment.rescheduleDate.toISOString().slice(0, 10),
+      );
+      void this.notificationsService.send({
+        userId: appointment.providerId,
+        type: NotificationType.APPOINTMENT_RESCHEDULE_ACCEPTED,
+        title: 'Reschedule accepted',
+        body: `${clientName} accepted the new time: ${formattedDate} at ${appointment.rescheduleTime}`,
+        data: { appointmentId, screen: 'ProviderAppointmentDetail' },
+      });
+      return updated;
     }
 
-    return this.prisma.appointment.update({
+    const updated = await this.prisma.appointment.update({
       where: { id: appointmentId },
       data: {
         status: AppointmentStatus.CANCELLED_CLIENT,
@@ -253,6 +377,19 @@ export class AppointmentsService {
         cancelledAt: new Date(),
       },
     });
+    const clientUser = await this.prisma.user.findUnique({
+      where: { id: clientId },
+      select: { firstName: true, lastName: true },
+    });
+    const clientName = this.buildDisplayName(clientUser?.firstName, clientUser?.lastName, 'Client');
+    void this.notificationsService.send({
+      userId: appointment.providerId,
+      type: NotificationType.APPOINTMENT_RESCHEDULE_DECLINED,
+      title: 'Reschedule declined',
+      body: `${clientName} declined the proposed time and cancelled the request`,
+      data: { appointmentId, screen: 'ProviderAppointmentDetail' },
+    });
+    return updated;
   }
 
   async cancelAppointment(
@@ -263,7 +400,14 @@ export class AppointmentsService {
   ) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
-      select: { id: true, clientId: true, providerId: true, status: true },
+      select: {
+        id: true,
+        clientId: true,
+        providerId: true,
+        status: true,
+        scheduledDate: true,
+        scheduledTime: true,
+      },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
 
@@ -279,7 +423,7 @@ export class AppointmentsService {
       throw new BadRequestException('Appointment cannot be cancelled in current status');
     }
 
-    return this.prisma.appointment.update({
+    const updated = await this.prisma.appointment.update({
       where: { id: appointmentId },
       data: {
         status:
@@ -291,6 +435,43 @@ export class AppointmentsService {
         cancelledAt: new Date(),
       },
     });
+    const [clientUser, providerUser] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: appointment.clientId },
+        select: { firstName: true, lastName: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: appointment.providerId },
+        select: { firstName: true, lastName: true },
+      }),
+    ]);
+    const clientName = this.buildDisplayName(clientUser?.firstName, clientUser?.lastName, 'Client');
+    const providerName = this.buildDisplayName(
+      providerUser?.firstName,
+      providerUser?.lastName,
+      'Your provider',
+    );
+    const formattedDate = this.formatDateForNotification(
+      appointment.scheduledDate.toISOString().slice(0, 10),
+    );
+    if (role === 'CLIENT') {
+      void this.notificationsService.send({
+        userId: appointment.providerId,
+        type: NotificationType.APPOINTMENT_CANCELLED_CLIENT,
+        title: 'Appointment cancelled',
+        body: `${clientName} cancelled the appointment for ${formattedDate} at ${appointment.scheduledTime}`,
+        data: { appointmentId, screen: 'ProviderAppointmentDetail' },
+      });
+    } else {
+      void this.notificationsService.send({
+        userId: appointment.clientId,
+        type: NotificationType.APPOINTMENT_CANCELLED_PROVIDER,
+        title: 'Appointment cancelled by provider',
+        body: `${providerName} cancelled your appointment for ${formattedDate}. ${reason?.trim() || ''}`,
+        data: { appointmentId, screen: 'ClientAppointmentDetail' },
+      });
+    }
+    return updated;
   }
 
   async recordExecution(
@@ -309,13 +490,30 @@ export class AppointmentsService {
       if (appointment.status !== AppointmentStatus.CONFIRMED) {
         throw new BadRequestException('EN_ROUTE is allowed only from CONFIRMED');
       }
-      return this.prisma.appointment.update({
+      const updated = await this.prisma.appointment.update({
         where: { id: appointmentId },
         data: {
           status: AppointmentStatus.EN_ROUTE,
           enRouteAt: new Date(),
         },
       });
+      const providerUser = await this.prisma.user.findUnique({
+        where: { id: providerId },
+        select: { firstName: true, lastName: true },
+      });
+      const providerName = this.buildDisplayName(
+        providerUser?.firstName,
+        providerUser?.lastName,
+        'Your provider',
+      );
+      void this.notificationsService.send({
+        userId: appointment.clientId,
+        type: NotificationType.APPOINTMENT_EN_ROUTE,
+        title: '🚗 Provider is on the way',
+        body: `${providerName} is heading to you now`,
+        data: { appointmentId, screen: 'ClientAppointmentDetail' },
+      });
+      return updated;
     }
 
     if (dto.action === ExecutionAction.START) {
@@ -342,20 +540,51 @@ export class AppointmentsService {
           confirmedAt: now,
         },
       });
-      return this.prisma.appointment.update({
+      const updated = await this.prisma.appointment.update({
         where: { id: appointmentId },
         data: {
           status: AppointmentStatus.IN_PROGRESS,
-          startedAt: now,
+          // startedAt is set only when the client confirms start (billing/timer).
           ...(dto.photoUrls ? { beforePhotoUrls: dto.photoUrls } : {}),
         },
       });
+      const providerUser = await this.prisma.user.findUnique({
+        where: { id: providerId },
+        select: { firstName: true, lastName: true },
+      });
+      const providerName = this.buildDisplayName(
+        providerUser?.firstName,
+        providerUser?.lastName,
+        'Your provider',
+      );
+      void this.notificationsService.send({
+        userId: appointment.clientId,
+        type: NotificationType.APPOINTMENT_STARTED,
+        title: 'Please confirm service start',
+        body: `${providerName} has arrived. Tap to confirm the service has started.`,
+        data: {
+          appointmentId,
+          screen: 'ClientAppointmentDetail',
+          action: 'CONFIRM_START',
+        },
+      });
+      return updated;
     }
 
     if (appointment.status !== AppointmentStatus.IN_PROGRESS) {
       throw new BadRequestException('END is allowed only from IN_PROGRESS');
     }
     const now = new Date();
+    const hadProviderEndBefore = !!(await this.prisma.appointmentConfirmation.findUnique({
+      where: {
+        appointmentId_role_type: {
+          appointmentId,
+          role: 'PROVIDER',
+          type: AppointmentConfirmationType.END,
+        },
+      },
+      select: { id: true },
+    }));
     await this.prisma.appointmentConfirmation.upsert({
       where: {
         appointmentId_role_type: {
@@ -376,12 +605,35 @@ export class AppointmentsService {
       },
     });
 
-    return this.prisma.appointment.update({
+    const updated = await this.prisma.appointment.update({
       where: { id: appointmentId },
       data: {
         ...(dto.photoUrls ? { afterPhotoUrls: dto.photoUrls } : {}),
       },
     });
+    if (!hadProviderEndBefore) {
+      const providerUser = await this.prisma.user.findUnique({
+        where: { id: providerId },
+        select: { firstName: true, lastName: true },
+      });
+      const providerName = this.buildDisplayName(
+        providerUser?.firstName,
+        providerUser?.lastName,
+        'Your provider',
+      );
+      void this.notificationsService.send({
+        userId: appointment.clientId,
+        type: NotificationType.APPOINTMENT_PROVIDER_ENDED,
+        title: 'Please confirm service completion',
+        body: `${providerName} has ended the service. Tap to confirm completion.`,
+        data: {
+          appointmentId,
+          screen: 'ClientAppointmentDetail',
+          action: 'CONFIRM_END',
+        },
+      });
+    }
+    return updated;
   }
 
   async clientConfirm(
@@ -435,7 +687,7 @@ export class AppointmentsService {
           where: { id: appointmentId },
           data: {
             status: AppointmentStatus.IN_PROGRESS,
-            startedAt: appointment.startedAt ?? new Date(),
+            startedAt: new Date(),
           },
         });
       }
@@ -526,6 +778,45 @@ export class AppointmentsService {
           },
         });
 
+        const [clientUser, providerUser] = await Promise.all([
+          tx.user.findUnique({
+            where: { id: appointment.clientId },
+            select: { firstName: true, lastName: true },
+          }),
+          tx.user.findUnique({
+            where: { id: appointment.providerId },
+            select: { firstName: true, lastName: true },
+          }),
+        ]);
+        const clientName = this.buildDisplayName(
+          clientUser?.firstName,
+          clientUser?.lastName,
+          'Client',
+        );
+        const providerName = this.buildDisplayName(
+          providerUser?.firstName,
+          providerUser?.lastName,
+          'Your provider',
+        );
+        void this.notificationsService.send({
+          userId: appointment.providerId,
+          type: NotificationType.APPOINTMENT_COMPLETED,
+          title: 'Service completed ✓',
+          body: `Your session with ${clientName} is complete. Duration: ${durationMinutes} min`,
+          data: { appointmentId, screen: 'ProviderAppointmentDetail' },
+        });
+        void this.notificationsService.send({
+          userId: appointment.clientId,
+          type: NotificationType.APPOINTMENT_COMPLETED,
+          title: 'Service completed ✓',
+          body: `Your service with ${providerName} is done. How was your experience?`,
+          data: {
+            appointmentId,
+            screen: 'ClientAppointmentDetail',
+            action: 'LEAVE_REVIEW',
+          },
+        });
+
         return updatedAppointment;
       });
     }
@@ -557,5 +848,25 @@ export class AppointmentsService {
       },
       orderBy: [{ scheduledDate: 'asc' }, { scheduledTime: 'asc' }],
     });
+  }
+
+  private formatDateForNotification(dateStr: string): string {
+    const parsed = new Date(`${dateStr}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return dateStr;
+    return parsed.toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
+  private buildDisplayName(
+    firstName?: string | null,
+    lastName?: string | null,
+    fallback = 'User',
+  ): string {
+    const fullName = `${firstName ?? ''} ${lastName ?? ''}`.trim();
+    return fullName || fallback;
   }
 }

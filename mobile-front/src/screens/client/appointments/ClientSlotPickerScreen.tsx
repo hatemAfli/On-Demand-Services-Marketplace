@@ -72,6 +72,26 @@ function addDays(d: Date, days: number): Date {
   return n;
 }
 
+/** True when `ymd` is the same local calendar day as `ref`. */
+function isSameLocalCalendarDay(ymd: string, ref: Date): boolean {
+  return ymd === formatYmd(ref);
+}
+
+/**
+ * For the given calendar day, true if the slot start (local) is strictly before `now`.
+ * Only applies when `ymd` is today; future days always return false.
+ */
+function isSlotStartInPast(ymd: string, slotHHmm: string, now: Date): boolean {
+  if (!isSameLocalCalendarDay(ymd, now)) return false;
+  const parts = slotHHmm.trim().split(":");
+  if (parts.length < 2) return false;
+  const hh = Number(parts[0]);
+  const mm = Number(parts[1]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return false;
+  const slotStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
+  return slotStart.getTime() < now.getTime();
+}
+
 const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_SHORT = [
   "Jan",
@@ -105,15 +125,18 @@ function SectionHeader({ label, sub }: { label: string; sub?: string }) {
 function SlotChip({
   time,
   selected,
+  disabled,
   onPress,
 }: {
   time: string;
   selected: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   const scale = React.useRef(new Animated.Value(1)).current;
 
   const handlePress = () => {
+    if (disabled) return;
     Animated.sequence([
       Animated.spring(scale, {
         toValue: 0.92,
@@ -128,12 +151,23 @@ function SlotChip({
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
-        style={[s.slotChip, selected && s.slotChipSelected]}
+        style={[
+          s.slotChip,
+          disabled && s.slotChipDisabled,
+          selected && !disabled && s.slotChipSelected,
+        ]}
         onPress={handlePress}
-        activeOpacity={0.85}
+        activeOpacity={disabled ? 1 : 0.85}
+        disabled={disabled}
       >
-        {selected && <View style={s.slotChipDot} />}
-        <Text style={[s.slotChipText, selected && s.slotChipTextSelected]}>
+        {selected && !disabled && <View style={s.slotChipDot} />}
+        <Text
+          style={[
+            s.slotChipText,
+            disabled && s.slotChipTextDisabled,
+            selected && !disabled && s.slotChipTextSelected,
+          ]}
+        >
           {time}
         </Text>
       </TouchableOpacity>
@@ -153,7 +187,6 @@ function PhotoThumb({ uri, onRemove }: { uri: string; onRemove: () => void }) {
       >
         <Ionicons name="close" size={11} color={C.white} />
       </TouchableOpacity>
-      {/* Corner tint overlay */}
       <View style={s.thumbOverlay} />
     </View>
   );
@@ -203,6 +236,19 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
     setSelectedTime(null);
   }, [selectedDate]);
 
+  // Re-evaluate "past" slots while viewing today (e.g. user keeps screen open).
+  const [nowCoarse, setNowCoarse] = useState(() => Date.now());
+  useEffect(() => {
+    if (isSameLocalCalendarDay(selectedDate, new Date())) {
+      setNowCoarse(Date.now());
+    }
+  }, [selectedDate]);
+  useEffect(() => {
+    if (!isSameLocalCalendarDay(selectedDate, new Date())) return;
+    const id = setInterval(() => setNowCoarse(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, [selectedDate]);
+
   // ── Slot fetch (unchanged logic) ──────────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -231,6 +277,14 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
       cancelled = true;
     };
   }, [providerId, selectedDate, duration]);
+
+  useEffect(() => {
+    if (!selectedTime) return;
+    const now = new Date();
+    if (isSlotStartInPast(selectedDate, selectedTime, now)) {
+      setSelectedTime(null);
+    }
+  }, [selectedDate, selectedTime, slots, nowCoarse]);
 
   // ── Formatted dates (unchanged logic) ────────────────────
   const formattedSectionDate = useMemo(() => {
@@ -293,6 +347,10 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
   // ── Submit (unchanged logic) ──────────────────────────────
   const onSubmit = useCallback(async () => {
     if (!selectedTime || submitting) return;
+    if (isSlotStartInPast(selectedDate, selectedTime, new Date())) {
+      Alert.alert("Time passed", "Pick a time that has not started yet.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await api.createAppointment({
@@ -333,11 +391,15 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
     navigation,
   ]);
 
-  // ── Selected date info ────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────
   const selectedDateObj = useMemo(() => parseYmd(selectedDate), [selectedDate]);
+  const nowForSlots = useMemo(() => new Date(nowCoarse), [nowCoarse]);
+  const bookableSlotCount = useMemo(
+    () =>
+      slots.filter((t) => !isSlotStartInPast(selectedDate, t, nowForSlots)).length,
+    [slots, selectedDate, nowForSlots],
+  );
   const slotsCount = slots.length;
-  const isFullyBooked =
-    !slotsLoading && slotsCount === 0 && !datesWithNoSlots.has(selectedDate);
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
@@ -349,11 +411,13 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             style={s.headerBack}
           >
-            <Ionicons name="chevron-back" size={22} color={C.text} />
+            <Ionicons name="chevron-back" size={20} color="#1A1A2E" />
           </TouchableOpacity>
+          <Text style={s.headerTitle}>Book a slot</Text>
+          <View style={s.headerRightSpacer} />
         </View>
 
-        {/* ── Recap bar — provider + service ── */}
+        {/* ── Provider recap bar ── */}
         <View style={s.recapBar}>
           <View style={s.recapAvatarWrap}>
             <Text style={s.recapAvatarText}>
@@ -368,7 +432,6 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
               {serviceName}
             </Text>
           </View>
-          {/* Duration badge */}
           <View style={s.durationBadge}>
             <Ionicons name="time-outline" size={11} color={C.accent} />
             <Text style={s.durationBadgeText}>~{duration} min</Text>
@@ -404,34 +467,51 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                     key={ymd}
                     style={[
                       s.dateCell,
-                      isSelected && s.dateCellSelected,
                       isToday && !isSelected && s.dateCellToday,
+                      isSelected && s.dateCellSelected,
                     ]}
                     onPress={() => setSelectedDate(ymd)}
                     activeOpacity={0.82}
                   >
-                    <Text style={[s.dateDow, isSelected && s.dateDowSelected]}>
+                    <Text
+                      style={[
+                        s.dateDow,
+                        isSelected && s.dateDowSelected,
+                        isToday && !isSelected && s.dateDowToday,
+                      ]}
+                    >
                       {dow}
                     </Text>
-                    <Text style={[s.dateDom, isSelected && s.dateDomSelected]}>
+                    <Text
+                      style={[
+                        s.dateDom,
+                        isSelected && s.dateDomSelected,
+                        isToday && !isSelected && s.dateDomToday,
+                      ]}
+                    >
                       {dom}
                     </Text>
+                    {hasNoSlots && !isSelected && <View style={s.emptyDot} />}
+                    {isSelected &&
+                      !hasNoSlots &&
+                      !slotsLoading &&
+                      bookableSlotCount > 0 && (
+                        <View style={s.slotsCountPill}>
+                          <Text style={s.slotsCountText}>{bookableSlotCount}</Text>
+                        </View>
+                      )}
                     {isToday && !isSelected && <View style={s.todayDot} />}
-                    {hasNoSlots && <View style={s.emptyDot} />}
-                    {isSelected && !hasNoSlots && !slotsLoading && (
-                      <Text style={s.dateSlotsHint}>{slotsCount}s</Text>
-                    )}
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
           </View>
 
-          {/* ── Selected date headline ── */}
+          {/* ── Date headline ── */}
           <View style={s.dateHeadlineRow}>
             <View>
               <Text style={s.dateHeadlineDay}>
-                {WEEKDAY_SHORT[selectedDateObj.getDay()]},
+                {WEEKDAY_SHORT[selectedDateObj.getDay()]}
               </Text>
               <Text style={s.dateHeadlineFull}>
                 {selectedDateObj.getDate()}{" "}
@@ -439,21 +519,29 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                 {selectedDateObj.getFullYear()}
               </Text>
             </View>
-            {!slotsLoading && slotsCount > 0 && (
+            {!slotsLoading && bookableSlotCount > 0 && (
               <View style={s.availableCountBadge}>
-                <Ionicons name="checkmark-circle" size={13} color={C.success} />
-                <Text style={s.availableCountText}>{slotsCount} available</Text>
+                <Ionicons name="checkmark-circle" size={12} color={C.success} />
+                <Text style={s.availableCountText}>
+                  {bookableSlotCount} available
+                </Text>
+              </View>
+            )}
+            {!slotsLoading && bookableSlotCount === 0 && slotsCount > 0 && (
+              <View style={s.unavailableBadge}>
+                <Ionicons name="time-outline" size={12} color={C.warning} />
+                <Text style={s.unavailableText}>Earlier times passed</Text>
               </View>
             )}
             {!slotsLoading && slotsCount === 0 && (
               <View style={s.unavailableBadge}>
-                <Ionicons name="close-circle" size={13} color={C.error} />
+                <Ionicons name="close-circle" size={12} color={C.error} />
                 <Text style={s.unavailableText}>No slots</Text>
               </View>
             )}
           </View>
 
-          {/* ── Slots ── */}
+          {/* ── Slots card ── */}
           <View style={s.slotsCard}>
             {slotsLoading ? (
               <View style={s.slotsLoading}>
@@ -465,7 +553,7 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                 <View style={s.noSlotsIconBox}>
                   <Ionicons
                     name="calendar-outline"
-                    size={22}
+                    size={24}
                     color={C.textLight}
                   />
                 </View>
@@ -475,17 +563,35 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                   date.
                 </Text>
               </View>
-            ) : (
-              <View style={s.slotGrid}>
-                {slots.map((t) => (
-                  <SlotChip
-                    key={t}
-                    time={t}
-                    selected={t === selectedTime}
-                    onPress={() => setSelectedTime(t)}
-                  />
-                ))}
+            ) : bookableSlotCount === 0 ? (
+              <View style={s.noSlotsWrap}>
+                <View style={s.noSlotsIconBox}>
+                  <Ionicons name="time-outline" size={24} color={C.textLight} />
+                </View>
+                <Text style={s.noSlotsTitle}>No times left today</Text>
+                <Text style={s.noSlotsSub}>
+                  All remaining slots for this day are in the past.{"\n"}Choose
+                  another date.
+                </Text>
               </View>
+            ) : (
+              <>
+                <Text style={s.slotGridLabel}>Select a time</Text>
+                <View style={s.slotGrid}>
+                  {slots.map((t) => {
+                    const past = isSlotStartInPast(selectedDate, t, nowForSlots);
+                    return (
+                      <SlotChip
+                        key={t}
+                        time={t}
+                        selected={t === selectedTime}
+                        disabled={past}
+                        onPress={() => setSelectedTime(t)}
+                      />
+                    );
+                  })}
+                </View>
+              </>
             )}
           </View>
 
@@ -531,7 +637,6 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
             label="Attach photos"
             sub="Help the provider understand the issue"
           />
-
           <View style={s.photosCard}>
             {photoUris.length > 0 && (
               <ScrollView
@@ -548,7 +653,6 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                 ))}
               </ScrollView>
             )}
-
             <TouchableOpacity
               style={[
                 s.addPhotosBtn,
@@ -558,7 +662,12 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
               activeOpacity={0.85}
               disabled={photoUris.length >= MAX_PHOTOS}
             >
-              <View style={s.addPhotosIconBox}>
+              <View
+                style={[
+                  s.addPhotosIconBox,
+                  photoUris.length >= MAX_PHOTOS && s.addPhotosIconBoxDisabled,
+                ]}
+              >
                 <Ionicons
                   name="camera-outline"
                   size={17}
@@ -592,7 +701,6 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
         <View
           style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}
         >
-          {/* Selection recap */}
           <View style={s.bottomRecap}>
             {selectedTime ? (
               <>
@@ -609,7 +717,6 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
             )}
           </View>
 
-          {/* Send button */}
           <TouchableOpacity
             style={[
               s.sendBtn,
@@ -638,76 +745,106 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
 
 // ─── Styles ────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.white },
-  root: { flex: 1, backgroundColor: C.bg },
+  safe: { flex: 1, backgroundColor: "#FAFAF9" },
+  root: { flex: 1, backgroundColor: "#F4F3FA" },
 
   // ── Header ──────────────────────────────────────────────
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    backgroundColor: C.white,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#FAFAF9",
   },
   headerBack: {
     width: 40,
     height: 40,
-    justifyContent: "center",
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#1A1A2E",
+    letterSpacing: -0.4,
+  },
+  headerRightSpacer: { width: 40 },
 
-  // ── Recap bar ────────────────────────────────────────────
+  // ── Provider recap bar ───────────────────────────────────
   recapBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: C.white,
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: "#EBEBF5",
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   recapAvatarWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: C.accentBg,
-    borderWidth: 1,
-    borderColor: C.accentBorder,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#EDE9FE",
+    borderWidth: 2,
+    borderColor: "#C4B5FD",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    shadowColor: "#7C5CFC",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
   },
   recapAvatarText: {
     fontSize: 16,
     fontWeight: "800",
-    color: C.accent,
+    color: "#7C5CFC",
   },
   recapName: {
     fontSize: 14,
     fontWeight: "700",
-    color: C.text,
+    color: "#1A1A2E",
     letterSpacing: -0.2,
   },
-  recapService: { fontSize: 12, color: C.textSub, marginTop: 1 },
+  recapService: {
+    fontSize: 12,
+    color: "#9B9BB0",
+    marginTop: 1,
+    fontWeight: "500",
+  },
   durationBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 20,
-    backgroundColor: C.accentBg,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#EDE9FE",
     borderWidth: 1,
-    borderColor: C.accentBorder,
+    borderColor: "#C4B5FD",
     flexShrink: 0,
   },
   durationBadgeText: {
     fontSize: 11,
     fontWeight: "700",
-    color: C.accent,
+    color: "#7C5CFC",
   },
 
   // ── Scroll ───────────────────────────────────────────────
@@ -719,106 +856,111 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    marginTop: 20,
+    marginTop: 22,
     marginBottom: 10,
   },
   sectionBar: {
     width: 3,
-    height: 38,
+    height: 36,
     borderRadius: 2,
-    backgroundColor: C.accent,
+    backgroundColor: "#7C5CFC",
     marginTop: 1,
   },
   sectionLabel: {
     fontSize: 14,
     fontWeight: "800",
-    color: C.text,
+    color: "#1A1A2E",
     letterSpacing: -0.2,
   },
   sectionSub: {
     fontSize: 12,
-    color: C.textSub,
+    color: "#9B9BB0",
     marginTop: 2,
+    fontWeight: "500",
   },
 
   // ── Date strip ───────────────────────────────────────────
   dateStripWrap: {
-    backgroundColor: C.white,
-    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: "#EBEBF5",
     paddingVertical: 12,
     paddingHorizontal: 4,
-    ...Platform.select({
-      ios: {
-        shadowColor: C.cardShadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 1,
-        shadowRadius: 8,
-      },
-      android: { elevation: 1 },
-    }),
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   dateStripContent: { gap: 6, paddingHorizontal: 8 },
   dateCell: {
-    width: 50,
-    paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: C.bg,
+    width: 52,
+    paddingVertical: 11,
+    borderRadius: 16,
+    backgroundColor: "#F9F8FF",
     alignItems: "center",
     justifyContent: "center",
     gap: 3,
     borderWidth: 1,
-    borderColor: C.borderLight,
-    minHeight: 68,
-  },
-  dateCellSelected: {
-    backgroundColor: C.accent,
-    borderColor: C.accent,
-    ...Platform.select({
-      ios: {
-        shadowColor: C.accent,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: { elevation: 4 },
-    }),
+    borderColor: "#EBEBF5",
+    minHeight: 72,
   },
   dateCellToday: {
-    borderColor: C.accentBorder,
-    backgroundColor: C.accentBg,
+    borderColor: "#C4B5FD",
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1.5,
+  },
+  dateCellSelected: {
+    backgroundColor: "#7C5CFC",
+    borderColor: "#7C5CFC",
+    shadowColor: "#7C5CFC",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 5,
   },
   dateDow: {
     fontSize: 10,
     fontWeight: "700",
-    color: C.textLight,
+    color: "#C4C4C4",
     textTransform: "uppercase",
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
-  dateDowSelected: { color: "rgba(255,255,255,0.75)" },
+  dateDowToday: { color: "#7C5CFC" },
+  dateDowSelected: { color: "rgba(255,255,255,0.7)" },
   dateDom: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "800",
-    color: C.text,
+    color: "#1A1A2E",
+    fontVariant: ["tabular-nums"],
   },
-  dateDomSelected: { color: C.white },
+  dateDomToday: { color: "#7C5CFC" },
+  dateDomSelected: { color: "#FFFFFF" },
   todayDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: C.accent,
+    backgroundColor: "#7C5CFC",
   },
   emptyDot: {
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: C.error,
+    backgroundColor: "#F43F5E",
   },
-  dateSlotsHint: {
+  slotsCountPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    minWidth: 20,
+    alignItems: "center",
+  },
+  slotsCountText: {
     fontSize: 9,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.65)",
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
 
   // ── Date headline ────────────────────────────────────────
@@ -827,117 +969,122 @@ const s = StyleSheet.create({
     alignItems: "flex-end",
     justifyContent: "space-between",
     marginTop: 16,
-    marginBottom: 8,
+    marginBottom: 10,
     paddingHorizontal: 2,
   },
   dateHeadlineDay: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: C.textSub,
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#9B9BB0",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.7,
   },
   dateHeadlineFull: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "800",
-    color: C.text,
-    letterSpacing: -0.4,
-    marginTop: 1,
+    color: "#1A1A2E",
+    letterSpacing: -0.5,
+    marginTop: 2,
   },
   availableCountBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 20,
+    borderRadius: 999,
     backgroundColor: "#ECFDF5",
     borderWidth: 1,
-    borderColor: "#A7F3D0",
+    borderColor: "#6EE7B7",
   },
   availableCountText: {
     fontSize: 11,
     fontWeight: "700",
-    color: C.success,
+    color: "#059669",
   },
   unavailableBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 20,
-    backgroundColor: C.errorBg,
+    borderRadius: 999,
+    backgroundColor: "#FEF2F2",
     borderWidth: 1,
     borderColor: "#FECACA",
   },
   unavailableText: {
     fontSize: 11,
     fontWeight: "700",
-    color: C.error,
+    color: "#DC2626",
   },
 
   // ── Slots card ───────────────────────────────────────────
   slotsCard: {
-    backgroundColor: C.white,
-    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: "#EBEBF5",
     padding: 16,
     minHeight: 100,
-    ...Platform.select({
-      ios: {
-        shadowColor: C.cardShadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 1,
-        shadowRadius: 8,
-      },
-      android: { elevation: 1 },
-    }),
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  slotGridLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#9B9BB0",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 12,
   },
   slotsLoading: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 20,
+    paddingVertical: 24,
     gap: 10,
   },
   slotsLoadingText: {
     fontSize: 13,
-    color: C.textSub,
+    color: "#9B9BB0",
     fontWeight: "500",
   },
   noSlotsWrap: {
     alignItems: "center",
-    paddingVertical: 20,
+    paddingVertical: 24,
     gap: 8,
   },
   noSlotsIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: C.bg,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: "#F4F3FA",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: "#EBEBF5",
     marginBottom: 4,
   },
   noSlotsTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: C.text,
+    color: "#1A1A2E",
   },
   noSlotsSub: {
     fontSize: 12,
-    color: C.textSub,
+    color: "#9B9BB0",
     textAlign: "center",
     lineHeight: 18,
+    fontWeight: "500",
   },
   slotGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
   slotChip: {
     flexDirection: "row",
@@ -946,22 +1093,23 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 12,
-    backgroundColor: C.bg,
+    backgroundColor: "#F5F3FF",
     borderWidth: 1.5,
-    borderColor: C.accentBorder,
+    borderColor: "#C4B5FD",
   },
   slotChipSelected: {
-    backgroundColor: C.accent,
-    borderColor: C.accent,
-    ...Platform.select({
-      ios: {
-        shadowColor: C.accent,
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.25,
-        shadowRadius: 6,
-      },
-      android: { elevation: 3 },
-    }),
+    backgroundColor: "#7C5CFC",
+    borderColor: "#7C5CFC",
+    shadowColor: "#7C5CFC",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  slotChipDisabled: {
+    opacity: 0.5,
+    backgroundColor: "#F1F5F9",
+    borderColor: "#E2E8F0",
   },
   slotChipDot: {
     width: 5,
@@ -972,75 +1120,74 @@ const s = StyleSheet.create({
   slotChipText: {
     fontSize: 14,
     fontWeight: "700",
-    color: C.accent,
+    color: "#7C5CFC",
+    fontVariant: ["tabular-nums"],
   },
-  slotChipTextSelected: { color: C.white },
+  slotChipTextDisabled: {
+    color: "#94A3B8",
+  },
+  slotChipTextSelected: { color: "#FFFFFF" },
 
   // ── Notes card ───────────────────────────────────────────
   notesCard: {
-    backgroundColor: C.white,
-    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: "#EBEBF5",
     overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: C.cardShadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 1,
-        shadowRadius: 8,
-      },
-      android: { elevation: 1 },
-    }),
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   notesInput: {
-    minHeight: 108,
-    padding: 14,
+    minHeight: 112,
+    padding: 16,
     fontSize: 14,
-    color: C.text,
-    lineHeight: 21,
+    color: "#1A1A2E",
+    lineHeight: 22,
+    fontWeight: "400",
   },
   notesFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: C.borderLight,
-    backgroundColor: C.bg,
+    borderTopColor: "#F4F3FA",
+    backgroundColor: "#FAFAF9",
   },
   notesHintRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
   },
   notesHint: {
     fontSize: 11,
-    color: C.textLight,
+    color: "#C4C4C4",
+    fontWeight: "500",
   },
   charCounter: {
     fontSize: 11,
-    color: C.textLight,
+    color: "#C4C4C4",
     fontWeight: "600",
+    fontVariant: ["tabular-nums"],
   },
 
   // ── Photos card ──────────────────────────────────────────
   photosCard: {
-    backgroundColor: C.white,
-    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: "#EBEBF5",
     overflow: "hidden",
-    ...Platform.select({
-      ios: {
-        shadowColor: C.cardShadow,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 1,
-        shadowRadius: 8,
-      },
-      android: { elevation: 1 },
-    }),
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   thumbRow: {
     paddingHorizontal: 14,
@@ -1050,15 +1197,15 @@ const s = StyleSheet.create({
   },
   thumbWrap: { position: "relative" },
   thumb: {
-    width: 78,
-    height: 78,
-    borderRadius: 13,
-    backgroundColor: C.bg,
+    width: 80,
+    height: 80,
+    borderRadius: 14,
+    backgroundColor: "#F4F3FA",
   },
   thumbOverlay: {
     position: "absolute",
     inset: 0,
-    borderRadius: 13,
+    borderRadius: 14,
     backgroundColor: "transparent",
   },
   thumbRemove: {
@@ -1068,35 +1215,39 @@ const s = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: "#1F2937",
+    backgroundColor: "#1A1A2E",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: C.white,
+    borderColor: "#FFFFFF",
   },
   addPhotosBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  addPhotosBtnDisabled: { opacity: 0.5 },
+  addPhotosBtnDisabled: { opacity: 0.45 },
   addPhotosIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: C.accentBg,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "#EDE9FE",
     borderWidth: 1,
-    borderColor: C.accentBorder,
+    borderColor: "#C4B5FD",
     alignItems: "center",
     justifyContent: "center",
+  },
+  addPhotosIconBoxDisabled: {
+    backgroundColor: "#F4F4F8",
+    borderColor: "#E8E8F0",
   },
   addPhotosText: {
     flex: 1,
     fontSize: 14,
     fontWeight: "600",
-    color: C.accent,
+    color: "#7C5CFC",
   },
 
   // ── Bottom bar ───────────────────────────────────────────
@@ -1107,78 +1258,70 @@ const s = StyleSheet.create({
     bottom: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
     paddingHorizontal: 16,
     paddingTop: 14,
-    backgroundColor: C.white,
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
-    borderTopColor: C.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-      },
-      android: { elevation: 8 },
-    }),
+    borderTopColor: "#EBEBF5",
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 10,
   },
   bottomRecap: { flex: 1 },
   bottomRecapLabel: {
     fontSize: 10,
     fontWeight: "700",
-    color: C.textLight,
+    color: "#C4C4C4",
     textTransform: "uppercase",
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
   },
   bottomRecapValue: {
     marginTop: 3,
     fontSize: 14,
     fontWeight: "800",
-    color: C.text,
+    color: "#1A1A2E",
     letterSpacing: -0.2,
   },
   bottomRecapPlaceholder: {
     marginTop: 3,
     fontSize: 13,
-    color: C.textLight,
+    color: "#C4C4C4",
     fontWeight: "500",
   },
   sendBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 13,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-    backgroundColor: C.accent,
-    minWidth: 148,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    backgroundColor: "#7C5CFC",
+    minWidth: 152,
     justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: C.accent,
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-      },
-      android: { elevation: 6 },
-    }),
+    shadowColor: "#7C5CFC",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 6,
   },
   sendBtnDisabled: {
-    backgroundColor: "#E2E8F0",
+    backgroundColor: "#E8E8F0",
     shadowOpacity: 0,
     elevation: 0,
   },
   sendBtnText: {
-    color: C.white,
+    color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: "800",
+    fontWeight: "700",
     letterSpacing: 0.1,
   },
   sendBtnArrow: {
     width: 24,
     height: 24,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.22)",
     alignItems: "center",
     justifyContent: "center",

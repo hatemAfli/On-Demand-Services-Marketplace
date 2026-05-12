@@ -21,9 +21,16 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { COLORS } from "../../../constants";
+import { ConfirmModal } from "../../../components/common";
 import { api, type AppointmentStatus } from "../../../services/api";
 import i18n from "../../../i18n";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
+
+type ClientAppointmentConfirmModal =
+  | { kind: "cancel_request" }
+  | { kind: "cancel_confirmed" }
+  | { kind: "decline_reschedule" }
+  | { kind: "accept_reschedule" };
 
 type Props = NativeStackScreenProps<
   ClientStackParamList,
@@ -227,6 +234,69 @@ function formatRescheduleDetail(
   return `${formatLongDate(rescheduleDate)} at ${rescheduleTime}`;
 }
 
+function getClientAppointmentConfirmCopy(
+  kind: ClientAppointmentConfirmModal["kind"],
+  appt: ClientAppointmentDetailModel,
+): {
+  title: string;
+  message: string;
+  cancelLabel: string;
+  confirmLabel: string;
+  confirmVariant: "primary" | "destructive";
+} {
+  const rescheduleLine = formatRescheduleDetail(
+    appt.rescheduleDate,
+    appt.rescheduleTime,
+  );
+  switch (kind) {
+    case "cancel_request":
+      return {
+        title: "Cancel request?",
+        message:
+          "The provider will no longer see this booking request.",
+        cancelLabel: "Keep request",
+        confirmLabel: "Cancel",
+        confirmVariant: "destructive",
+      };
+    case "cancel_confirmed":
+      return {
+        title: "Cancel appointment?",
+        message:
+          "You may be subject to the provider's cancellation policy.",
+        cancelLabel: "Keep",
+        confirmLabel: "Cancel appointment",
+        confirmVariant: "destructive",
+      };
+    case "decline_reschedule":
+      return {
+        title: "Decline new time?",
+        message:
+          "Your visit will stay at the originally scheduled date and time.",
+        cancelLabel: "Go back",
+        confirmLabel: "Decline proposal",
+        confirmVariant: "destructive",
+      };
+    case "accept_reschedule":
+      return {
+        title: "Accept new time?",
+        message: rescheduleLine
+          ? `Your appointment will move to ${rescheduleLine}.`
+          : "Your appointment will move to the proposed new time.",
+        cancelLabel: "Go back",
+        confirmLabel: "Accept",
+        confirmVariant: "primary",
+      };
+    default:
+      return {
+        title: "",
+        message: "",
+        cancelLabel: "Close",
+        confirmLabel: "OK",
+        confirmVariant: "primary",
+      };
+  }
+}
+
 function formatTimeOnly(iso: string | null): string {
   if (!iso) return "—";
   try {
@@ -318,6 +388,8 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
     useState<ClientAppointmentDetailModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [confirmModal, setConfirmModal] =
+    useState<ClientAppointmentConfirmModal | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -425,17 +497,24 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
     return n || "Provider";
   }, [appointment]);
 
-  const runAction = async (fn: () => Promise<unknown>) => {
-    setActionLoading(true);
-    try {
-      await fn();
-      await loadAppointment({ silent: true });
-    } catch {
-      Alert.alert("Something went wrong", "Please try again.");
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const runAction = useCallback(
+    async (
+      fn: () => Promise<unknown>,
+      opts?: { onSuccess?: () => void },
+    ) => {
+      setActionLoading(true);
+      try {
+        await fn();
+        await loadAppointment({ silent: true });
+        opts?.onSuccess?.();
+      } catch {
+        Alert.alert("Something went wrong", "Please try again.");
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [loadAppointment],
+  );
 
   if (loading || !appointment) {
     return (
@@ -599,23 +678,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                 actionLoading && styles.btnDisabled,
               ]}
               disabled={actionLoading}
-              onPress={() =>
-                Alert.alert(
-                  "Cancel request?",
-                  "The provider will no longer see this booking request.",
-                  [
-                    { text: "Keep request", style: "cancel" },
-                    {
-                      text: "Cancel",
-                      style: "destructive",
-                      onPress: () =>
-                        void runAction(() =>
-                          api.cancelAppointment(appointmentId, {}),
-                        ),
-                    },
-                  ],
-                )
-              }
+              onPress={() => setConfirmModal({ kind: "cancel_request" })}
             >
               <Text style={styles.btnOutlineRedText}>Cancel Request</Text>
             </TouchableOpacity>
@@ -636,23 +699,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
             </View>
             <TouchableOpacity
               disabled={actionLoading}
-              onPress={() =>
-                Alert.alert(
-                  "Cancel appointment?",
-                  "You may be subject to the provider's cancellation policy.",
-                  [
-                    { text: "Keep", style: "cancel" },
-                    {
-                      text: "Cancel",
-                      style: "destructive",
-                      onPress: () =>
-                        void runAction(() =>
-                          api.cancelAppointment(appointmentId, {}),
-                        ),
-                    },
-                  ],
-                )
-              }
+              onPress={() => setConfirmModal({ kind: "cancel_confirmed" })}
             >
               <Text style={styles.linkDanger}>Cancel appointment</Text>
             </TouchableOpacity>
@@ -682,11 +729,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                   ]}
                   disabled={actionLoading}
                   onPress={() =>
-                    void runAction(() =>
-                      api.clientRespondReschedule(appointmentId, {
-                        action: "CANCELLED_CLIENT",
-                      }),
-                    )
+                    setConfirmModal({ kind: "decline_reschedule" })
                   }
                 >
                   <Text style={styles.btnOutlineRedText}>Decline</Text>
@@ -698,11 +741,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                   ]}
                   disabled={actionLoading}
                   onPress={() =>
-                    void runAction(() =>
-                      api.clientRespondReschedule(appointmentId, {
-                        action: "CONFIRMED",
-                      }),
-                    )
+                    setConfirmModal({ kind: "accept_reschedule" })
                   }
                 >
                   <Ionicons name="checkmark" size={16} color="#FFFFFF" />
@@ -946,6 +985,47 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
           </View>
         ) : null}
       </ScrollView>
+
+      {confirmModal ? (
+        <ConfirmModal
+          visible
+          onDismiss={() => !actionLoading && setConfirmModal(null)}
+          loading={actionLoading}
+          {...getClientAppointmentConfirmCopy(confirmModal.kind, appointment)}
+          onConfirm={() => {
+            const close = () => setConfirmModal(null);
+            switch (confirmModal.kind) {
+              case "cancel_request":
+              case "cancel_confirmed":
+                void runAction(
+                  () => api.cancelAppointment(appointmentId, {}),
+                  { onSuccess: close },
+                );
+                break;
+              case "decline_reschedule":
+                void runAction(
+                  () =>
+                    api.clientRespondReschedule(appointmentId, {
+                      action: "CANCELLED_CLIENT",
+                    }),
+                  { onSuccess: close },
+                );
+                break;
+              case "accept_reschedule":
+                void runAction(
+                  () =>
+                    api.clientRespondReschedule(appointmentId, {
+                      action: "CONFIRMED",
+                    }),
+                  { onSuccess: close },
+                );
+                break;
+              default:
+                close();
+            }
+          }}
+        />
+      ) : null}
     </View>
   );
 };

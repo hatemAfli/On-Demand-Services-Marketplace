@@ -69,6 +69,29 @@ export class AvailabilityService {
     return this.withTemplateFallback(rows, providerId);
   }
 
+  /**
+   * Persists the default weekly template when the provider has no rows yet
+   * (e.g. first-time profile approval). Weekdays 08:00–18:00, weekend off.
+   */
+  async ensureDefaultWeeklyAvailabilityIfEmpty(providerId: string): Promise<void> {
+    await this.assertProviderExists(providerId);
+    const existingCount = await this.prisma.providerAvailability.count({
+      where: { providerId },
+    });
+    if (existingCount > 0) return;
+
+    await this.prisma.providerAvailability.createMany({
+      data: DAYS_ORDER.map((dayOfWeek) => ({
+        providerId,
+        dayOfWeek,
+        isWorking:
+          dayOfWeek !== DayOfWeek.SATURDAY && dayOfWeek !== DayOfWeek.SUNDAY,
+        startTime: DEFAULT_START,
+        endTime: DEFAULT_END,
+      })),
+    });
+  }
+
   async getProviderAvailability(providerId: string) {
     await this.assertProviderExists(providerId);
     const rows = await this.prisma.providerAvailability.findMany({

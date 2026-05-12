@@ -7,12 +7,23 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/context/AuthContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { AppLaunchOverlay } from "./src/components/common/AppLaunchOverlay";
+import { navigationRef } from "./src/navigation/rootNavigationRef";
+import {
+  registerForPushNotifications,
+  useNotificationNavigation,
+} from "./src/services/push-notifications";
 import "./src/i18n";
 
 const SPLASH_MS = 5000;
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
+
+  useNotificationNavigation(navigationRef);
+
+  useEffect(() => {
+    void registerForPushNotifications();
+  }, []);
 
   useEffect(() => {
     const id = setTimeout(() => setShowSplash(false), SPLASH_MS);

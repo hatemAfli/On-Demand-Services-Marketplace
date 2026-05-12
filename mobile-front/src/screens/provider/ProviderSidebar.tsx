@@ -47,7 +47,7 @@ const MENU_ITEMS = [
     icon: "chatbubbles-outline",
   },
   {
-    key: "ProviderNotifications",
+    key: "Notifications",
     labelKey: "provider.sidebar.menu.notifications",
     icon: "notifications-outline",
   },
@@ -55,11 +55,6 @@ const MENU_ITEMS = [
     key: "ProviderReclamations",
     labelKey: "provider.sidebar.menu.reclamations",
     icon: "alert-circle-outline",
-  },
-  {
-    key: "ProviderOrders",
-    labelKey: "provider.sidebar.menu.orders",
-    icon: "receipt-outline",
   },
   {
     key: "ProviderCalendar",

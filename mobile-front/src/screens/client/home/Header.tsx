@@ -14,23 +14,30 @@ import { styles } from "./styles";
 
 type Props = {
   avatarUri?: string;
+  /** Shown above the address line (replaces the old “Delivering to” label). */
+  clientName?: string;
   city?: string;
   address?: string;
   onSearchPress: () => void;
   onNotificationsPress: () => void;
   onProfilePress: () => void;
+  unreadNotificationCount?: number;
 };
 
 export const Header: React.FC<Props> = ({
   avatarUri,
+  clientName,
   city,
   address,
   onSearchPress,
   onNotificationsPress,
   onProfilePress,
+  unreadNotificationCount = 0,
 }) => {
   const { t } = useAppTranslation();
   const locationText = clientLocationLine(city, address);
+  const nameLine =
+    clientName?.trim() || t("client.settings.guestName");
 
   return (
     <View style={styles.header}>
@@ -40,7 +47,9 @@ export const Header: React.FC<Props> = ({
             <Icon name="location-arrow" size={14} color="#4F46E5" />
           </View>
           <View>
-            <Text style={styles.deliveringTo}>Delivering to</Text>
+            <Text style={styles.headerClientName} numberOfLines={1}>
+              {nameLine}
+            </Text>
             <View style={styles.addressTextContainer}>
               <Text style={styles.addressText}>
                 {locationText.length > 0
@@ -57,7 +66,15 @@ export const Header: React.FC<Props> = ({
             onPress={onNotificationsPress}
           >
             <Icon name="bell" size={20} color="#4b5563" solid />
-            <View style={styles.notificationBadge} />
+            {unreadNotificationCount > 0 ? (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText} numberOfLines={1}>
+                  {unreadNotificationCount > 99
+                    ? "99+"
+                    : String(unreadNotificationCount)}
+                </Text>
+              </View>
+            ) : null}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.avatarContainer}

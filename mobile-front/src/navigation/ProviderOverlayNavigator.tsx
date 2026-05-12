@@ -21,9 +21,9 @@ import { ProviderManageServiceScreen } from "../screens/provider/services/Provid
 import { ProviderRequestServiceScreen } from "../screens/provider/services/ProviderRequestServiceScreen";
 import { ProviderVerificationRequestDetailScreen } from "../screens/provider/services/ProviderVerificationRequestDetailScreen";
 import { ProviderMessagesScreen } from "../screens/provider/ProviderMessagesScreen";
-import { ProviderNotificationsScreen } from "../screens/provider/notifications/ProviderNotificationsScreen";
+import { NotificationsScreen } from "../screens/shared/NotificationsScreen";
+import { NotificationDetailScreen } from "../screens/shared/NotificationDetailScreen";
 import { ProviderReclamationsScreen } from "../screens/provider/ProviderReclamationsScreen";
-import { ProviderOrdersScreen } from "../screens/provider/ProviderOrdersScreen";
 import { ProviderScheduleScreen } from "../screens/provider/schedule/ProviderScheduleScreen";
 import { ProviderDaysOffScreen } from "../screens/provider/schedule/ProviderDaysOffScreen";
 import { ProviderCalendarScreen } from "../screens/provider/schedule/ProviderCalendarScreen";
@@ -112,7 +112,9 @@ export const ProviderOverlayNavigator: React.FC = () => {
             route.name !== "ProviderSchedule" &&
             route.name !== "ProviderDaysOff" &&
             route.name !== "ProviderCalendar" &&
-            route.name !== "ProviderAppointmentDetail",
+            route.name !== "ProviderAppointmentDetail" &&
+            route.name !== "Notifications" &&
+            route.name !== "NotificationDetail",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
             backgroundColor: COLORS.background,
@@ -157,15 +159,16 @@ export const ProviderOverlayNavigator: React.FC = () => {
           name="ProviderMessages"
           component={ProviderMessagesScreen}
         />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen
-          name="ProviderNotifications"
-          component={ProviderNotificationsScreen}
+          name="NotificationDetail"
+          component={NotificationDetailScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="ProviderReclamations"
           component={ProviderReclamationsScreen}
         />
-        <Stack.Screen name="ProviderOrders" component={ProviderOrdersScreen} />
         <Stack.Screen
           name="ProviderSchedule"
           component={ProviderScheduleScreen}

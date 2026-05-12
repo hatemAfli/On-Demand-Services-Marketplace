@@ -144,7 +144,7 @@ export const ProviderSettingsScreen: React.FC = () => {
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>
-                {t("provider.screenTitles.ProviderOrders")}
+                {t("provider.settings.statOrders")}
               </Text>
               <Text style={styles.statValue}>0</Text>
             </View>

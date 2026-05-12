@@ -1,5 +1,6 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './config/prisma.module';
 import { ClientsModule } from './modules/clients/clients.module';
@@ -15,6 +16,7 @@ import { SearchModule } from './modules/search/search.module';
 import { FavoritesModule } from './modules/favorites/favorites.module';
 import { AvailabilityModule } from './modules/availability/availability.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -25,6 +27,7 @@ import { AppService } from './app.service';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     ClientsModule,
@@ -40,6 +43,7 @@ import { AppService } from './app.service';
     FavoritesModule,
     AvailabilityModule,
     AppointmentsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

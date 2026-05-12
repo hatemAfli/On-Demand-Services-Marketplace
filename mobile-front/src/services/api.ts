@@ -59,6 +59,38 @@ export type AppointmentStatus =
   | "COMPLETED"
   | "DISPUTED";
 
+export type NotificationType =
+  | "APPOINTMENT_NEW_REQUEST"
+  | "APPOINTMENT_CONFIRMED"
+  | "APPOINTMENT_REFUSED"
+  | "APPOINTMENT_RESCHEDULED"
+  | "APPOINTMENT_RESCHEDULE_ACCEPTED"
+  | "APPOINTMENT_RESCHEDULE_DECLINED"
+  | "APPOINTMENT_CANCELLED_CLIENT"
+  | "APPOINTMENT_CANCELLED_PROVIDER"
+  | "APPOINTMENT_REMINDER_24H"
+  | "APPOINTMENT_REMINDER_1H"
+  | "APPOINTMENT_EN_ROUTE"
+  | "APPOINTMENT_STARTED"
+  | "APPOINTMENT_PROVIDER_ENDED"
+  | "APPOINTMENT_COMPLETED"
+  | "ACCOUNT_VERIFIED"
+  | "ACCOUNT_REJECTED"
+  | "DOCUMENT_ACCEPTED"
+  | "DOCUMENT_REJECTED"
+  | "NEW_REVIEW"
+  | "SYSTEM_ANNOUNCEMENT";
+
+export type AppNotification = {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  data: Record<string, unknown> | null;
+  isRead: boolean;
+  createdAt: string;
+};
+
 export type ProviderCalendarAppointment = {
   id: string;
   status: AppointmentStatus;
@@ -66,9 +98,135 @@ export type ProviderCalendarAppointment = {
   scheduledTime: string;
   durationMinutes: number | null;
   notes: string | null;
+  startedAt: string | null;
+  enRouteAt: string | null;
   givenService: { serviceName: string; categoryName: string };
-  client: { firstName: string; lastName: string; imageUrl: string | null };
+  client: {
+    firstName: string;
+    lastName: string;
+    imageUrl: string | null;
+    city: string;
+    address: string | null;
+  };
 };
+
+type CalendarTranslationRow = { locale: string; name: string };
+
+function pickCalendarName(
+  translations: CalendarTranslationRow[] | undefined,
+): string {
+  if (!translations?.length) return "";
+  const preferAr = i18n.language?.startsWith("ar");
+  const loc = preferAr ? "AR" : "EN";
+  const row =
+    translations.find((t) => t.locale === loc) ??
+    translations.find((t) => t.locale === "EN") ??
+    translations[0];
+  return row?.name ?? "";
+}
+
+function normalizeCalendarDateKey(v: unknown): string {
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) {
+    return v.slice(0, 10);
+  }
+  if (v instanceof Date) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, "0");
+    const d = String(v.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return "";
+}
+
+/** Maps one raw row from `GET /appointments/calendar` into a typed model. */
+export function mapProviderCalendarAppointmentRow(
+  raw: unknown,
+): ProviderCalendarAppointment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const id = r.id;
+  if (typeof id !== "string") return null;
+
+  const scheduledDate = normalizeCalendarDateKey(r.scheduledDate);
+  if (!scheduledDate) return null;
+
+  const status = r.status as AppointmentStatus;
+  const scheduledTime =
+    typeof r.scheduledTime === "string" ? r.scheduledTime : "00:00";
+  const durationMinutes =
+    typeof r.durationMinutes === "number" ? r.durationMinutes : null;
+  const notes =
+    typeof r.notes === "string" ? r.notes : ((r.notes as null) ?? null);
+  const startedAt =
+    r.startedAt != null && r.startedAt !== ""
+      ? String(r.startedAt)
+      : null;
+  const enRouteAt =
+    r.enRouteAt != null && r.enRouteAt !== "" ? String(r.enRouteAt) : null;
+
+  let serviceName = "";
+  let categoryName = "";
+  const gs = r.givenService;
+  if (gs && typeof gs === "object") {
+    const g = gs as Record<string, unknown>;
+    if (typeof g.serviceName === "string") serviceName = g.serviceName;
+    if (typeof g.categoryName === "string") categoryName = g.categoryName;
+    const svc = g.service;
+    if (svc && typeof svc === "object") {
+      const s = svc as Record<string, unknown>;
+      const tr = s.translations as CalendarTranslationRow[] | undefined;
+      const cat = s.category as Record<string, unknown> | undefined;
+      if (!serviceName) serviceName = pickCalendarName(tr);
+      if (cat && typeof cat === "object") {
+        const ctr = cat.translations as CalendarTranslationRow[] | undefined;
+        if (!categoryName) categoryName = pickCalendarName(ctr);
+      }
+    }
+  }
+
+  let firstName = "";
+  let lastName = "";
+  let imageUrl: string | null = null;
+  let city = "";
+  let address: string | null = null;
+  const client = r.client;
+  if (client && typeof client === "object") {
+    const c = client as Record<string, unknown>;
+    if (typeof c.imageUrl === "string") imageUrl = c.imageUrl;
+    else if (c.imageUrl === null) imageUrl = null;
+    if (typeof c.city === "string") city = c.city;
+    if (typeof c.address === "string") address = c.address;
+    else if (c.address === null) address = null;
+    const user = c.user;
+    if (user && typeof user === "object") {
+      const u = user as Record<string, unknown>;
+      if (typeof u.firstName === "string") firstName = u.firstName;
+      if (typeof u.lastName === "string") lastName = u.lastName;
+    }
+  }
+
+  return {
+    id,
+    status,
+    scheduledDate,
+    scheduledTime,
+    durationMinutes,
+    notes,
+    startedAt,
+    enRouteAt,
+    givenService: {
+      serviceName: serviceName || "Service",
+      categoryName: categoryName || "Category",
+    },
+    client: {
+      firstName,
+      lastName,
+      imageUrl,
+      city,
+      address,
+    },
+  };
+}
 
 // Storage keys
 const ACCESS_TOKEN_KEY = "accessToken";
@@ -270,6 +428,15 @@ export const api = {
 
   clientConfirm: (id: string, payload: { type: "START" | "END" }) =>
     apiClient.patch<unknown>(`/appointments/${id}/confirm`, payload),
+
+  registerPushToken: (payload: { token: string; platform: "ios" | "android" }) =>
+    apiClient.post("/notifications/push-token", payload),
+  getMyNotifications: (skip = 0, take = 30) =>
+    apiClient.get<AppNotification[]>("/notifications", { params: { skip, take } }),
+  getUnreadCount: () => apiClient.get<{ count: number }>("/notifications/unread-count"),
+  markNotificationsRead: (ids?: string[]) =>
+    apiClient.patch("/notifications/mark-read", ids?.length ? { ids } : {}),
+  markAllAsRead: () => apiClient.patch("/notifications/mark-read", {}),
 
   softDeleteProviderAccount: (data: { password: string }) =>
     apiClient.post<{ message: string; deletedAt: string }>(

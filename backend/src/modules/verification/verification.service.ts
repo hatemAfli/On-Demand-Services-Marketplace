@@ -7,6 +7,7 @@ import type { User } from '@prisma/client';
 import {
   AccountStatus,
   Locale,
+  NotificationType,
   OwnerType,
   Prisma,
   ReviewStatus,
@@ -19,6 +20,8 @@ import type { ResubmitVerificationDto } from './dto/resubmit-verification.dto';
 import type { CreateProviderServiceRequestDto } from './dto/create-provider-service-request.dto';
 import type { ReviewVerificationDocumentDto } from './dto/review-verification-document.dto';
 import { GivenServiceService } from '../given-service/given-service.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { AvailabilityService } from '../availability/availability.service';
 
 const requestInclude = {
   user: {
@@ -178,6 +181,8 @@ export class VerificationService {
     private readonly prisma: PrismaService,
     private readonly mail: ResendMailService,
     private readonly givenServiceService: GivenServiceService,
+    private readonly notificationsService: NotificationsService,
+    private readonly availabilityService: AvailabilityService,
   ) {}
 
   async listVerificationRequestsForAdmin(
@@ -624,13 +629,20 @@ export class VerificationService {
     }
 
     if (dto.decision === 'accept') {
-      await this.prisma.document.update({
+      const updatedDocument = await this.prisma.document.update({
         where: { id: documentId },
         data: {
           isAccepted: true,
           validatedAt: new Date(),
           rejectionReason: null,
         },
+      });
+      void this.notificationsService.send({
+        userId: request.userId,
+        type: NotificationType.DOCUMENT_ACCEPTED,
+        title: 'Document accepted ✓',
+        body: `Your ${updatedDocument.type} document has been accepted by the admin`,
+        data: { verificationRequestId: requestId, screen: 'ProviderRequestService' },
       });
     } else {
       const reason = dto.rejectionReason?.trim();
@@ -639,13 +651,20 @@ export class VerificationService {
           'rejectionReason is required when rejecting a document',
         );
       }
-      await this.prisma.document.update({
+      const updatedDocument = await this.prisma.document.update({
         where: { id: documentId },
         data: {
           isAccepted: false,
           validatedAt: null,
           rejectionReason: reason,
         },
+      });
+      void this.notificationsService.send({
+        userId: request.userId,
+        type: NotificationType.DOCUMENT_REJECTED,
+        title: 'Document rejected',
+        body: `Your ${updatedDocument.type} was rejected. Reason: ${reason || 'See details in app'}`,
+        data: { verificationRequestId: requestId, screen: 'ProviderRequestService' },
       });
     }
 
@@ -686,6 +705,21 @@ export class VerificationService {
       );
     }
 
+    const hadPriorApprovedProviderRequest =
+      existing.ownerType === OwnerType.PROVIDER
+        ? await this.prisma.verificationProfilRequest.findFirst({
+            where: {
+              userId: existing.userId,
+              ownerType: OwnerType.PROVIDER,
+              requestStatus: ReviewStatus.APPROVED,
+            },
+            select: { id: true },
+          })
+        : null;
+    const shouldSeedDefaultAvailability =
+      existing.ownerType === OwnerType.PROVIDER &&
+      !hadPriorApprovedProviderRequest;
+
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.verificationProfilRequest.update({
         where: { id },
@@ -720,6 +754,20 @@ export class VerificationService {
         where: { id },
         include: requestInclude,
       });
+    });
+
+    if (shouldSeedDefaultAvailability) {
+      await this.availabilityService.ensureDefaultWeeklyAvailabilityIfEmpty(
+        existing.userId,
+      );
+    }
+
+    void this.notificationsService.send({
+      userId: existing.userId,
+      type: NotificationType.ACCOUNT_VERIFIED,
+      title: 'Account verified 🎉',
+      body: 'Your profile has been approved. You can now receive booking requests!',
+      data: { screen: 'ProviderServices' },
     });
 
     await this.notifyProviderOutcome(updated, 'APPROVED');
@@ -772,6 +820,14 @@ export class VerificationService {
         where: { id },
         include: requestInclude,
       });
+    });
+
+    void this.notificationsService.send({
+      userId: existing.userId,
+      type: NotificationType.ACCOUNT_REJECTED,
+      title: 'Verification not approved',
+      body: `Your application was not approved. ${reason || 'Please contact support for details.'}`,
+      data: { screen: 'ProviderRequestService' },
     });
 
     await this.notifyProviderOutcome(updated, 'REJECTED', reason);

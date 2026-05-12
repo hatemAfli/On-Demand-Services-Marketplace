@@ -117,6 +117,34 @@ enum AppointmentConfirmationType {
   END
 }
 
+enum NotificationType {
+  // Appointment lifecycle
+  APPOINTMENT_NEW_REQUEST // provider receives new booking request
+  APPOINTMENT_CONFIRMED // client: provider accepted
+  APPOINTMENT_REFUSED // client: provider refused
+  APPOINTMENT_RESCHEDULED // client: provider proposed new time
+  APPOINTMENT_RESCHEDULE_ACCEPTED // provider: client accepted reschedule
+  APPOINTMENT_RESCHEDULE_DECLINED // provider: client declined reschedule
+  APPOINTMENT_CANCELLED_CLIENT // provider: client cancelled
+  APPOINTMENT_CANCELLED_PROVIDER // client: provider cancelled
+  APPOINTMENT_REMINDER_24H // both: reminder 24h before
+  APPOINTMENT_REMINDER_1H // both: reminder 1h before
+  APPOINTMENT_EN_ROUTE // client: provider is on the way
+  APPOINTMENT_STARTED // both: service started (awaiting other confirmation)
+  APPOINTMENT_PROVIDER_ENDED // client: provider marked service ended; confirm to complete
+  APPOINTMENT_COMPLETED // both: service completed
+  // Account
+  ACCOUNT_VERIFIED // provider/company: account approved
+  ACCOUNT_REJECTED // provider/company: account rejected
+  // Document verification
+  DOCUMENT_ACCEPTED // provider: a document was accepted
+  DOCUMENT_REJECTED // provider: a document was rejected
+  // Review
+  NEW_REVIEW // provider: client left a review
+  // System
+  SYSTEM_ANNOUNCEMENT // all users: platform announcement
+}
+
 // User Model (synced with Supabase Auth)
 model User {
   id              String        @id @db.Uuid
@@ -140,6 +168,8 @@ model User {
   documents                  Document[]
   verificationProfilRequests VerificationProfilRequest[]
   legalAcceptances           UserLegalAcceptance[]
+  pushTokens                 PushToken[]
+  notifications              Notification[]
 
   @@map("users")
 }
@@ -633,6 +663,42 @@ model VerificationProfilRequest {
   @@index([serviceId])
   @@index([requestStatus])
   @@map("verification_profil_requests")
+}
+
+/// Stores the Expo push token for each user device.
+/// One user can have multiple devices (tokens).
+model PushToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String // Expo push token: "ExponentPushToken[xxx]"
+  platform  String // "ios" | "android"
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId])
+  @@map("push_tokens")
+}
+
+/// Persisted notification row — drives both the in-app inbox and Supabase Realtime.
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid // recipient
+  type      NotificationType
+  title     String
+  body      String           @db.Text
+  data      Json? // arbitrary payload (appointmentId, etc.)
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
 
 

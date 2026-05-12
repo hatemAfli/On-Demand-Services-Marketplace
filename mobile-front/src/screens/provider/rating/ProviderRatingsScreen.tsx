@@ -527,7 +527,7 @@ export const ProviderRatingsScreen: React.FC = () => {
   return (
     <RatingsPerformanceScreen
       onPressHelp={() => {}}
-      onPressNotifications={() => navigation.navigate("ProviderNotifications")}
+      onPressNotifications={() => navigation.navigate("Notifications")}
       onPressViewAllReviews={() => navigation.navigate("ProviderRatings")}
     />
   );

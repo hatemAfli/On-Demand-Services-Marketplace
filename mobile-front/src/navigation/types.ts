@@ -1,4 +1,15 @@
 import { UserRole } from "../types";
+import type { NotificationType } from "../services/api";
+
+/** Params for in-app notification detail (account / document messages). */
+export type NotificationDetailParams = {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  createdAt: string;
+  data: Record<string, unknown> | null;
+};
 
 export type AuthStackParamList = {
   Welcome: undefined;
@@ -50,7 +61,8 @@ export type ClientStackParamList = {
   ClientReportProblem: { appointmentId: string; providerId: string };
   ClientFavorites: undefined;
   ClientFavoritesList: { type: "CATEGORY" | "SERVICE" | "PROVIDER" };
-  ClientNotifications: undefined;
+  Notifications: undefined;
+  NotificationDetail: NotificationDetailParams;
   ClientSettings: undefined;
   ClientEditProfile: undefined;
   ClientChangeEmail: undefined;
@@ -75,6 +87,7 @@ export type ClientStackRouteWithoutParams = Exclude<
   | "ClientReportProblem"
   | "ClientHomeSearch"
   | "ClientFavoritesList"
+  | "NotificationDetail"
 >;
 
 export type ProviderStackParamList = {
@@ -116,9 +129,9 @@ export type ProviderStackParamList = {
     };
   };
   ProviderMessages: undefined;
-  ProviderNotifications: undefined;
+  Notifications: undefined;
+  NotificationDetail: NotificationDetailParams;
   ProviderReclamations: undefined;
-  ProviderOrders: undefined;
   ProviderSchedule: undefined;
   ProviderDaysOff: undefined;
   ProviderCalendar: undefined;

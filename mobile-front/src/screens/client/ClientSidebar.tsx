@@ -57,7 +57,7 @@ const MENU_ITEMS: {
     icon: "heart-outline",
   },
   {
-    key: "ClientNotifications",
+    key: "Notifications",
     labelKey: "client.sidebar.menu.notifications",
     icon: "notifications-outline",
   },

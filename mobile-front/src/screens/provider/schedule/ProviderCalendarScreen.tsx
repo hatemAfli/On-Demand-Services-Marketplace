@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -24,14 +25,12 @@ import type { ProviderStackParamList } from "../../../navigation/types";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import {
   api,
+  mapProviderCalendarAppointmentRow,
   type AppointmentStatus,
   type ProviderCalendarAppointment,
 } from "../../../services/api";
-import i18n from "../../../i18n";
 
 type Props = NativeStackScreenProps<ProviderStackParamList, "ProviderCalendar">;
-
-type TranslationRow = { locale: string; name: string };
 
 const WEEKDAY_SHORT = [
   "Mon",
@@ -66,101 +65,6 @@ function addDays(d: Date, n: number): Date {
 
 function endOfIsoWeekSunday(weekStartMonday: Date): Date {
   return addDays(weekStartMonday, 6);
-}
-
-function normalizeScheduledDateKey(v: unknown): string {
-  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) {
-    return v.slice(0, 10);
-  }
-  if (v instanceof Date) {
-    return toYyyyMmDd(v);
-  }
-  return "";
-}
-
-function pickName(translations: TranslationRow[] | undefined): string {
-  if (!translations?.length) return "";
-  const preferAr = i18n.language?.startsWith("ar");
-  const loc = preferAr ? "AR" : "EN";
-  const row =
-    translations.find((t) => t.locale === loc) ??
-    translations.find((t) => t.locale === "EN") ??
-    translations[0];
-  return row?.name ?? "";
-}
-
-function mapRawToCalendarAppointment(
-  raw: unknown,
-): ProviderCalendarAppointment | null {
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
-  const id = r.id;
-  if (typeof id !== "string") return null;
-
-  const scheduledDate = normalizeScheduledDateKey(r.scheduledDate);
-  if (!scheduledDate) return null;
-
-  const status = r.status as AppointmentStatus;
-  const scheduledTime =
-    typeof r.scheduledTime === "string" ? r.scheduledTime : "00:00";
-  const durationMinutes =
-    typeof r.durationMinutes === "number" ? r.durationMinutes : null;
-  const notes =
-    typeof r.notes === "string" ? r.notes : ((r.notes as null) ?? null);
-
-  let serviceName = "";
-  let categoryName = "";
-  const gs = r.givenService;
-  if (gs && typeof gs === "object") {
-    const g = gs as Record<string, unknown>;
-    if (typeof g.serviceName === "string") serviceName = g.serviceName;
-    if (typeof g.categoryName === "string") categoryName = g.categoryName;
-    const svc = g.service;
-    if (svc && typeof svc === "object") {
-      const s = svc as Record<string, unknown>;
-      const tr = s.translations as TranslationRow[] | undefined;
-      const cat = s.category as Record<string, unknown> | undefined;
-      if (!serviceName) serviceName = pickName(tr);
-      if (cat && typeof cat === "object") {
-        const ctr = cat.translations as TranslationRow[] | undefined;
-        if (!categoryName) categoryName = pickName(ctr);
-      }
-    }
-  }
-
-  let firstName = "";
-  let lastName = "";
-  let imageUrl: string | null = null;
-  const client = r.client;
-  if (client && typeof client === "object") {
-    const c = client as Record<string, unknown>;
-    if (typeof c.imageUrl === "string") imageUrl = c.imageUrl;
-    else if (c.imageUrl === null) imageUrl = null;
-    const user = c.user;
-    if (user && typeof user === "object") {
-      const u = user as Record<string, unknown>;
-      if (typeof u.firstName === "string") firstName = u.firstName;
-      if (typeof u.lastName === "string") lastName = u.lastName;
-    }
-  }
-
-  return {
-    id,
-    status,
-    scheduledDate,
-    scheduledTime,
-    durationMinutes,
-    notes,
-    givenService: {
-      serviceName: serviceName || "Service",
-      categoryName: categoryName || "Category",
-    },
-    client: {
-      firstName,
-      lastName,
-      imageUrl,
-    },
-  };
 }
 
 function statusAccent(status: AppointmentStatus): string {
@@ -262,6 +166,24 @@ export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
   >(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void (async () => {
+        try {
+          const res = await api.getUnreadCount();
+          if (!cancelled) setUnreadCount(res.data?.count ?? 0);
+        } catch {
+          if (!cancelled) setUnreadCount(0);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
 
   const weekStartKey = useMemo(
     () => toYyyyMmDd(currentWeekStart),
@@ -281,7 +203,7 @@ export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
         ]);
         const rows = Array.isArray(calendarRes.data) ? calendarRes.data : [];
         const mapped = rows
-          .map((row) => mapRawToCalendarAppointment(row))
+          .map((row) => mapProviderCalendarAppointmentRow(row))
           .filter((x): x is ProviderCalendarAppointment => x !== null);
         setAppointments(mapped);
 
@@ -508,6 +430,21 @@ export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
             style={styles.todayBtn}
           >
             <Text style={styles.todayBtnText}>Today</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => navigation.navigate("Notifications")}
+            activeOpacity={0.88}
+            style={styles.headerBellBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={18}
+              color={COLORS.text.secondary}
+            />
+            {unreadCount > 0 ? <View style={styles.headerBellDot} /> : null}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -740,6 +677,29 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: "rgba(240, 142, 16, 0.18)",
+    marginRight: 8,
+  },
+  headerBellBtn: {
+    marginRight: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.gray[50],
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.gray[100],
+  },
+  headerBellDot: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.error,
+    borderWidth: 2,
+    borderColor: COLORS.white,
   },
   todayBtnText: {
     fontSize: 11,

@@ -1,32 +1,105 @@
-import React, { useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
+  Linking,
   ScrollView,
   StatusBar,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { ProviderStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
+import {
+  api,
+  mapProviderCalendarAppointmentRow,
+  type AppointmentStatus,
+  type ProviderCalendarAppointment,
+} from "../../../services/api";
+
+const JOB_EXCLUDED_FROM_DAY_COUNT: AppointmentStatus[] = [
+  "CANCELLED_CLIENT",
+  "CANCELLED_PROVIDER",
+  "REFUSED",
+];
+
+function countScheduledJobsOnDate(
+  rows: ProviderCalendarAppointment[],
+  dateKey: string,
+): number {
+  return rows.filter(
+    (a) =>
+      a.scheduledDate === dateKey &&
+      !JOB_EXCLUDED_FROM_DAY_COUNT.includes(a.status),
+  ).length;
+}
+
+function countCompletedJobsOnDate(
+  rows: ProviderCalendarAppointment[],
+  dateKey: string,
+): number {
+  return rows.filter(
+    (a) => a.scheduledDate === dateKey && a.status === "COMPLETED",
+  ).length;
+}
+
+function formatJobsVsYesterday(
+  today: number,
+  yesterday: number,
+): { line: string; trend: "up" | "down" | "same" } {
+  if (yesterday === 0 && today === 0) {
+    return { line: "Same as yesterday", trend: "same" };
+  }
+  if (yesterday === 0) {
+    return { line: "↗ +100% vs yesterday", trend: "up" };
+  }
+  const rawPct = ((today - yesterday) / yesterday) * 100;
+  const rounded = Math.round(rawPct * 10) / 10;
+  if (Math.abs(rounded) < 0.05) {
+    return { line: "Same as yesterday", trend: "same" };
+  }
+  const arrow = rawPct >= 0 ? "↗" : "↘";
+  const sign = rawPct >= 0 ? "+" : "";
+  return {
+    line: `${arrow} ${sign}${rounded}% vs yesterday`,
+    trend: rawPct > 0 ? "up" : "down",
+  };
+}
 
 type HomeActiveJobsScreenProps = {
   displayName: string;
   locationShort: string;
   photoUrl?: string | null;
   avatarInitials: string;
+  unreadNotificationCount: number;
+  activeJob: ProviderCalendarAppointment | null;
+  activeJobLoading: boolean;
+  timerTick: number;
   onPressNotifications?: () => void;
-  onPressCall?: () => void;
+  onCallClient: (appointmentId: string) => void;
   onPressChat?: () => void;
-  onPressNavigate?: () => void;
-  onPressUpdateStatus?: () => void;
+  onOpenAppointmentDetail: (appointmentId: string) => void;
   onPressViewAllScheduled?: () => void;
-  onPressScheduledItem?: () => void;
+  nextScheduledAppointment: ProviderCalendarAppointment | null;
+  todayYmd: string;
+  todayJobsCount: number;
+  jobsVsYesterdayLabel: string;
+  jobsVsYesterdayTrend: "up" | "down" | "same";
+  completedTodayCount: number;
+  restJobsCount: number;
 };
 
 function initialsFromName(name: string): string {
@@ -36,9 +109,297 @@ function initialsFromName(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+function toYyyyMmDd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+function combineLocalDateTime(dateYmd: string, timeHm: string): Date {
+  const [y, mo, d] = dateYmd.split("-").map(Number);
+  const parts = timeHm.split(":");
+  const hh = Number(parts[0]) || 0;
+  const mm = Number(parts[1]) || 0;
+  return new Date(y, (mo || 1) - 1, d || 1, hh, mm, 0, 0);
+}
+
+function slotDurationMinutes(duration: number | null): number {
+  return duration && duration > 0 ? duration : 60;
+}
+
+function slotEndDate(a: ProviderCalendarAppointment): Date {
+  const start = combineLocalDateTime(a.scheduledDate, a.scheduledTime);
+  return new Date(
+    start.getTime() + slotDurationMinutes(a.durationMinutes) * 60 * 1000,
+  );
+}
+
+function parseIsoDate(d: string | null): Date | null {
+  if (!d) return null;
+  const x = new Date(d);
+  return Number.isNaN(x.getTime()) ? null : x;
+}
+
+function sortBySchedule(
+  a: ProviderCalendarAppointment,
+  b: ProviderCalendarAppointment,
+): number {
+  const da = combineLocalDateTime(a.scheduledDate, a.scheduledTime).getTime();
+  const db = combineLocalDateTime(b.scheduledDate, b.scheduledTime).getTime();
+  return da - db;
+}
+
+function pickHighlightAppointment(
+  rows: ProviderCalendarAppointment[],
+  now: Date,
+): ProviderCalendarAppointment | null {
+  const sorted = [...rows].sort(sortBySchedule);
+
+  const inProgress = sorted.filter((a) => a.status === "IN_PROGRESS");
+  if (inProgress.length) return inProgress[0];
+
+  const enRoute = sorted.filter((a) => a.status === "EN_ROUTE");
+  const enRouteOk = enRoute.filter(
+    (a) => now.getTime() <= slotEndDate(a).getTime(),
+  );
+  if (enRouteOk.length) return enRouteOk[0];
+
+  const confirmed = sorted.filter((a) => a.status === "CONFIRMED");
+  const windows = confirmed.map((a) => ({
+    a,
+    start: combineLocalDateTime(a.scheduledDate, a.scheduledTime),
+    end: slotEndDate(a),
+  }));
+
+  const inside = windows.find(
+    ({ start, end }) => now >= start && now < end,
+  );
+  if (inside) return inside.a;
+
+  const upcoming = windows.find(({ start }) => start.getTime() > now.getTime());
+  if (upcoming) return upcoming.a;
+
+  return null;
+}
+
+const NEXT_SCHEDULE_EXCLUDED: AppointmentStatus[] = [
+  "CANCELLED_CLIENT",
+  "CANCELLED_PROVIDER",
+  "REFUSED",
+  "COMPLETED",
+  "DISPUTED",
+];
+
+function isNextScheduleCandidate(a: ProviderCalendarAppointment): boolean {
+  return !NEXT_SCHEDULE_EXCLUDED.includes(a.status);
+}
+
+/** Next booking after the active one (by schedule), or next upcoming after `now` if none active. */
+function pickNextScheduledAfterActive(
+  rows: ProviderCalendarAppointment[],
+  active: ProviderCalendarAppointment | null,
+  now: Date,
+): ProviderCalendarAppointment | null {
+  const candidates = rows.filter(isNextScheduleCandidate);
+  if (!candidates.length) return null;
+  const sorted = [...candidates].sort(sortBySchedule);
+
+  if (active) {
+    const t0 = combineLocalDateTime(
+      active.scheduledDate,
+      active.scheduledTime,
+    ).getTime();
+    return (
+      sorted.find((a) => {
+        if (a.id === active.id) return false;
+        const t = combineLocalDateTime(
+          a.scheduledDate,
+          a.scheduledTime,
+        ).getTime();
+        return t > t0;
+      }) ?? null
+    );
+  }
+
+  const nowMs = now.getTime();
+  return (
+    sorted.find(
+      (a) =>
+        combineLocalDateTime(a.scheduledDate, a.scheduledTime).getTime() >
+        nowMs,
+    ) ?? null
+  );
+}
+
+function formatClockSeconds(totalSeconds: number): string {
+  const sec = Math.max(0, totalSeconds);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+type ActiveJobTimer = {
+  main: string;
+  label: string;
+  progressPct: number;
+  footerStatus: string;
+};
+
+function buildActiveJobTimer(
+  a: ProviderCalendarAppointment,
+  now: Date,
+): ActiveJobTimer {
+  const start = combineLocalDateTime(a.scheduledDate, a.scheduledTime);
+  const durMs = slotDurationMinutes(a.durationMinutes) * 60 * 1000;
+  const end = new Date(start.getTime() + durMs);
+
+  if (a.status === "IN_PROGRESS") {
+    const started = parseIsoDate(a.startedAt) ?? start;
+    const elapsedSec = Math.max(
+      0,
+      Math.floor((now.getTime() - started.getTime()) / 1000),
+    );
+    const totalSec = Math.max(60, Math.floor(durMs / 1000));
+    const progressPct = Math.min(100, (elapsedSec / totalSec) * 100);
+    return {
+      main: formatClockSeconds(elapsedSec),
+      label: "TIME ELAPSED",
+      progressPct,
+      footerStatus: "In progress",
+    };
+  }
+
+  if (a.status === "EN_ROUTE") {
+    if (now < start) {
+      const remain = Math.max(
+        0,
+        Math.floor((start.getTime() - now.getTime()) / 1000),
+      );
+      return {
+        main: formatClockSeconds(remain),
+        label: "STARTS IN",
+        progressPct: 12,
+        footerStatus: "En route",
+      };
+    }
+    const remain = Math.max(
+      0,
+      Math.floor((end.getTime() - now.getTime()) / 1000),
+    );
+    const progressPct = Math.min(
+      100,
+      ((now.getTime() - start.getTime()) / durMs) * 100,
+    );
+    return {
+      main: formatClockSeconds(remain),
+      label: "TIME REMAINING",
+      progressPct,
+      footerStatus: "En route",
+    };
+  }
+
+  if (now < start) {
+    const remain = Math.max(
+      0,
+      Math.floor((start.getTime() - now.getTime()) / 1000),
+    );
+    return {
+      main: formatClockSeconds(remain),
+      label: "STARTS IN",
+      progressPct: 10,
+      footerStatus: "Confirmed",
+    };
+  }
+  if (now >= start && now < end) {
+    const remain = Math.max(
+      0,
+      Math.floor((end.getTime() - now.getTime()) / 1000),
+    );
+    const progressPct = Math.min(
+      100,
+      ((now.getTime() - start.getTime()) / durMs) * 100,
+    );
+    return {
+      main: formatClockSeconds(remain),
+      label: "TIME REMAINING",
+      progressPct,
+      footerStatus: "Confirmed",
+    };
+  }
+
+  return {
+    main: "—",
+    label: "",
+    progressPct: 0,
+    footerStatus: "Confirmed",
+  };
+}
+
+function formatClientLocationLine(a: ProviderCalendarAppointment): string {
+  const { city, address } = a.client;
+  const line = [address?.trim(), city?.trim()].filter(Boolean).join(", ");
+  return line || "Location not provided";
+}
+
+function formatJobDateLabel(yyyyMmDd: string): string {
+  const [y, m, d] = yyyyMmDd.split("-").map(Number);
+  if (!y || !m || !d) return yyyyMmDd;
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function formatServiceDetailSub(a: ProviderCalendarAppointment): string {
+  const bits: string[] = [];
+  if (a.durationMinutes && a.durationMinutes > 0) {
+    bits.push(`~${a.durationMinutes} min`);
+  }
+  const note = a.notes?.trim();
+  if (note) {
+    bits.push(note.length > 90 ? `${note.slice(0, 90)}…` : note);
+  }
+  if (bits.length === 0) {
+    bits.push(a.givenService.categoryName);
+  }
+  return bits.join(" · ");
+}
+
+function shortAppointmentRef(id: string): string {
+  return id.replace(/-/g, "").slice(0, 8).toUpperCase();
+}
+
+function extractClientPhoneFromAppointment(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const client = r.client;
+  if (!client || typeof client !== "object") return null;
+  const user = (client as Record<string, unknown>).user;
+  if (!user || typeof user !== "object") return null;
+  const p = (user as Record<string, unknown>).phoneNumber;
+  return typeof p === "string" && p.trim() ? p.trim() : null;
+}
+
 function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
-  const [isOnline, setIsOnline] = useState(true);
   const [headerElevated, setHeaderElevated] = useState(false);
+
+  const activeJobTimer = useMemo(() => {
+    if (!props.activeJob) return null;
+    return buildActiveJobTimer(props.activeJob, new Date());
+  }, [props.activeJob, props.timerTick]);
 
   const headerStyle = useMemo(
     () => [styles.header, headerElevated && styles.headerElevated],
@@ -68,10 +429,8 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                     </View>
                   )}
                 </View>
-                <View style={styles.onlineDot} />
               </View>
               <View style={styles.profileTextCol}>
-                <Text style={styles.welcomeText}>Welcome back,</Text>
                 <Text style={styles.nameText} numberOfLines={1}>
                   {props.displayName}
                 </Text>
@@ -79,34 +438,30 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
             </View>
 
             <View style={styles.headerActions}>
-              <View style={styles.switchRow}>
-                <Switch
-                  value={isOnline}
-                  onValueChange={setIsOnline}
-                  trackColor={{ false: "#E5E7EB", true: colors.success }}
-                  thumbColor={colors.surface}
-                />
-              </View>
-
               <TouchableOpacity
                 onPress={props.onPressNotifications}
                 activeOpacity={0.85}
                 style={styles.iconButton}
               >
-                <Text style={styles.iconText}>📕</Text>
-                <View style={styles.notificationDot} />
+                <Ionicons
+                  name="notifications-outline"
+                  size={22}
+                  color={colors.textMain}
+                />
+                {props.unreadNotificationCount > 0 ? (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText} numberOfLines={1}>
+                      {props.unreadNotificationCount > 99
+                        ? "99+"
+                        : String(props.unreadNotificationCount)}
+                    </Text>
+                  </View>
+                ) : null}
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.statusRow}>
-            <View style={styles.statusChip}>
-              <View style={styles.statusChipDot} />
-              <Text style={styles.statusChipText}>
-                {isOnline ? "You are Online" : "You are Offline"}
-              </Text>
-            </View>
-
             <Text style={styles.locationText} numberOfLines={1}>
               📍 {props.locationShort}
             </Text>
@@ -128,123 +483,174 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Active Job</Text>
-            <View style={styles.jobIdPill}>
-              <Text style={styles.jobIdText}>#JOB-8821</Text>
-            </View>
+            {props.activeJob && !props.activeJobLoading ? (
+              <View style={styles.jobIdPill}>
+                <Text style={styles.jobIdText}>
+                  #{shortAppointmentRef(props.activeJob.id)}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
-          <View style={styles.card}>
-            <View style={styles.progressTrack}>
-              <View style={styles.progressFill} />
+          {props.activeJobLoading ? (
+            <View style={[styles.card, styles.activeJobLoadingCard]}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.activeJobLoadingText}>Loading booking…</Text>
             </View>
+          ) : props.activeJob && activeJobTimer ? (
+            <View style={styles.card}>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${Math.max(4, activeJobTimer.progressPct)}%` },
+                  ]}
+                />
+              </View>
 
-            <View style={styles.cardBody}>
-              <View style={styles.jobTopRow}>
-                <View style={styles.customerRow}>
-                  <View style={styles.customerAvatarWrap}>
-                    <Image
-                      source={{
-                        uri: "https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-6.jpg",
-                      }}
-                      style={styles.customerAvatar}
-                    />
+              <View style={styles.cardBody}>
+                <View style={styles.jobTopRow}>
+                  <View style={styles.customerRow}>
+                    <View style={styles.customerAvatarWrap}>
+                      {props.activeJob.client.imageUrl ? (
+                        <Image
+                          source={{ uri: props.activeJob.client.imageUrl }}
+                          style={styles.customerAvatar}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.customerAvatar,
+                            styles.customerAvatarFallback,
+                          ]}
+                        >
+                          <Text style={styles.customerAvatarFallbackText}>
+                            {initialsFromName(
+                              `${props.activeJob.client.firstName} ${props.activeJob.client.lastName}`,
+                            )}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.customerTextCol}>
+                      <Text style={styles.customerName} numberOfLines={1}>
+                        {`${props.activeJob.client.firstName} ${props.activeJob.client.lastName}`.trim() ||
+                          "Client"}
+                      </Text>
+                      <Text style={styles.customerSub} numberOfLines={2}>
+                        {props.activeJob.givenService.categoryName} ·{" "}
+                        {formatJobDateLabel(props.activeJob.scheduledDate)} ·{" "}
+                        {props.activeJob.scheduledTime}
+                      </Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text style={styles.customerName}>Sarah Johnson</Text>
-                    <View style={styles.ratingRow}>
-                      <Text style={styles.ratingStar}>★</Text>
-                      <Text style={styles.ratingText}>4.9 (12 jobs)</Text>
+
+                  <View style={styles.timerBlock}>
+                    <Text style={styles.timerText}>{activeJobTimer.main}</Text>
+                    {activeJobTimer.label ? (
+                      <Text style={styles.timerLabel}>{activeJobTimer.label}</Text>
+                    ) : null}
+                  </View>
+                </View>
+
+                <View style={styles.detailsBox}>
+                  <View style={styles.detailRow}>
+                    <View style={styles.detailIconCircle}>
+                      <Text style={styles.detailIconText}>🛠️</Text>
+                    </View>
+                    <View style={styles.detailTextBlock}>
+                      <Text style={styles.detailLabel}>SERVICE TYPE</Text>
+                      <Text style={styles.detailTitle} numberOfLines={2}>
+                        {props.activeJob.givenService.serviceName}
+                      </Text>
+                      <Text style={styles.detailSub} numberOfLines={2}>
+                        {formatServiceDetailSub(props.activeJob)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailsDivider} />
+
+                  <View style={styles.detailRow}>
+                    <View style={styles.detailIconCircle}>
+                      <Text style={styles.detailIconText}>📍</Text>
+                    </View>
+                    <View style={styles.detailTextBlock}>
+                      <Text style={styles.detailLabel}>LOCATION</Text>
+                      <Text style={styles.detailTitle} numberOfLines={2}>
+                        {formatClientLocationLine(props.activeJob)}
+                      </Text>
                     </View>
                   </View>
                 </View>
 
-                <View style={styles.timerBlock}>
-                  <Text style={styles.timerText}>14:20</Text>
-                  <Text style={styles.timerLabel}>TIME REMAINING</Text>
+                <View style={styles.actionsRow}>
+                  <TouchableOpacity
+                    onPress={() => props.onCallClient(props.activeJob!.id)}
+                    activeOpacity={0.85}
+                    style={styles.actionSmall}
+                  >
+                    <Text style={styles.actionIcon}>📞</Text>
+                    <Text style={styles.actionLabel}>Call</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={props.onPressChat}
+                    activeOpacity={0.85}
+                    style={styles.actionSmall}
+                  >
+                    <Text style={styles.actionIcon}>💬</Text>
+                    <Text style={styles.actionLabel}>Chat</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() =>
+                      props.onOpenAppointmentDetail(props.activeJob!.id)
+                    }
+                    activeOpacity={0.9}
+                    style={styles.actionPrimary}
+                  >
+                    <Text style={styles.actionPrimaryIcon}>➔</Text>
+                    <Text style={styles.actionPrimaryText}>Navigate</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
-              <View style={styles.detailsBox}>
-                <View style={styles.detailRow}>
-                  <View style={styles.detailIconCircle}>
-                    <Text style={styles.detailIconText}>🛠️</Text>
-                  </View>
-                  <View style={styles.detailTextBlock}>
-                    <Text style={styles.detailLabel}>SERVICE TYPE</Text>
-                    <Text style={styles.detailTitle}>
-                      AC Maintenance & Cleaning
-                    </Text>
-                    <Text style={styles.detailSub}>
-                      2 Split Units • Standard Service
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.detailsDivider} />
-
-                <View style={styles.detailRow}>
-                  <View style={styles.detailIconCircle}>
-                    <Text style={styles.detailIconText}>📍</Text>
-                  </View>
-                  <View style={styles.detailTextBlock}>
-                    <Text style={styles.detailLabel}>LOCATION</Text>
-                    <Text style={styles.detailTitle} numberOfLines={1}>
-                      Villa 42, King Fahd Road, Riyadh
-                    </Text>
-                    <Text style={styles.detailSub}>
-                      4.2 km away • ~12 min drive
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.actionsRow}>
+              <View style={styles.cardFooter}>
+                <Text style={styles.footerStatusText}>
+                  Status:{" "}
+                  <Text style={styles.footerStatusAccent}>
+                    {activeJobTimer.footerStatus}
+                  </Text>
+                </Text>
                 <TouchableOpacity
-                  onPress={props.onPressCall}
+                  onPress={() =>
+                    props.onOpenAppointmentDetail(props.activeJob!.id)
+                  }
                   activeOpacity={0.85}
-                  style={styles.actionSmall}
                 >
-                  <Text style={styles.actionIcon}>📞</Text>
-                  <Text style={styles.actionLabel}>Call</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={props.onPressChat}
-                  activeOpacity={0.85}
-                  style={styles.actionSmall}
-                >
-                  <Text style={styles.actionIcon}>💬</Text>
-                  <Text style={styles.actionLabel}>Chat</Text>
-                  <View style={styles.chatDot} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={props.onPressNavigate}
-                  activeOpacity={0.9}
-                  style={styles.actionPrimary}
-                >
-                  <Text style={styles.actionPrimaryIcon}>➔</Text>
-                  <Text style={styles.actionPrimaryText}>Navigate</Text>
+                  <Text style={styles.updateStatusText}>View details ›</Text>
                 </TouchableOpacity>
               </View>
             </View>
-
-            <View style={styles.cardFooter}>
-              <Text style={styles.footerStatusText}>
-                Status:{" "}
-                <Text style={styles.footerStatusAccent}>On the way</Text>
+          ) : (
+            <View style={[styles.card, styles.activeJobEmptyCard]}>
+              <Text style={styles.activeJobEmptyTitle}>No active booking</Text>
+              <Text style={styles.activeJobEmptySub}>
+                Jobs in progress and your next confirmed visit will show here.
               </Text>
               <TouchableOpacity
-                onPress={props.onPressUpdateStatus}
+                onPress={props.onPressViewAllScheduled}
                 activeOpacity={0.85}
+                style={styles.activeJobEmptyBtn}
               >
-                <Text style={styles.updateStatusText}>Update Status ›</Text>
+                <Text style={styles.activeJobEmptyBtnText}>Open schedule</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          )}
         </View>
 
-        {/* Earnings Snapshot */}
+        {/* Today vs completed snapshot */}
         <View style={[styles.section, styles.sectionTight]}>
           <View style={styles.row2}>
             <View style={styles.statCard}>
@@ -255,13 +661,24 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                   <Text
                     style={[styles.statIconText, styles.statIconTextSuccess]}
                   >
-                    👛
+                    📅
                   </Text>
                 </View>
                 <Text style={styles.statKicker}>TODAY</Text>
               </View>
-              <Text style={styles.statValue}>SAR 420</Text>
-              <Text style={styles.statDelta}>↗ +12% vs yesterday</Text>
+              <Text style={styles.statValue}>
+                {props.todayJobsCount}{" "}
+                {props.todayJobsCount === 1 ? "Job" : "Jobs"}
+              </Text>
+              <Text
+                style={[
+                  styles.statDelta,
+                  props.jobsVsYesterdayTrend === "down" && styles.statDeltaDown,
+                  props.jobsVsYesterdayTrend === "same" && styles.statDeltaNeutral,
+                ]}
+              >
+                {props.jobsVsYesterdayLabel}
+              </Text>
             </View>
 
             <View style={styles.statCard}>
@@ -277,8 +694,13 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                 </View>
                 <Text style={styles.statKicker}>COMPLETED</Text>
               </View>
-              <Text style={styles.statValue}>3 Jobs</Text>
-              <Text style={styles.statHint}>Goal: 5 jobs/day</Text>
+              <Text style={styles.statValue}>
+                {props.completedTodayCount}{" "}
+                {props.completedTodayCount === 1 ? "Job" : "Jobs"}
+              </Text>
+              <Text style={styles.statHint}>
+                Rest : {props.restJobsCount}
+              </Text>
             </View>
           </View>
         </View>
@@ -295,29 +717,50 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            onPress={props.onPressScheduledItem}
-            activeOpacity={0.85}
-            style={styles.scheduledCard}
-          >
-            <View style={styles.scheduledTimeCol}>
-              <Text style={styles.scheduledDay}>TODAY</Text>
-              <Text style={styles.scheduledTime}>16:00</Text>
-            </View>
+          {props.nextScheduledAppointment ? (
+            <TouchableOpacity
+              onPress={() =>
+                props.onOpenAppointmentDetail(props.nextScheduledAppointment!.id)
+              }
+              activeOpacity={0.85}
+              style={styles.scheduledCard}
+            >
+              <View style={styles.scheduledTimeCol}>
+                <Text style={styles.scheduledDay}>
+                  {props.nextScheduledAppointment.scheduledDate ===
+                  props.todayYmd
+                    ? "TODAY"
+                    : formatJobDateLabel(
+                        props.nextScheduledAppointment.scheduledDate,
+                      ).toUpperCase()}
+                </Text>
+                <Text style={styles.scheduledTime}>
+                  {props.nextScheduledAppointment.scheduledTime}
+                </Text>
+              </View>
 
-            <View style={styles.scheduledContent}>
-              <Text style={styles.scheduledTitle} numberOfLines={1}>
-                Plumbing Repair
-              </Text>
-              <Text style={styles.scheduledSub} numberOfLines={1}>
-                Mr. Khalid • Al Malqa District
-              </Text>
-            </View>
+              <View style={styles.scheduledContent}>
+                <Text style={styles.scheduledTitle} numberOfLines={1}>
+                  {props.nextScheduledAppointment.givenService.serviceName}
+                </Text>
+                <Text style={styles.scheduledSub} numberOfLines={1}>
+                  {`${props.nextScheduledAppointment.client.firstName} ${props.nextScheduledAppointment.client.lastName}`.trim() ||
+                    "Client"}{" "}
+                  · {formatClientLocationLine(props.nextScheduledAppointment)}
+                </Text>
+              </View>
 
-            <View style={styles.scheduledArrow}>
-              <Text style={styles.scheduledArrowText}>›</Text>
+              <View style={styles.scheduledArrow}>
+                <Text style={styles.scheduledArrowText}>›</Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View style={[styles.scheduledCard, styles.scheduledCardEmpty]}>
+              <Text style={styles.scheduledEmptyText}>
+                No other visits scheduled after this one in the loaded period.
+              </Text>
             </View>
-          </TouchableOpacity>
+          )}
         </View>
 
         {/* Performance */}
@@ -425,6 +868,121 @@ export const ProviderHomeScreen: React.FC = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<ProviderStackParamList>>();
   const { user } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [activeJob, setActiveJob] =
+    useState<ProviderCalendarAppointment | null>(null);
+  const [activeJobLoading, setActiveJobLoading] = useState(true);
+  const [timerTick, setTimerTick] = useState(0);
+  const calendarRowsRef = useRef<ProviderCalendarAppointment[]>([]);
+  const [calendarRows, setCalendarRows] = useState<
+    ProviderCalendarAppointment[]
+  >([]);
+  const [calendarStats, setCalendarStats] = useState({
+    todayJobs: 0,
+    yesterdayJobs: 0,
+    completedToday: 0,
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTimerTick((n) => n + 1);
+      const rows = calendarRowsRef.current;
+      if (!rows.length) return;
+      setActiveJob((prev) => {
+        const next = pickHighlightAppointment(rows, new Date());
+        return prev?.id === next?.id ? prev : next;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void (async () => {
+        try {
+          const res = await api.getUnreadCount();
+          if (!cancelled) setUnreadCount(res.data?.count ?? 0);
+        } catch {
+          if (!cancelled) setUnreadCount(0);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void (async () => {
+        setActiveJobLoading(true);
+        try {
+          const from = toYyyyMmDd(addDays(new Date(), -1));
+          const to = toYyyyMmDd(addDays(new Date(), 14));
+          const res = await api.getProviderCalendar(from, to);
+          const rows = Array.isArray(res.data) ? res.data : [];
+          const mapped = rows
+            .map((row) => mapProviderCalendarAppointmentRow(row))
+            .filter((x): x is ProviderCalendarAppointment => x !== null);
+          if (!cancelled) {
+            calendarRowsRef.current = mapped;
+            setCalendarRows(mapped);
+            const todayKey = toYyyyMmDd(new Date());
+            const yesterdayKey = toYyyyMmDd(addDays(new Date(), -1));
+            setCalendarStats({
+              todayJobs: countScheduledJobsOnDate(mapped, todayKey),
+              yesterdayJobs: countScheduledJobsOnDate(mapped, yesterdayKey),
+              completedToday: countCompletedJobsOnDate(mapped, todayKey),
+            });
+            setActiveJob(pickHighlightAppointment(mapped, new Date()));
+          }
+        } catch {
+          if (!cancelled) {
+            calendarRowsRef.current = [];
+            setCalendarRows([]);
+            setActiveJob(null);
+            setCalendarStats({
+              todayJobs: 0,
+              yesterdayJobs: 0,
+              completedToday: 0,
+            });
+          }
+        } finally {
+          if (!cancelled) setActiveJobLoading(false);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
+
+  const onCallClient = useCallback(async (appointmentId: string) => {
+    try {
+      const res = await api.getAppointmentById(appointmentId);
+      const phone = extractClientPhoneFromAppointment(res.data);
+      if (phone) {
+        const dial = phone.replace(/\s/g, "");
+        await Linking.openURL(`tel:${dial}`);
+      } else {
+        Alert.alert(
+          "Call unavailable",
+          "No phone number on file for this client.",
+        );
+      }
+    } catch {
+      Alert.alert("Error", "Could not load contact details.");
+    }
+  }, []);
+
+  const onOpenAppointmentDetail = useCallback(
+    (appointmentId: string) => {
+      navigation.navigate("ProviderAppointmentDetail", { appointmentId });
+    },
+    [navigation],
+  );
 
   const { displayName, locationShort, photoUrl, avatarInitials } =
     useMemo(() => {
@@ -447,19 +1005,51 @@ export const ProviderHomeScreen: React.FC = () => {
       };
     }, [user]);
 
+  const jobsVsYesterday = useMemo(
+    () =>
+      formatJobsVsYesterday(
+        calendarStats.todayJobs,
+        calendarStats.yesterdayJobs,
+      ),
+    [calendarStats.todayJobs, calendarStats.yesterdayJobs],
+  );
+
+  const restJobsCount = useMemo(
+    () =>
+      Math.max(0, calendarStats.todayJobs - calendarStats.completedToday),
+    [calendarStats.todayJobs, calendarStats.completedToday],
+  );
+
+  const nextScheduledAppointment = useMemo(
+    () =>
+      pickNextScheduledAfterActive(calendarRows, activeJob, new Date()),
+    [calendarRows, activeJob, timerTick],
+  );
+
+  const todayYmd = useMemo(() => toYyyyMmDd(new Date()), [timerTick]);
+
   return (
     <HomeActiveJobsScreen
       displayName={displayName}
       locationShort={locationShort}
       photoUrl={photoUrl}
       avatarInitials={avatarInitials}
-      onPressNotifications={() => navigation.navigate("ProviderNotifications")}
-      onPressCall={() => {}}
+      unreadNotificationCount={unreadCount}
+      activeJob={activeJob}
+      activeJobLoading={activeJobLoading}
+      timerTick={timerTick}
+      onPressNotifications={() => navigation.navigate("Notifications")}
+      onCallClient={onCallClient}
       onPressChat={() => navigation.navigate("ProviderMessages")}
-      onPressNavigate={() => navigation.navigate("ProviderCalendar")}
-      onPressUpdateStatus={() => navigation.navigate("ProviderCalendar")}
+      onOpenAppointmentDetail={onOpenAppointmentDetail}
       onPressViewAllScheduled={() => navigation.navigate("ProviderCalendar")}
-      onPressScheduledItem={() => navigation.navigate("ProviderCalendar")}
+      nextScheduledAppointment={nextScheduledAppointment}
+      todayYmd={todayYmd}
+      todayJobsCount={calendarStats.todayJobs}
+      jobsVsYesterdayLabel={jobsVsYesterday.line}
+      jobsVsYesterdayTrend={jobsVsYesterday.trend}
+      completedTodayCount={calendarStats.completedToday}
+      restJobsCount={restJobsCount}
     />
   );
 };
@@ -521,6 +1111,7 @@ const styles = StyleSheet.create({
   profileTextCol: {
     flex: 1,
     minWidth: 0,
+    justifyContent: "center",
   },
   avatarOuter: {
     position: "relative",
@@ -550,34 +1141,14 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#4B5563",
   },
-  onlineDot: {
-    position: "absolute",
-    right: 1,
-    bottom: 1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.success,
-    borderWidth: 2,
-    borderColor: colors.surface,
-  },
-  welcomeText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: colors.textMuted,
-  },
   nameText: {
     fontSize: 18,
     fontWeight: "800",
     color: colors.textMain,
-    marginTop: 2,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  switchRow: {
-    marginRight: 10,
   },
   iconButton: {
     width: 40,
@@ -586,58 +1157,38 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "visible",
   },
-  iconText: {
-    fontSize: 16,
-    color: colors.textMain,
-  },
-  notificationDot: {
+  notificationBadge: {
     position: "absolute",
-    top: 10,
-    right: 11,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 2,
+    right: 2,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
     backgroundColor: colors.error,
-    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
     borderColor: colors.surface,
+  },
+  notificationBadgeText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: "800",
   },
   statusRow: {
     marginTop: 14,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  statusChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(16,185,129,0.10)",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  statusChipDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.success,
-    marginRight: 8,
-  },
-  statusChipText: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: colors.success,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
   },
   locationText: {
     flex: 1,
-    marginLeft: 10,
     minWidth: 0,
     fontSize: 12,
     fontWeight: "600",
     color: colors.textMuted,
-    textAlign: "right",
   },
   scroll: {
     flex: 1,
@@ -697,10 +1248,48 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: 6,
-    width: "66%",
     backgroundColor: colors.primary,
     borderTopRightRadius: 999,
     borderBottomRightRadius: 999,
+  },
+  activeJobLoadingCard: {
+    paddingVertical: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activeJobLoadingText: {
+    marginTop: 10,
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textMuted,
+  },
+  activeJobEmptyCard: {
+    padding: 20,
+  },
+  activeJobEmptyTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.textMain,
+  },
+  activeJobEmptySub: {
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textMuted,
+    lineHeight: 18,
+  },
+  activeJobEmptyBtn: {
+    marginTop: 14,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(240,142,16,0.12)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  activeJobEmptyBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: colors.primary,
   },
   cardBody: {
     padding: 18,
@@ -712,6 +1301,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   customerRow: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -727,27 +1318,35 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
+  customerTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
   customerName: {
     fontSize: 18,
     fontWeight: "800",
     color: colors.textMain,
   },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  customerSub: {
     marginTop: 4,
-  },
-  ratingStar: {
-    color: colors.warning,
-    fontSize: 12,
-    marginRight: 6,
-  },
-  ratingText: {
     fontSize: 12,
     fontWeight: "600",
     color: colors.textMuted,
   },
+  customerAvatarFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E5E7EB",
+  },
+  customerAvatarFallbackText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#4B5563",
+  },
   timerBlock: {
+    flexShrink: 0,
+    marginLeft: 12,
+    marginRight: 6,
     alignItems: "flex-end",
   },
   timerText: {
@@ -762,6 +1361,13 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: colors.textMuted,
     letterSpacing: 1,
+  },
+  timerDateLine: {
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.textMuted,
+    textAlign: "right",
   },
   detailsBox: {
     backgroundColor: "rgba(244,244,245,0.50)",
@@ -842,17 +1448,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: colors.textMuted,
-  },
-  chatDot: {
-    position: "absolute",
-    top: 12,
-    right: 14,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.error,
-    borderWidth: 1,
-    borderColor: colors.surface,
   },
   actionPrimary: {
     flex: 2,
@@ -959,6 +1554,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: colors.success,
   },
+  statDeltaDown: {
+    color: colors.error,
+  },
+  statDeltaNeutral: {
+    color: colors.textMuted,
+  },
   statHint: {
     marginTop: 6,
     fontSize: 11,
@@ -1026,6 +1627,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.textLight,
     marginTop: -2,
+  },
+  scheduledCardEmpty: {
+    flexDirection: "column",
+    justifyContent: "center",
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+  },
+  scheduledEmptyText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textMuted,
+    textAlign: "center",
+    lineHeight: 18,
   },
   performanceCard: {
     backgroundColor: "#111827",
