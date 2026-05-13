@@ -1040,7 +1040,7 @@ export const ProviderHomeScreen: React.FC = () => {
       timerTick={timerTick}
       onPressNotifications={() => navigation.navigate("Notifications")}
       onCallClient={onCallClient}
-      onPressChat={() => navigation.navigate("ProviderMessages")}
+      onPressChat={() => navigation.navigate("ConversationList")}
       onOpenAppointmentDetail={onOpenAppointmentDetail}
       onPressViewAllScheduled={() => navigation.navigate("ProviderCalendar")}
       nextScheduledAppointment={nextScheduledAppointment}

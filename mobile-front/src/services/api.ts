@@ -91,6 +91,39 @@ export type AppNotification = {
   createdAt: string;
 };
 
+/** Row from GET `/messaging/conversations` (matches backend include). */
+export type ConversationListItem = {
+  id: string;
+  client: {
+    user: { firstName: string; lastName: string };
+    imageUrl: string | null;
+  };
+  provider: {
+    user: { firstName: string; lastName: string };
+    photoUrl: string | null;
+    tagline: string | null;
+  };
+  lastMessageText: string | null;
+  lastMessageAt: string | null;
+  lastMessageSender: "CLIENT" | "PROVIDER" | null;
+  unreadClient: number;
+  unreadProvider: number;
+};
+
+export type MessageStatus = "SENT" | "DELIVERED" | "READ";
+
+/** Row from GET/POST `/messaging/messages` (matches Prisma `Message`). */
+export type ChatMessage = {
+  id: string;
+  conversationId: string;
+  senderUserId: string;
+  senderRole: "CLIENT" | "PROVIDER";
+  text: string | null;
+  mediaUrls: string[];
+  status: MessageStatus;
+  createdAt: string;
+};
+
 export type ProviderCalendarAppointment = {
   id: string;
   status: AppointmentStatus;
@@ -437,6 +470,30 @@ export const api = {
   markNotificationsRead: (ids?: string[]) =>
     apiClient.patch("/notifications/mark-read", ids?.length ? { ids } : {}),
   markAllAsRead: () => apiClient.patch("/notifications/mark-read", {}),
+
+  getMyConversations: () =>
+    apiClient.get<ConversationListItem[]>("/messaging/conversations"),
+
+  openOrCreateConversation: (payload: { counterpartId: string }) =>
+    apiClient.post<{ id: string }>("/messaging/conversations", payload),
+
+  getMessages: (conversationId: string, take = 30, before?: string) =>
+    apiClient.get<ChatMessage[]>("/messaging/messages", {
+      params: {
+        conversationId,
+        take,
+        ...(before ? { before } : {}),
+      },
+    }),
+
+  sendMessage: (payload: {
+    conversationId: string;
+    text?: string;
+    mediaUrls?: string[];
+  }) => apiClient.post<ChatMessage>("/messaging/messages", payload),
+
+  markConversationRead: (conversationId: string) =>
+    apiClient.patch("/messaging/messages/read", { conversationId }),
 
   softDeleteProviderAccount: (data: { password: string }) =>
     apiClient.post<{ message: string; deletedAt: string }>(

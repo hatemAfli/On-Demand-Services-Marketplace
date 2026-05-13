@@ -167,6 +167,8 @@ export class GivenServiceService {
         bookingProviderId: provider.id,
         owner: {
           id: provider.id,
+          /** Same as `User.id` (Provider PK === User PK). For messaging `counterpartId`. */
+          userId: provider.id,
           type: 'PROVIDER',
           displayName:
             `${provider.user?.firstName ?? ''} ${provider.user?.lastName ?? ''}`.trim(),
@@ -216,6 +218,8 @@ export class GivenServiceService {
       bookingProviderId: companyProvider?.id ?? null,
       owner: {
         id: company.id,
+        /** First company provider's `User.id` (same as `Provider.id`), or null if none. */
+        userId: companyProvider?.id ?? null,
         type: 'COMPANY',
         displayName: company.companyName,
         photoUrl: company.logo ?? null,

@@ -145,6 +145,12 @@ enum NotificationType {
   SYSTEM_ANNOUNCEMENT // all users: platform announcement
 }
 
+enum MessageStatus {
+  SENT // inserted in DB
+  DELIVERED // recipient's device received it
+  READ // recipient opened the conversation
+}
+
 // User Model (synced with Supabase Auth)
 model User {
   id              String        @id @db.Uuid
@@ -170,6 +176,7 @@ model User {
   legalAcceptances           UserLegalAcceptance[]
   pushTokens                 PushToken[]
   notifications              Notification[]
+  sentMessages               Message[]
 
   @@map("users")
 }
@@ -190,6 +197,7 @@ model Client {
   searchHistory ClientSearchHistory[]
   favorites     ClientFavorite[]
   appointments  Appointment[]
+  conversations Conversation[]
 
   @@map("clients")
 }
@@ -227,8 +235,58 @@ model Provider {
   availability  ProviderAvailability[]
   daysOff       ProviderDayOff[]
   appointments  Appointment[]
+  conversations Conversation[]
 
   @@map("providers")
+}
+
+/// One conversation thread between a client and a provider.
+/// Created automatically the first time either party sends a message.
+model Conversation {
+  id         String @id @default(uuid()) @db.Uuid
+  clientId   String @map("client_id") @db.Uuid
+  providerId String @map("provider_id") @db.Uuid
+
+  /// Snapshot of last message for list preview — updated on every new message.
+  lastMessageText   String?   @map("last_message_text") @db.Text
+  lastMessageAt     DateTime? @map("last_message_at")
+  lastMessageSender String?   @map("last_message_sender") // "CLIENT" | "PROVIDER"
+
+  /// Unread counters per side — reset to 0 when that side opens the conversation.
+  unreadClient   Int @default(0) @map("unread_client")
+  unreadProvider Int @default(0) @map("unread_provider")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  provider Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([clientId, providerId])
+  @@index([clientId, lastMessageAt])
+  @@index([providerId, lastMessageAt])
+  @@map("conversations")
+}
+
+/// A single chat message inside a conversation.
+model Message {
+  id             String        @id @default(uuid()) @db.Uuid
+  conversationId String        @map("conversation_id") @db.Uuid
+  senderUserId   String        @map("sender_user_id") @db.Uuid // the User.id of the sender
+  senderRole     String        @map("sender_role") // "CLIENT" | "PROVIDER"
+  text           String?       @db.Text // null if media-only
+  mediaUrls      String[]      @default([]) @map("media_urls") // photo attachments
+  status         MessageStatus @default(SENT)
+  readAt         DateTime?     @map("read_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderUserId])
+  @@map("messages")
 }
 
 // company Admin model

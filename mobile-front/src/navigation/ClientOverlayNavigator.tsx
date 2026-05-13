@@ -23,6 +23,8 @@ import { ClientProviderProfileScreen } from "../screens/client/provider/ClientPr
 import { ClientSlotPickerScreen } from "../screens/client/appointments/ClientSlotPickerScreen";
 import { ClientBookingConfirmationScreen } from "../screens/client/appointments/ClientBookingConfirmationScreen";
 import { ClientMessagesScreen } from "../screens/client/ClientMessagesScreen";
+import { ConversationListScreen } from "../screens/shared/ConversationListScreen";
+import { ChatScreen } from "../screens/shared/ChatScreen";
 import { ClientReclamationScreen } from "../screens/client/ClientReclamationScreen";
 import { ClientAppointmentsScreen } from "../screens/client/appointments/ClientAppointmentsScreen";
 import { ClientAppointmentDetailScreen } from "../screens/client/appointments/ClientAppointmentDetailScreen";
@@ -113,7 +115,9 @@ export const ClientOverlayNavigator: React.FC = () => {
             route.name !== "ClientTerms" &&
             route.name !== "ClientPrivacy" &&
             route.name !== "Notifications" &&
-            route.name !== "NotificationDetail",
+            route.name !== "NotificationDetail" &&
+            route.name !== "ConversationList" &&
+            route.name !== "ChatScreen",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
             backgroundColor: COLORS.background,
@@ -160,6 +164,16 @@ export const ClientOverlayNavigator: React.FC = () => {
           options={{ gestureEnabled: false }}
         />
         <Stack.Screen name="ClientMessages" component={ClientMessagesScreen} />
+        <Stack.Screen
+          name="ConversationList"
+          component={ConversationListScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ChatScreen"
+          component={ChatScreen}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="ClientReclamation"
           component={ClientReclamationScreen}

@@ -6,7 +6,6 @@ import {
   FlatList,
   Image,
   Platform,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -18,8 +17,13 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useNavigation } from "@react-navigation/native";
+import type {
+  NativeStackNavigationProp,
+  NativeStackScreenProps,
+} from "@react-navigation/native-stack";
 import type { ClientStackParamList } from "../../../navigation/types";
+import { useAuth } from "../../../context/AuthContext";
 import { api } from "../../../services/api";
 
 type Props = NativeStackScreenProps<
@@ -46,6 +50,8 @@ type GivenServiceDetails = {
   bookingProviderId?: string | null;
   owner: {
     id?: string;
+    /** User.id of the provider to message (independent: same as provider id; company: first linked provider). */
+    userId: string | null;
     type?: "PROVIDER" | "COMPANY";
     displayName: string;
     photoUrl: string | null;
@@ -216,8 +222,10 @@ function ReviewCard({
 // ─── Main Screen ────────────────────────────────────────────
 export const ClientProviderProfileScreen: React.FC<Props> = ({
   route,
-  navigation,
 }) => {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<ClientStackParamList>>();
+  const { user } = useAuth();
   const givenServiceId = route.params.givenServiceId;
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -227,6 +235,7 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
   const [data, setData] = useState<GivenServiceDetails | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [openingChat, setOpeningChat] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -295,6 +304,39 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
     }
   };
 
+  const openChatWithProvider = React.useCallback(async () => {
+    if (!data) return;
+    const providerUserId = data.owner.userId;
+    if (!providerUserId) {
+      Alert.alert(
+        "Messaging unavailable",
+        "No provider account is linked for messaging yet.",
+      );
+      return;
+    }
+    if (user?.id && providerUserId === user.id) return;
+
+    setOpeningChat(true);
+    try {
+      const res = await api.openOrCreateConversation({
+        counterpartId: providerUserId,
+      });
+      const conversationId = (res.data as { id: string }).id;
+      navigation.navigate("ChatScreen", {
+        conversationId,
+        otherUserName: data.owner.displayName,
+        otherUserPhoto: data.owner.photoUrl ?? null,
+      });
+    } catch (e) {
+      Alert.alert(
+        "Could not open conversation",
+        e instanceof Error ? e.message : "Please try again.",
+      );
+    } finally {
+      setOpeningChat(false);
+    }
+  }, [data, navigation, user?.id]);
+
   const gallery = data?.galleries ?? [];
 
   // Animated header on scroll (light toolbar)
@@ -342,6 +384,9 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
       </SafeAreaView>
     );
   }
+
+  const providerUserId = data.owner.userId;
+  const canOpenChat = !!providerUserId && (!user?.id || providerUserId !== user.id);
 
   const rating = data.averageRating.toFixed(1);
   const priceLabel =
@@ -394,31 +439,53 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
         >
           {data.owner.displayName}
         </Animated.Text>
-        <TouchableOpacity
-          style={[
-            styles.headerFavoriteBtn,
-            isFavorite && styles.headerFavoriteBtnActive,
-            !ownerId && { opacity: 0.5 },
-          ]}
-          onPress={() => {
-            void toggleFavorite();
-          }}
-          disabled={!ownerId || favoriteLoading}
-          activeOpacity={0.85}
-        >
-          {favoriteLoading ? (
-            <ActivityIndicator
-              size="small"
-              color={isFavorite ? "#FFFFFF" : "#EF4444"}
-            />
-          ) : (
-            <Ionicons
-              name={isFavorite ? "heart" : "heart-outline"}
-              size={18}
-              color={isFavorite ? "#FFFFFF" : "#EF4444"}
-            />
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerRightActions}>
+          <TouchableOpacity
+            style={[
+              styles.headerGlassBtn,
+              (!canOpenChat || openingChat) && { opacity: 0.45 },
+            ]}
+            onPress={() => void openChatWithProvider()}
+            disabled={!canOpenChat || openingChat}
+            activeOpacity={0.8}
+            accessibilityLabel="Message provider"
+          >
+            {openingChat ? (
+              <ActivityIndicator size="small" color={C.text} />
+            ) : (
+              <Ionicons
+                name="chatbubble-outline"
+                size={20}
+                color={C.text}
+              />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.headerFavoriteBtn,
+              isFavorite && styles.headerFavoriteBtnActive,
+              !ownerId && { opacity: 0.5 },
+            ]}
+            onPress={() => {
+              void toggleFavorite();
+            }}
+            disabled={!ownerId || favoriteLoading}
+            activeOpacity={0.85}
+          >
+            {favoriteLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={isFavorite ? "#FFFFFF" : "#EF4444"}
+              />
+            ) : (
+              <Ionicons
+                name={isFavorite ? "heart" : "heart-outline"}
+                size={18}
+                color={isFavorite ? "#FFFFFF" : "#EF4444"}
+              />
+            )}
+          </TouchableOpacity>
+        </View>
       </Animated.View>
 
       <Animated.ScrollView
@@ -652,38 +719,56 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
       {/* ── Fixed bottom CTA ── */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.ctaBarInner}>
-          <View>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.ctaPriceLabel}>Starting from</Text>
             <Text style={styles.ctaPrice}>{priceLabel}</Text>
           </View>
-          <TouchableOpacity
-            style={[
-              styles.ctaBtn,
-              !providerIdForBooking && styles.ctaBtnDisabled,
-            ]}
-            activeOpacity={0.88}
-            disabled={!providerIdForBooking}
-            onPress={() => {
-              if (!providerIdForBooking) {
-                Alert.alert(
-                  "Booking unavailable",
-                  "No provider is linked to this listing yet. Try another offer or check back later.",
-                );
-                return;
-              }
-              navigation.navigate("ClientSlotPicker", {
-                providerId: providerIdForBooking,
-                givenServiceId: data.givenServiceId,
-                providerName: data.owner.displayName,
-                serviceName: data.serviceName,
-                estimatedDurationMinutes:
-                  data.estimatedDurationMinutes ?? 60,
-              });
-            }}
-          >
-            <Text style={styles.ctaBtnText}>Book this service</Text>
-            <Ionicons name="arrow-forward" size={16} color={C.bg} />
-          </TouchableOpacity>
+          <View style={styles.ctaActionsRow}>
+            <TouchableOpacity
+              style={[
+                styles.ctaMessageBtn,
+                (!canOpenChat || openingChat) && styles.ctaMessageBtnDisabled,
+              ]}
+              onPress={() => void openChatWithProvider()}
+              disabled={!canOpenChat || openingChat}
+              activeOpacity={0.88}
+            >
+              {openingChat ? (
+                <ActivityIndicator size="small" color={C.gold} />
+              ) : (
+                <Ionicons name="chatbubble-outline" size={18} color={C.gold} />
+              )}
+              <Text style={styles.ctaMessageBtnText}>Message</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.ctaBtn,
+                !providerIdForBooking && styles.ctaBtnDisabled,
+              ]}
+              activeOpacity={0.88}
+              disabled={!providerIdForBooking}
+              onPress={() => {
+                if (!providerIdForBooking) {
+                  Alert.alert(
+                    "Booking unavailable",
+                    "No provider is linked to this listing yet. Try another offer or check back later.",
+                  );
+                  return;
+                }
+                navigation.navigate("ClientSlotPicker", {
+                  providerId: providerIdForBooking,
+                  givenServiceId: data.givenServiceId,
+                  providerName: data.owner.displayName,
+                  serviceName: data.serviceName,
+                  estimatedDurationMinutes:
+                    data.estimatedDurationMinutes ?? 60,
+                });
+              }}
+            >
+              <Text style={styles.ctaBtnText}>Book this service</Text>
+              <Ionicons name="arrow-forward" size={16} color={C.bg} />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
@@ -766,6 +851,21 @@ const styles = StyleSheet.create({
   headerFavoriteBtnActive: {
     backgroundColor: "#EF4444",
     borderColor: "#EF4444",
+  },
+  headerRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerGlassBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
 
   categoryBadgeInline: {
@@ -1102,6 +1202,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
+  },
+  ctaActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 0,
+  },
+  ctaMessageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: C.gold,
+  },
+  ctaMessageBtnDisabled: {
+    opacity: 0.5,
+    borderColor: "#D1D5DB",
+  },
+  ctaMessageBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: C.gold,
   },
   ctaPriceLabel: { fontSize: 11, color: C.textMuted, fontWeight: "600" },
   ctaPrice: { fontSize: 18, fontWeight: "800", color: C.text, marginTop: 1 },

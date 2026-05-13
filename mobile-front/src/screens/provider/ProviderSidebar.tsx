@@ -16,6 +16,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
+import { useMessagingUnreadTotal } from "../../hooks/useMessagingUnreadTotal";
 import type { UserWithProfile } from "../../types";
 import { ProviderType } from "../../types";
 
@@ -42,7 +43,7 @@ const MENU_ITEMS = [
     icon: "construct-outline",
   },
   {
-    key: "ProviderMessages",
+    key: "ConversationList",
     labelKey: "provider.sidebar.menu.messages",
     icon: "chatbubbles-outline",
   },
@@ -107,6 +108,9 @@ export const ProviderSidebar: React.FC<Props> = ({
 
   const navigation =
     useNavigation<NativeStackNavigationProp<ProviderStackParamList>>();
+
+  const { total: messagingUnread, refresh: refreshMessagingUnread } =
+    useMessagingUnreadTotal(isOpen);
 
   const handleLogout = async () => {
     onClose();
@@ -211,15 +215,27 @@ export const ProviderSidebar: React.FC<Props> = ({
               style={[styles.itemRow, isActive && styles.itemRowActive]}
               onPress={() => {
                 navigation.navigate(item.key);
+                if (item.key === "ConversationList") {
+                  void refreshMessagingUnread();
+                }
                 onClose();
               }}
               activeOpacity={0.8}
             >
-              <Ionicons
-                name={item.icon}
-                size={20}
-                color={isActive ? "#4338ca" : "#4F46E5"}
-              />
+              <View style={styles.itemIconWrap}>
+                <Ionicons
+                  name={item.icon}
+                  size={20}
+                  color={isActive ? "#4338ca" : "#4F46E5"}
+                />
+                {item.key === "ConversationList" && messagingUnread > 0 ? (
+                  <View style={styles.menuBadge}>
+                    <Text style={styles.menuBadgeText}>
+                      {messagingUnread > 99 ? "99+" : String(messagingUnread)}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
               <Text
                 style={[styles.itemLabel, isActive && styles.itemLabelActive]}
               >
@@ -410,6 +426,28 @@ const styles = StyleSheet.create({
   },
   itemLabelActive: {
     color: "#312e81",
+  },
+  itemIconWrap: {
+    position: "relative",
+  },
+  menuBadge: {
+    position: "absolute",
+    top: -4,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ef4444",
+    borderWidth: 2,
+    borderColor: "#ffffff",
+  },
+  menuBadgeText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "800",
   },
   separator: {
     height: 1,

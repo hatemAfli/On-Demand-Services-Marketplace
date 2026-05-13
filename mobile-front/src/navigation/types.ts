@@ -53,6 +53,12 @@ export type ClientStackParamList = {
     scheduledTime: string;
   };
   ClientMessages: undefined;
+  ConversationList: undefined;
+  ChatScreen: {
+    conversationId: string;
+    otherUserName: string;
+    otherUserPhoto: string | null;
+  };
   ClientReclamation: undefined;
   /** Client bookings / appointments list (preferred name for new flows). */
   ClientAppointments: undefined;
@@ -88,6 +94,7 @@ export type ClientStackRouteWithoutParams = Exclude<
   | "ClientHomeSearch"
   | "ClientFavoritesList"
   | "NotificationDetail"
+  | "ChatScreen"
 >;
 
 export type ProviderStackParamList = {
@@ -129,6 +136,12 @@ export type ProviderStackParamList = {
     };
   };
   ProviderMessages: undefined;
+  ConversationList: undefined;
+  ChatScreen: {
+    conversationId: string;
+    otherUserName: string;
+    otherUserPhoto: string | null;
+  };
   Notifications: undefined;
   NotificationDetail: NotificationDetailParams;
   ProviderReclamations: undefined;

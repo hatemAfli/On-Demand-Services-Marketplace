@@ -21,6 +21,8 @@ import { ProviderManageServiceScreen } from "../screens/provider/services/Provid
 import { ProviderRequestServiceScreen } from "../screens/provider/services/ProviderRequestServiceScreen";
 import { ProviderVerificationRequestDetailScreen } from "../screens/provider/services/ProviderVerificationRequestDetailScreen";
 import { ProviderMessagesScreen } from "../screens/provider/ProviderMessagesScreen";
+import { ConversationListScreen } from "../screens/shared/ConversationListScreen";
+import { ChatScreen } from "../screens/shared/ChatScreen";
 import { NotificationsScreen } from "../screens/shared/NotificationsScreen";
 import { NotificationDetailScreen } from "../screens/shared/NotificationDetailScreen";
 import { ProviderReclamationsScreen } from "../screens/provider/ProviderReclamationsScreen";
@@ -114,7 +116,9 @@ export const ProviderOverlayNavigator: React.FC = () => {
             route.name !== "ProviderCalendar" &&
             route.name !== "ProviderAppointmentDetail" &&
             route.name !== "Notifications" &&
-            route.name !== "NotificationDetail",
+            route.name !== "NotificationDetail" &&
+            route.name !== "ConversationList" &&
+            route.name !== "ChatScreen",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
             backgroundColor: COLORS.background,
@@ -158,6 +162,16 @@ export const ProviderOverlayNavigator: React.FC = () => {
         <Stack.Screen
           name="ProviderMessages"
           component={ProviderMessagesScreen}
+        />
+        <Stack.Screen
+          name="ConversationList"
+          component={ConversationListScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ChatScreen"
+          component={ChatScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen
