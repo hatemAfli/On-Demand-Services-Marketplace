@@ -2,7 +2,7 @@ import React from "react";
 import { useAuth } from "../context/AuthContext";
 import { AccountStatus, UserRole } from "../types";
 import { ProviderOverlayNavigator } from "./ProviderOverlayNavigator";
-import { ProviderBlockedScreen } from "../screens/provider/ProviderBlockedScreen";
+import { ProviderBlockedScreen } from "../screens/provider/blocked_screen/ProviderBlockedScreen";
 
 /** ACTIVE providers get the full sidebar app; other statuses see a dedicated screen. */
 export const ProviderSpaceRouter: React.FC = () => {

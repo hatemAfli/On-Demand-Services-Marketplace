@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsDateString,
   IsOptional,
@@ -27,6 +28,7 @@ export class CreateAppointmentDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(5)
   @IsString({ each: true })
   photoUrls?: string[];
 }

@@ -21,7 +21,9 @@ import {
 } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { COLORS } from "../../../constants";
+import { useAuth } from "../../../context/AuthContext";
 import { api } from "../../../services/api";
+import { uploadAppointmentRequestPhotos } from "../../../services/appointmentRequestPhotosUpload";
 
 type Props = NativeStackScreenProps<ClientStackParamList, "ClientSlotPicker">;
 
@@ -205,6 +207,7 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
     estimatedDurationMinutes,
   } = route.params;
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
   const duration = useMemo(
     () => Math.max(1, estimatedDurationMinutes || 60),
@@ -353,13 +356,28 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
     }
     setSubmitting(true);
     try {
+      let photoUrls: string[] | undefined;
+      if (photoUris.length) {
+        const clientId = user?.id;
+        if (!clientId) {
+          Alert.alert("Sign in required", "Log in to attach photos to your request.");
+          return;
+        }
+        const batchId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        photoUrls = await uploadAppointmentRequestPhotos(
+          clientId,
+          batchId,
+          photoUris,
+        );
+      }
+
       const res = await api.createAppointment({
         givenServiceId,
         providerId,
         scheduledDate: selectedDate,
         scheduledTime: selectedTime,
         notes: notes.trim() || undefined,
-        photoUrls: photoUris.length ? photoUris : undefined,
+        photoUrls: photoUrls?.length ? photoUrls : undefined,
       });
       const appointmentId = res.data?.id;
       if (!appointmentId) throw new Error("Missing appointment id");
@@ -373,7 +391,9 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
     } catch {
       Alert.alert(
         "Could not send request",
-        "Check your connection and try again.",
+        photoUris.length
+          ? "Photos could not be uploaded or the request failed. Check your connection and try again."
+          : "Check your connection and try again.",
       );
     } finally {
       setSubmitting(false);
@@ -389,6 +409,7 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
     photoUris,
     submitting,
     navigation,
+    user?.id,
   ]);
 
   // ── Derived ───────────────────────────────────────────────

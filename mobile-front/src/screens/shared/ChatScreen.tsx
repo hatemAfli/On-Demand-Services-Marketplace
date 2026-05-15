@@ -8,10 +8,12 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   I18nManager,
   Image,
-  KeyboardAvoidingView,
+  Keyboard,
+  type KeyboardEvent,
   Modal,
   Platform,
   Pressable,
@@ -52,6 +54,15 @@ const PAGE_SIZE = 30;
 const MAX_ATTACHMENTS = 3;
 const INPUT_MAX_LINES = 5;
 const INPUT_LINE_HEIGHT = 22;
+
+/** Distance from the bottom of the window to the top of the keyboard. */
+function keyboardInsetFromEvent(e: KeyboardEvent): number {
+  const { height, screenY } = e.endCoordinates;
+  const windowH = Dimensions.get("window").height;
+  const fromWindow = Math.max(0, windowH - screenY);
+  if (height > 0) return Math.max(height, fromWindow);
+  return fromWindow;
+}
 
 function normalizeMessage(raw: unknown): ChatMessage {
   const m = raw as Record<string, unknown>;
@@ -189,6 +200,8 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
   const [oldestCursor, setOldestCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [composerHeight, setComposerHeight] = useState(72);
+  const [keyboardInset, setKeyboardInset] = useState(0);
 
   const userIdRef = useRef(user?.id);
   userIdRef.current = user?.id;
@@ -221,6 +234,26 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
       setLoadingInitial(false);
     }
   }, [conversationId]);
+
+  useEffect(() => {
+    const onShow = (e: KeyboardEvent) => {
+      setKeyboardInset(keyboardInsetFromEvent(e));
+    };
+    const onHide = () => setKeyboardInset(0);
+
+    const subs = [
+      Keyboard.addListener("keyboardDidShow", onShow),
+      Keyboard.addListener("keyboardDidHide", onHide),
+    ];
+    if (Platform.OS === "ios") {
+      subs.push(
+        Keyboard.addListener("keyboardWillShow", onShow),
+        Keyboard.addListener("keyboardWillHide", onHide),
+      );
+    }
+
+    return () => subs.forEach((s) => s.remove());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -478,6 +511,16 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const inputMaxHeight = INPUT_LINE_HEIGHT * INPUT_MAX_LINES + 16;
 
+  const keyboardOpen = keyboardInset > 0;
+  const composerBottom = keyboardOpen ? keyboardInset : 0;
+  const composerInnerPad = keyboardOpen ? 0 : Math.max(insets.bottom, 10);
+  // Inverted list: paddingTop = space above composer (newest messages at visual bottom).
+  const listComposerPad =
+    composerHeight +
+    composerInnerPad +
+    (keyboardOpen ? keyboardInset : 0) +
+    16;
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -512,22 +555,22 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 52 : 0}
-      >
+      <View style={styles.body}>
         {loadingInitial ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : (
           <FlatList
+            style={styles.flex}
             data={rows}
             inverted
             keyExtractor={(r) => r.key}
             renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingTop: listComposerPad },
+            ]}
             onEndReached={handleEndReached}
             onEndReachedThreshold={0.25}
             ListFooterComponent={
@@ -538,6 +581,7 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
               ) : null
             }
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
             maintainVisibleContentPosition={
               Platform.OS === "ios"
                 ? { minIndexForVisible: 0, autoscrollToTopThreshold: 48 }
@@ -546,67 +590,81 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
           />
         )}
 
-        {photoUris.length > 0 ? (
-          <View style={styles.previewStrip}>
-            {photoUris.map((uri, ix) => (
-              <View key={uri} style={styles.previewTile}>
-                <Image source={{ uri }} style={styles.previewImg} />
+        {!loadingInitial ? (
+          <View
+            style={[
+              styles.composerWrap,
+              { bottom: composerBottom, paddingBottom: composerInnerPad },
+            ]}
+          >
+            <View
+              style={styles.composer}
+              onLayout={(e) => {
+                const h = e.nativeEvent.layout.height;
+                if (h > 0 && Math.abs(h - composerHeight) > 1) {
+                  setComposerHeight(h);
+                }
+              }}
+            >
+              {photoUris.length > 0 ? (
+                <View style={styles.previewStrip}>
+                  {photoUris.map((uri, ix) => (
+                    <View key={uri} style={styles.previewTile}>
+                      <Image source={{ uri }} style={styles.previewImg} />
+                      <TouchableOpacity
+                        style={styles.previewRemove}
+                        onPress={() => removePhotoAt(ix)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="close" size={16} color={COLORS.white} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              <View style={styles.inputBar}>
                 <TouchableOpacity
-                  style={styles.previewRemove}
-                  onPress={() => removePhotoAt(ix)}
+                  style={styles.iconBtn}
+                  onPress={() => void pickPhotos()}
+                  disabled={photoUris.length >= MAX_ATTACHMENTS}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="close" size={16} color={COLORS.white} />
+                  <Ionicons
+                    name="camera-outline"
+                    size={26}
+                    color={
+                      photoUris.length >= MAX_ATTACHMENTS
+                        ? COLORS.gray[300]
+                        : COLORS.primary
+                    }
+                  />
+                </TouchableOpacity>
+                <TextInput
+                  style={[styles.input, { maxHeight: inputMaxHeight }]}
+                  value={text}
+                  onChangeText={setText}
+                  placeholder="Write a message…"
+                  placeholderTextColor={COLORS.text.tertiary}
+                  multiline
+                  maxLength={2000}
+                />
+                <TouchableOpacity
+                  style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
+                  onPress={() => void handleSend()}
+                  disabled={!canSend}
+                >
+                  {sending ? (
+                    <ActivityIndicator color={COLORS.white} size="small" />
+                  ) : (
+                    <Ionicons name="arrow-up" size={22} color={COLORS.white} />
+                  )}
                 </TouchableOpacity>
               </View>
-            ))}
+            </View>
           </View>
         ) : null}
-
-        <View
-          style={[
-            styles.inputBar,
-            { paddingBottom: Math.max(insets.bottom, 10) },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => void pickPhotos()}
-            disabled={photoUris.length >= MAX_ATTACHMENTS}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons
-              name="camera-outline"
-              size={26}
-              color={
-                photoUris.length >= MAX_ATTACHMENTS
-                  ? COLORS.gray[300]
-                  : COLORS.primary
-              }
-            />
-          </TouchableOpacity>
-          <TextInput
-            style={[styles.input, { maxHeight: inputMaxHeight }]}
-            value={text}
-            onChangeText={setText}
-            placeholder="Write a message…"
-            placeholderTextColor={COLORS.text.tertiary}
-            multiline
-            maxLength={2000}
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
-            onPress={() => void handleSend()}
-            disabled={!canSend}
-          >
-            {sending ? (
-              <ActivityIndicator color={COLORS.white} size="small" />
-            ) : (
-              <Ionicons name="arrow-up" size={22} color={COLORS.white} />
-            )}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+      </View>
 
       <Modal
         visible={!!previewUri}
@@ -637,6 +695,28 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   flex: { flex: 1 },
+  body: {
+    flex: 1,
+    position: "relative",
+  },
+  composerWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.white,
+    zIndex: 10,
+    elevation: 12,
+  },
+  composer: {
+    backgroundColor: COLORS.white,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 8,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -693,8 +773,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingBottom: 12,
   },
   loadMore: {
     paddingVertical: 16,
@@ -800,8 +879,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingTop: 8,
     backgroundColor: COLORS.white,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
     gap: 6,
   },
   iconBtn: {

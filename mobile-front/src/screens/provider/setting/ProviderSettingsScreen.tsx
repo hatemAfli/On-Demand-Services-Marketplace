@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useLayoutEffect, useState } from "react";
 import {
   Image,
   ScrollView,
@@ -11,7 +11,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { FontAwesome6 } from "@expo/vector-icons";
+import { FontAwesome6, Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import {
   SafeAreaView,
@@ -55,6 +55,21 @@ export const ProviderSettingsScreen: React.FC = () => {
   const avatarUri = user?.provider?.photoUrl?.trim();
 
   const onLogout = () => setLogoutModalVisible(true);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: t("provider.screenTitles.ProviderSettings"),
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ marginLeft: 8, padding: 4 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -175,6 +190,15 @@ export const ProviderSettingsScreen: React.FC = () => {
               title={t("provider.settings.menuProfile")}
               subtitle={t("provider.settings.menuProfileHint")}
               onPress={() => navigation.navigate("ProviderProfile")}
+            />
+            <View style={styles.cardDivider} />
+            <SettingsRow
+              icon="star"
+              iconBackground="#FFFBEB"
+              iconColor="#D97706"
+              title={t("provider.settings.menuMyReviews")}
+              subtitle={t("provider.settings.menuMyReviewsHint")}
+              onPress={() => navigation.navigate("ProviderReviews")}
             />
             <View style={styles.cardDivider} />
             <SettingsRow
@@ -367,7 +391,7 @@ export const ProviderSettingsScreen: React.FC = () => {
               iconColor="#0F766E"
               title={t("provider.settings.helpCenter")}
               subtitle={t("provider.settings.helpCenterHint")}
-              onPress={() => navigation.navigate("ProviderReclamations")}
+              onPress={() => navigation.navigate("ProviderComplaints")}
             />
             <View style={styles.cardDivider} />
             <SettingsRow

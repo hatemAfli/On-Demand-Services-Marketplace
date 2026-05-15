@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useLayoutEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { FontAwesome6 } from "@expo/vector-icons";
+import { FontAwesome6, Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import {
   SafeAreaView,
@@ -40,6 +40,21 @@ export const ClientSettingsScreen: React.FC = () => {
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] =
     useState(true);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: t("client.screenTitles.ClientSettings"),
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ marginLeft: 8, padding: 4 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -366,7 +381,7 @@ export const ClientSettingsScreen: React.FC = () => {
               iconColor="#0F766E"
               title={t("client.settings.helpCenter")}
               subtitle={t("client.settings.helpCenterHint")}
-              onPress={() => navigation.navigate("ClientReclamation")}
+              onPress={() => navigation.navigate("ClientMyComplaints")}
             />
             <View style={styles.cardDivider} />
             <SettingsRow

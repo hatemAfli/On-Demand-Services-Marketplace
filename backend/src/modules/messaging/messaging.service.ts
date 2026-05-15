@@ -141,10 +141,11 @@ export class MessagingService {
     );
 
     const trimmedText = dto.text?.trim() ?? '';
-    const urls =
-      dto.mediaUrls?.filter(
-        (u) => typeof u === 'string' && u.trim().length > 0,
-      ) ?? [];
+    const urls = this.validateChatMediaUrls(
+      dto.conversationId,
+      senderUserId,
+      dto.mediaUrls,
+    );
     if (trimmedText.length === 0 && urls.length === 0) {
       throw new BadRequestException(
         'Provide non-empty text or at least one media URL',
@@ -184,7 +185,7 @@ export class MessagingService {
       senderUserId,
       senderRole,
       text: dto.text ?? null,
-      mediaUrls: dto.mediaUrls ?? [],
+      mediaUrls: urls,
       createdAt: message.createdAt.toISOString(),
     });
 
@@ -221,5 +222,30 @@ export class MessagingService {
         data: role === 'CLIENT' ? { unreadClient: 0 } : { unreadProvider: 0 },
       }),
     ]);
+  }
+
+  /** Chat images must be in `chat-attachments`. */
+  private validateChatMediaUrls(
+    conversationId: string,
+    senderUserId: string,
+    mediaUrls?: string[],
+  ): string[] {
+    const urls =
+      mediaUrls?.filter(
+        (u) => typeof u === 'string' && u.trim().length > 0,
+      ) ?? [];
+    if (urls.length > 3) {
+      throw new BadRequestException('Maximum 3 chat attachments per message');
+    }
+    const base = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
+    if (!base) return urls;
+
+    const expectedPrefix = `${base}/storage/v1/object/public/chat-attachments/conversations/${conversationId}/${senderUserId}/`;
+    for (const url of urls) {
+      if (!url.startsWith(expectedPrefix)) {
+        throw new BadRequestException('Invalid chat attachment URL');
+      }
+    }
+    return urls;
   }
 }

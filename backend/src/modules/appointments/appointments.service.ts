@@ -69,6 +69,11 @@ export class AppointmentsService {
       throw new BadRequestException('Selected slot is not available');
     }
 
+    const photoUrls = this.validateClientRequestPhotoUrls(
+      clientId,
+      dto.photoUrls,
+    );
+
     const appointment = await this.prisma.appointment.create({
       data: {
         clientId,
@@ -78,7 +83,7 @@ export class AppointmentsService {
         scheduledDate: new Date(dto.scheduledDate),
         scheduledTime: dto.scheduledTime,
         notes: dto.notes?.trim() || null,
-        photoUrls: dto.photoUrls ?? [],
+        photoUrls,
       },
     });
 
@@ -486,6 +491,14 @@ export class AppointmentsService {
     if (!appointment) throw new NotFoundException('Appointment not found');
     if (appointment.providerId !== providerId) throw new ForbiddenException('Access denied');
 
+    const interventionPhotos = dto.photoUrls?.length
+      ? this.validateInterventionPhotoUrls(
+          providerId,
+          appointmentId,
+          dto.photoUrls,
+        )
+      : undefined;
+
     if (dto.action === ExecutionAction.EN_ROUTE) {
       if (appointment.status !== AppointmentStatus.CONFIRMED) {
         throw new BadRequestException('EN_ROUTE is allowed only from CONFIRMED');
@@ -545,7 +558,9 @@ export class AppointmentsService {
         data: {
           status: AppointmentStatus.IN_PROGRESS,
           // startedAt is set only when the client confirms start (billing/timer).
-          ...(dto.photoUrls ? { beforePhotoUrls: dto.photoUrls } : {}),
+          ...(interventionPhotos?.length
+            ? { beforePhotoUrls: interventionPhotos }
+            : {}),
         },
       });
       const providerUser = await this.prisma.user.findUnique({
@@ -608,7 +623,9 @@ export class AppointmentsService {
     const updated = await this.prisma.appointment.update({
       where: { id: appointmentId },
       data: {
-        ...(dto.photoUrls ? { afterPhotoUrls: dto.photoUrls } : {}),
+        ...(interventionPhotos?.length
+          ? { afterPhotoUrls: interventionPhotos }
+          : {}),
       },
     });
     if (!hadProviderEndBefore) {
@@ -868,5 +885,49 @@ export class AppointmentsService {
   ): string {
     const fullName = `${firstName ?? ''} ${lastName ?? ''}`.trim();
     return fullName || fallback;
+  }
+
+  /** Before/after URLs must live under this provider's folder in `appointment-intervention-photos`. */
+  private validateInterventionPhotoUrls(
+    providerId: string,
+    appointmentId: string,
+    urls: string[],
+  ): string[] {
+    if (urls.length > 10) {
+      throw new BadRequestException('Maximum 10 intervention photos per action');
+    }
+    const base = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
+    if (!base) return urls;
+    const newPrefix = `${base}/storage/v1/object/public/appointment-intervention-photos/providers/${providerId}/appointments/${appointmentId}/`;
+    const legacyPrefix = `${base}/storage/v1/object/public/gallery/job-evidence/${appointmentId}/`;
+    for (const url of urls) {
+      if (url.startsWith(newPrefix)) {
+        const afterPrefix = url.slice(newPrefix.length);
+        if (/^(before|after)\//.test(afterPrefix)) continue;
+      }
+      if (url.startsWith(legacyPrefix)) continue;
+      throw new BadRequestException('Invalid intervention photo URL');
+    }
+    return urls;
+  }
+
+  /** Ensures booking attachments are public URLs from this client's folder in `appointment-request-photos`. */
+  private validateClientRequestPhotoUrls(
+    clientId: string,
+    urls?: string[],
+  ): string[] {
+    if (!urls?.length) return [];
+    if (urls.length > 5) {
+      throw new BadRequestException('Maximum 5 request photos allowed');
+    }
+    const base = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
+    if (!base) return urls;
+    const expectedPrefix = `${base}/storage/v1/object/public/appointment-request-photos/clients/${clientId}/`;
+    for (const url of urls) {
+      if (!url.startsWith(expectedPrefix)) {
+        throw new BadRequestException('Invalid appointment request photo URL');
+      }
+    }
+    return urls;
   }
 }

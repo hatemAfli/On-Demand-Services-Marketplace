@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,19 +11,25 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { ProviderStackParamList } from "../../navigation/types";
-import { useAuth } from "../../context/AuthContext";
+import type { ProviderStackParamList } from "../../../navigation/types";
+import { useAuth } from "../../../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useAppTranslation } from "../../hooks/useAppTranslation";
-import { useMessagingUnreadTotal } from "../../hooks/useMessagingUnreadTotal";
-import type { UserWithProfile } from "../../types";
-import { ProviderType } from "../../types";
+import { useAppTranslation } from "../../../hooks/useAppTranslation";
+import { useMessagingUnreadTotal } from "../../../hooks/useMessagingUnreadTotal";
+import { api } from "../../../services/api";
+import type { UserWithProfile } from "../../../types";
+import { ProviderType } from "../../../types";
+
+const SIDEBAR_BADGE_CAP = 10;
+
+function formatSidebarBadgeCount(count: number): string {
+  return count > SIDEBAR_BADGE_CAP ? "10+" : String(count);
+}
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  currentRouteName?: keyof ProviderStackParamList;
 };
 
 const MENU_ITEMS = [
@@ -53,9 +59,9 @@ const MENU_ITEMS = [
     icon: "notifications-outline",
   },
   {
-    key: "ProviderReclamations",
-    labelKey: "provider.sidebar.menu.reclamations",
-    icon: "alert-circle-outline",
+    key: "ProviderComplaints",
+    labelKey: "provider.sidebar.menu.complaints",
+    icon: "shield-outline",
   },
   {
     key: "ProviderCalendar",
@@ -63,8 +69,8 @@ const MENU_ITEMS = [
     icon: "calendar-outline",
   },
   {
-    key: "ProviderRatings",
-    labelKey: "provider.sidebar.menu.ratings",
+    key: "ProviderReviews",
+    labelKey: "provider.sidebar.menu.myReviews",
     icon: "star-outline",
   },
   {
@@ -86,11 +92,7 @@ const MENU_ITEMS = [
 const VERTICAL_MARGIN = 14;
 const HORIZONTAL_MARGIN = 8;
 
-export const ProviderSidebar: React.FC<Props> = ({
-  isOpen,
-  onClose,
-  currentRouteName,
-}) => {
+export const ProviderSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
@@ -111,6 +113,21 @@ export const ProviderSidebar: React.FC<Props> = ({
 
   const { total: messagingUnread, refresh: refreshMessagingUnread } =
     useMessagingUnreadTotal(isOpen);
+  const [notificationUnread, setNotificationUnread] = useState(0);
+
+  const refreshNotificationUnread = async () => {
+    try {
+      const res = await api.getUnreadCount();
+      setNotificationUnread(res.data?.count ?? 0);
+    } catch {
+      setNotificationUnread(0);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void refreshNotificationUnread();
+  }, [isOpen]);
 
   const handleLogout = async () => {
     onClose();
@@ -208,7 +225,7 @@ export const ProviderSidebar: React.FC<Props> = ({
         <Text style={styles.sectionTitle}>{t("provider.sidebar.mySpace")}</Text>
 
         {MENU_ITEMS.map((item) => {
-          const isActive = item.key === currentRouteName;
+          const isActive = item.key === "ProviderHome";
           return (
             <TouchableOpacity
               key={item.key}
@@ -218,6 +235,9 @@ export const ProviderSidebar: React.FC<Props> = ({
                 if (item.key === "ConversationList") {
                   void refreshMessagingUnread();
                 }
+                if (item.key === "Notifications") {
+                  void refreshNotificationUnread();
+                }
                 onClose();
               }}
               activeOpacity={0.8}
@@ -226,14 +246,17 @@ export const ProviderSidebar: React.FC<Props> = ({
                 <Ionicons
                   name={item.icon}
                   size={20}
-                  color={isActive ? "#4338ca" : "#4F46E5"}
+                  color={isActive ? "#4338ca" : "#64748b"}
                 />
                 {item.key === "ConversationList" && messagingUnread > 0 ? (
                   <View style={styles.menuBadge}>
                     <Text style={styles.menuBadgeText}>
-                      {messagingUnread > 99 ? "99+" : String(messagingUnread)}
+                      {formatSidebarBadgeCount(messagingUnread)}
                     </Text>
                   </View>
+                ) : null}
+                {item.key === "Notifications" && notificationUnread > 0 ? (
+                  <View style={styles.menuDot} />
                 ) : null}
               </View>
               <Text
@@ -448,6 +471,17 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 10,
     fontWeight: "800",
+  },
+  menuDot: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#ef4444",
+    borderWidth: 2,
+    borderColor: "#ffffff",
   },
   separator: {
     height: 1,

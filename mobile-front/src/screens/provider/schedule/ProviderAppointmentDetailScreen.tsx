@@ -23,9 +23,14 @@ import {
 import { COLORS } from "../../../constants";
 import { AuthNoticeModal, ConfirmModal } from "../../../components/common";
 import type { ProviderStackParamList } from "../../../navigation/types";
+import { useAuth } from "../../../context/AuthContext";
 import { api } from "../../../services/api";
-import { uploadAppointmentJobPhoto } from "../../../services/appointmentJobPhotosUpload";
+import {
+  uploadAppointmentInterventionPhotos,
+  type InterventionPhotoPhase,
+} from "../../../services/appointmentInterventionPhotosUpload";
 import i18n from "../../../i18n";
+import { pickApiStringArray } from "../../../utils/parseApiStringArray";
 
 type Props = NativeStackScreenProps<
   ProviderStackParamList,
@@ -70,6 +75,8 @@ const C = {
   amberBdr: "#FCD34D",
   shadow: "rgba(0,0,0,0.06)",
 };
+
+const MAX_INTERVENTION_PHOTOS = 10;
 
 // ─── Types / parsers (all unchanged) ─────────────────────
 type ProviderAppointmentDetailModel = {
@@ -171,7 +178,7 @@ function parseAppointment(raw: unknown): ProviderAppointmentDetailModel | null {
     scheduledDate: normalizeDateKey(r.scheduledDate),
     scheduledTime: typeof r.scheduledTime === "string" ? r.scheduledTime : "",
     notes: typeof r.notes === "string" ? r.notes : null,
-    photoUrls: parseStringArray(r.photoUrls),
+    photoUrls: pickApiStringArray(r, "photoUrls", "photo_urls"),
     refusalReason: typeof r.refusalReason === "string" ? r.refusalReason : null,
     rescheduleDate: r.rescheduleDate
       ? normalizeDateKey(r.rescheduleDate)
@@ -183,8 +190,8 @@ function parseAppointment(raw: unknown): ProviderAppointmentDetailModel | null {
     completedAt: r.completedAt != null ? String(r.completedAt) : null,
     durationMinutes:
       typeof r.durationMinutes === "number" ? r.durationMinutes : null,
-    beforePhotoUrls: parseStringArray(r.beforePhotoUrls),
-    afterPhotoUrls: parseStringArray(r.afterPhotoUrls),
+    beforePhotoUrls: pickApiStringArray(r, "beforePhotoUrls", "before_photo_urls"),
+    afterPhotoUrls: pickApiStringArray(r, "afterPhotoUrls", "after_photo_urls"),
     cancellationReason:
       typeof r.cancellationReason === "string" ? r.cancellationReason : null,
     givenService: {
@@ -414,6 +421,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
 }) => {
   const { appointmentId } = route.params;
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
   // ── State (all unchanged) ─────────────────────────────
   const [appointment, setAppointment] =
@@ -593,6 +601,11 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     );
   const onCancelConfirmed = () => setConfirmCancelVisible(true);
   const pickPhoto = async (target: "before" | "after") => {
+    const currentLen =
+      target === "before" ? beforeLocalUris.length : afterLocalUris.length;
+    const remaining = MAX_INTERVENTION_PHOTOS - currentLen;
+    if (remaining <= 0) return;
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       setNoticeModal({
@@ -604,27 +617,35 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
+      allowsMultipleSelection: true,
       quality: 0.85,
+      selectionLimit: remaining,
     });
-    const asset = result.assets?.[0];
-    if (!result.canceled && asset?.uri) {
-      if (target === "before") setBeforeLocalUris((u) => [...u, asset.uri]);
-      else setAfterLocalUris((u) => [...u, asset.uri]);
-    }
+    if (result.canceled || !result.assets?.length) return;
+    const picked = result.assets.map((a) => a.uri).filter(Boolean);
+    const merge = (prev: string[]) =>
+      [...prev, ...picked].slice(0, MAX_INTERVENTION_PHOTOS);
+    if (target === "before") setBeforeLocalUris(merge);
+    else setAfterLocalUris(merge);
   };
-  const uploadLocals = async (uris: string[]): Promise<string[]> => {
-    const urls: string[] = [];
-    for (const uri of uris) {
-      const url = await uploadAppointmentJobPhoto(appointmentId, uri);
-      urls.push(url);
-    }
-    return urls;
+  const uploadLocals = async (
+    uris: string[],
+    phase: InterventionPhotoPhase,
+  ): Promise<string[]> => {
+    const providerId = user?.id;
+    if (!providerId) throw new Error("Not signed in");
+    return uploadAppointmentInterventionPhotos(
+      providerId,
+      appointmentId,
+      phase,
+      uris,
+    );
   };
   const onStartService = () =>
     void runAction(async () => {
       const photoUrls =
         beforeLocalUris.length > 0
-          ? await uploadLocals(beforeLocalUris)
+          ? await uploadLocals(beforeLocalUris, "before")
           : undefined;
       await api.recordExecution(appointmentId, {
         action: "START",
@@ -635,7 +656,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     void runAction(async () => {
       const photoUrls =
         afterLocalUris.length > 0
-          ? await uploadLocals(afterLocalUris)
+          ? await uploadLocals(afterLocalUris, "after")
           : undefined;
       await api.recordExecution(appointmentId, {
         action: "END",
@@ -932,7 +953,10 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                     uris={beforeLocalUris}
                     label="Before photos (optional)"
                     onAdd={() => void pickPhoto("before")}
-                    disabled={actionLoading}
+                    disabled={
+                      actionLoading ||
+                      beforeLocalUris.length >= MAX_INTERVENTION_PHOTOS
+                    }
                   />
 
                   <TouchableOpacity
@@ -1019,7 +1043,10 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                         uris={afterLocalUris}
                         label="After photos (optional)"
                         onAdd={() => void pickPhoto("after")}
-                        disabled={actionLoading}
+                        disabled={
+                          actionLoading ||
+                          afterLocalUris.length >= MAX_INTERVENTION_PHOTOS
+                        }
                       />
                       <TouchableOpacity
                         style={[s.btn, s.btnSuccess]}

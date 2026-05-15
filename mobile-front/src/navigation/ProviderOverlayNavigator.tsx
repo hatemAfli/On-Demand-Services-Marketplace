@@ -13,25 +13,25 @@ import { ProviderSidebarProvider } from "./ProviderSidebarContext";
 import { COLORS } from "../constants";
 import { useAppTranslation } from "../hooks/useAppTranslation";
 
-import { ProviderSidebar } from "../screens/provider/ProviderSidebar";
+import { ProviderSidebar } from "../screens/provider/sidebar/ProviderSidebar";
 import { ProviderHomeScreen } from "../screens/provider/home/ProviderHomeScreen";
-import { ProviderDashboardScreen } from "../screens/provider/ProviderDashboardScreen";
+import { ProviderDashboardScreen } from "../screens/provider/dashboard/ProviderDashboardScreen";
 import { ProviderServicesScreen } from "../screens/provider/services/ProviderServicesScreen";
 import { ProviderManageServiceScreen } from "../screens/provider/services/ProviderManageServiceScreen";
 import { ProviderRequestServiceScreen } from "../screens/provider/services/ProviderRequestServiceScreen";
 import { ProviderVerificationRequestDetailScreen } from "../screens/provider/services/ProviderVerificationRequestDetailScreen";
-import { ProviderMessagesScreen } from "../screens/provider/ProviderMessagesScreen";
 import { ConversationListScreen } from "../screens/shared/ConversationListScreen";
 import { ChatScreen } from "../screens/shared/ChatScreen";
 import { NotificationsScreen } from "../screens/shared/NotificationsScreen";
 import { NotificationDetailScreen } from "../screens/shared/NotificationDetailScreen";
-import { ProviderReclamationsScreen } from "../screens/provider/ProviderReclamationsScreen";
+import { ProviderComplaintsScreen } from "../screens/provider/complaints/ProviderComplaintsScreen";
 import { ProviderScheduleScreen } from "../screens/provider/schedule/ProviderScheduleScreen";
 import { ProviderDaysOffScreen } from "../screens/provider/schedule/ProviderDaysOffScreen";
 import { ProviderCalendarScreen } from "../screens/provider/schedule/ProviderCalendarScreen";
 import { ProviderAppointmentDetailScreen } from "../screens/provider/schedule/ProviderAppointmentDetailScreen";
 import { ProviderSubscriptionPlanScreen } from "../screens/provider/subscription-plan/ProviderSubscriptionPlanScreen";
 import { ProviderRatingsScreen } from "../screens/provider/rating/ProviderRatingsScreen";
+import { ProviderReviewsScreen } from "../screens/provider/reviews/ProviderReviewsScreen";
 import { ProviderProfileScreen } from "../screens/provider/setting/ProviderProfileScreen";
 import { ProviderEditProfileScreen } from "../screens/provider/setting/ProviderEditProfileScreen";
 import { ProviderSettingsScreen } from "../screens/provider/setting/ProviderSettingsScreen";
@@ -55,8 +55,6 @@ export const ProviderOverlayNavigator: React.FC = () => {
   );
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [currentRouteName, setCurrentRouteName] =
-    useState<keyof ProviderStackParamList>("ProviderHome");
 
   const anim = useRef(new Animated.Value(0)).current;
 
@@ -89,11 +87,8 @@ export const ProviderOverlayNavigator: React.FC = () => {
             const state = e.data.state;
             const next = state.routes[state.index]
               ?.name as keyof ProviderStackParamList;
-            if (next) {
-              setCurrentRouteName(next);
-              if (next === "ProviderTerms" || next === "ProviderPrivacy") {
-                setIsSidebarOpen(false);
-              }
+            if (next === "ProviderTerms" || next === "ProviderPrivacy") {
+              setIsSidebarOpen(false);
             }
           },
         }}
@@ -118,6 +113,7 @@ export const ProviderOverlayNavigator: React.FC = () => {
             route.name !== "Notifications" &&
             route.name !== "NotificationDetail" &&
             route.name !== "ConversationList" &&
+            route.name !== "ProviderMessages" &&
             route.name !== "ChatScreen",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
@@ -161,7 +157,8 @@ export const ProviderOverlayNavigator: React.FC = () => {
         />
         <Stack.Screen
           name="ProviderMessages"
-          component={ProviderMessagesScreen}
+          component={ConversationListScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="ConversationList"
@@ -180,8 +177,8 @@ export const ProviderOverlayNavigator: React.FC = () => {
           options={{ headerShown: false }}
         />
         <Stack.Screen
-          name="ProviderReclamations"
-          component={ProviderReclamationsScreen}
+          name="ProviderComplaints"
+          component={ProviderComplaintsScreen}
         />
         <Stack.Screen
           name="ProviderSchedule"
@@ -206,6 +203,10 @@ export const ProviderOverlayNavigator: React.FC = () => {
         <Stack.Screen
           name="ProviderRatings"
           component={ProviderRatingsScreen}
+        />
+        <Stack.Screen
+          name="ProviderReviews"
+          component={ProviderReviewsScreen}
         />
         <Stack.Screen
           name="ProviderProfile"
@@ -275,7 +276,6 @@ export const ProviderOverlayNavigator: React.FC = () => {
         <ProviderSidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
-          currentRouteName={currentRouteName}
         />
       </Animated.View>
     </React.Fragment>

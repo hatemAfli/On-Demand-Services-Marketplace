@@ -18,6 +18,8 @@ import { AvailabilityModule } from './modules/availability/availability.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -46,6 +48,8 @@ import { AppService } from './app.service';
     AppointmentsModule,
     NotificationsModule,
     MessagingModule,
+    ReviewsModule,
+    ComplaintsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

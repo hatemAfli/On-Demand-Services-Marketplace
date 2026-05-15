@@ -1,7 +1,14 @@
+/**
+ * Chat message image attachments (client ↔ provider).
+ * Bucket: chat-attachments (isolated from provider service `gallery`).
+ *
+ * Path: conversations/{conversationId}/{senderUserId}/{timestamp-rand}.{ext}
+ */
 import { File as ExpoFile } from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
 import { supabase } from "./supabase";
-import { PROVIDER_GALLERY_BUCKET } from "./providerServiceGalleryUpload";
+
+export const CHAT_ATTACHMENTS_BUCKET = "chat-attachments";
 
 type ImageKind = "jpeg" | "png" | "webp";
 
@@ -64,7 +71,14 @@ async function readAsBuffer(uri: string): Promise<ArrayBuffer> {
   return file.arrayBuffer();
 }
 
-/** Chat attachments (public URLs in `gallery` bucket, same pattern as job evidence). */
+export function chatAttachmentStoragePath(
+  conversationId: string,
+  userId: string,
+  ext: string,
+): string {
+  return `conversations/${conversationId}/${userId}/${uniqueFileName(ext)}`;
+}
+
 export async function uploadChatMessagePhoto(
   conversationId: string,
   userId: string,
@@ -82,10 +96,10 @@ export async function uploadChatMessagePhoto(
     { compress: imageKind === "png" ? 1 : 0.82, format },
   );
 
-  const objectPath = `chat-messages/${conversationId}/${userId}/${uniqueFileName(ext)}`;
+  const objectPath = chatAttachmentStoragePath(conversationId, userId, ext);
   const bytes = await readAsBuffer(manipulated.uri);
   const { error } = await supabase.storage
-    .from(PROVIDER_GALLERY_BUCKET)
+    .from(CHAT_ATTACHMENTS_BUCKET)
     .upload(objectPath, bytes, {
       contentType,
       upsert: false,
@@ -93,7 +107,7 @@ export async function uploadChatMessagePhoto(
   if (error) throw new Error(error.message);
 
   const { data } = supabase.storage
-    .from(PROVIDER_GALLERY_BUCKET)
+    .from(CHAT_ATTACHMENTS_BUCKET)
     .getPublicUrl(objectPath);
   return data.publicUrl;
 }

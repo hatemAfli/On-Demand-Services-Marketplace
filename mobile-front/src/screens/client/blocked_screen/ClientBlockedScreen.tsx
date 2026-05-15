@@ -11,9 +11,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "../../context/AuthContext";
-import { useAppTranslation } from "../../hooks/useAppTranslation";
-import { AccountStatus } from "../../types";
+import { useAuth } from "../../../context/AuthContext";
+import { useAppTranslation } from "../../../hooks/useAppTranslation";
+import { AccountStatus } from "../../../types";
 
 const BLOCK_ICON: keyof typeof Ionicons.glyphMap = "shield-outline";
 const ACCENT = "#A78BFA";

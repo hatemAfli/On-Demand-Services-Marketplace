@@ -20,7 +20,6 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { COLORS } from "../../../constants";
-import { useProviderSidebarOpen } from "../../../navigation/ProviderSidebarContext";
 import type { ProviderStackParamList } from "../../../navigation/types";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import {
@@ -150,7 +149,6 @@ function compareTime(a: string, b: string): number {
 
 export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const openSidebar = useProviderSidebarOpen();
   const { t } = useAppTranslation();
   const initialMonday = useMemo(() => startOfIsoWeekMonday(new Date()), []);
   const initialSelected = useMemo(() => toYyyyMmDd(new Date()), []);
@@ -410,14 +408,13 @@ export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.header}>
         <View style={styles.headerLeftZone}>
           <TouchableOpacity
-            onPress={openSidebar}
+            onPress={() => navigation.goBack()}
             activeOpacity={0.85}
             style={styles.headerMenuBtn}
             hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
             accessibilityRole="button"
-            accessibilityLabel={t("client.a11y.openMenu")}
           >
-            <Ionicons name="menu" size={26} color={COLORS.text.primary} />
+            <Ionicons name="chevron-back" size={24} color={COLORS.text.primary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>
             Schedule

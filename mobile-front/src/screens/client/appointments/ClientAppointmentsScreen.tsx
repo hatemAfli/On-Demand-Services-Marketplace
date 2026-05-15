@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -23,6 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { COLORS } from "../../../constants";
 import { api, type AppointmentStatus } from "../../../services/api";
+import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import i18n from "../../../i18n";
 
 type Props = NativeStackScreenProps<ClientStackParamList, "ClientAppointments">;
@@ -190,7 +192,7 @@ function statusAccent(status: AppointmentStatus): string {
     case "EN_ROUTE":
       return "#9333EA";
     case "IN_PROGRESS":
-      return "#4F46E5";
+      return "#7C5CFC";
     case "COMPLETED":
       return "#10B981";
     case "RESCHEDULED":
@@ -202,32 +204,60 @@ function statusAccent(status: AppointmentStatus): string {
     case "DISPUTED":
       return "#6B7280";
     default:
-      return COLORS.gray?.[400] || "#9CA3AF";
+      return "#9CA3AF";
   }
 }
 
 function statusBadgeStyle(status: AppointmentStatus): {
   bg: string;
   text: string;
+  border: string;
 } {
   if (
     status === "CANCELLED_CLIENT" ||
     status === "CANCELLED_PROVIDER" ||
     status === "REFUSED"
-  ) {
-    return { bg: "#FEF2F2", text: "#DC2626" };
-  }
-  if (status === "PENDING") return { bg: "#FFFBEB", text: "#D97706" };
+  )
+    return { bg: "#FEF2F2", text: "#DC2626", border: "#FECACA" };
+  if (status === "PENDING")
+    return { bg: "#FFFBEB", text: "#D97706", border: "#FDE68A" };
   if (status === "CONFIRMED" || status === "EN_ROUTE")
-    return { bg: "#EFF6FF", text: "#2563EB" };
-  if (status === "IN_PROGRESS") return { bg: "#EEF2FF", text: "#4F46E5" };
-  if (status === "COMPLETED") return { bg: "#ECFDF5", text: "#059669" };
-  if (status === "RESCHEDULED") return { bg: "#FFF7ED", text: "#EA580C" };
-  if (status === "DISPUTED") return { bg: "#F3F4F6", text: "#4B5563" };
-  return {
-    bg: COLORS.gray?.[100] || "#F3F4F6",
-    text: COLORS.text?.secondary || "#4B5563",
-  };
+    return { bg: "#EFF6FF", text: "#2563EB", border: "#BFDBFE" };
+  if (status === "IN_PROGRESS")
+    return { bg: "#EDE9FE", text: "#7C5CFC", border: "#C4B5FD" };
+  if (status === "COMPLETED")
+    return { bg: "#ECFDF5", text: "#059669", border: "#6EE7B7" };
+  if (status === "RESCHEDULED")
+    return { bg: "#FFF7ED", text: "#EA580C", border: "#FED7AA" };
+  if (status === "DISPUTED")
+    return { bg: "#F4F3FA", text: "#6B6B80", border: "#EBEBF5" };
+  return { bg: "#F4F4F8", text: "#9B9BB0", border: "#E8E8F0" };
+}
+
+/* Status icon */
+function statusIconName(status: AppointmentStatus): string {
+  switch (status) {
+    case "PENDING":
+      return "radio-button-on-outline";
+    case "CONFIRMED":
+      return "checkmark-circle-outline";
+    case "EN_ROUTE":
+      return "navigate-outline";
+    case "IN_PROGRESS":
+      return "play-circle-outline";
+    case "COMPLETED":
+      return "ribbon-outline";
+    case "RESCHEDULED":
+      return "time-outline";
+    case "CANCELLED_CLIENT":
+    case "CANCELLED_PROVIDER":
+    case "REFUSED":
+      return "close-circle-outline";
+    case "DISPUTED":
+      return "alert-circle-outline";
+    default:
+      return "ellipse-outline";
+  }
 }
 
 function statusLabel(status: AppointmentStatus): string {
@@ -254,8 +284,24 @@ function mergeCancelledLists(
 }
 
 export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: t("client.screenTitles.ClientAppointments"),
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ marginLeft: 8, padding: 4 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, t]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("ALL");
   const [appointments, setAppointments] = useState<ClientAppointmentListItem[]>(
     [],
@@ -366,140 +412,153 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
 
   const renderCard = ({ item }: { item: ClientAppointmentListItem }) => {
     const badge = statusBadgeStyle(item.status);
+    const accent = statusAccent(item.status);
+    const iconName = statusIconName(item.status);
     const providerName =
       `${item.provider.firstName} ${item.provider.lastName}`.trim() ||
       "Provider";
     const initials =
-      `${item.provider.firstName?.[0] ?? ""}${
-        item.provider.lastName?.[0] ?? ""
-      }`.toUpperCase() || "?";
+      `${item.provider.firstName?.[0] ?? ""}${item.provider.lastName?.[0] ?? ""}`.toUpperCase() ||
+      "?";
 
     return (
       <View style={styles.cardWrap}>
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() =>
-            navigation.navigate("ClientAppointmentDetail", {
-              appointmentId: item.id,
-            })
-          }
-          style={styles.card}
-          accessibilityRole="button"
-        >
-          {/* Top Section: Provider Info & Status */}
-          <View style={styles.cardHeader}>
-            <View style={styles.providerInfo}>
-              {item.provider.photoUrl ? (
-                <Image
-                  source={{ uri: item.provider.photoUrl }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View style={styles.avatarFallback}>
-                  <Text style={styles.avatarInitials}>{initials}</Text>
-                </View>
-              )}
-              <View style={styles.providerTextWrap}>
-                <Text style={styles.providerName} numberOfLines={1}>
-                  {providerName}
-                </Text>
-                {item.provider.tagline ? (
-                  <Text style={styles.tagline} numberOfLines={1}>
-                    {item.provider.tagline}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
-              <Text style={[styles.statusBadgeText, { color: badge.text }]}>
-                {statusLabel(item.status)}
-              </Text>
-            </View>
-          </View>
+        {/* Left accent stripe */}
+        <View style={[styles.cardStripe, { backgroundColor: accent }]} />
 
-          <View style={styles.divider} />
-
-          {/* Bottom Section: Service & Date/Time */}
-          <View style={styles.cardBody}>
-            <View style={styles.serviceInfo}>
-              <Text style={styles.serviceName} numberOfLines={2}>
-                {item.givenService.serviceName || "Service"}
-              </Text>
-              <Text style={styles.categoryName} numberOfLines={1}>
-                {item.givenService.categoryName || "Uncategorized"}
-              </Text>
-            </View>
-
-            <View style={styles.dateTimeWrap}>
-              <View style={styles.iconCircle}>
-                <Ionicons
-                  name="calendar"
-                  size={16}
-                  color={COLORS.primary || "#4F46E5"}
-                />
-              </View>
-              <Text style={styles.dateTime}>
-                {formatCardDateTime(item.scheduledDate, item.scheduledTime)}
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        {/* Reschedule Banner Attached Below Card */}
-        {item.status === "RESCHEDULED" ? (
-          <View style={styles.rescheduleBanner}>
-            <View style={styles.rescheduleHeaderRow}>
-              <Ionicons name="time-outline" size={18} color="#C2410C" />
-              <Text style={styles.rescheduleBannerTitle}>
-                Provider proposed a new time
-              </Text>
-            </View>
-            <Text style={styles.rescheduleBannerLine}>
-              {formatRescheduleLine(item.rescheduleDate, item.rescheduleTime)}
-            </Text>
-            <View style={styles.rescheduleActions}>
-              <TouchableOpacity
-                style={[
-                  styles.btnDecline,
-                  respondingId === item.id && styles.btnDisabled,
-                ]}
-                disabled={respondingId !== null}
-                onPress={() =>
-                  void onRescheduleRespond(item.id, "CANCELLED_CLIENT")
-                }
-              >
-                {respondingId === item.id ? (
-                  <ActivityIndicator
-                    color={COLORS.error || "#DC2626"}
-                    size="small"
+        <View style={styles.cardContent}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() =>
+              navigation.navigate("ClientAppointmentDetail", {
+                appointmentId: item.id,
+              })
+            }
+            style={styles.card}
+            accessibilityRole="button"
+          >
+            {/* Provider row + status */}
+            <View style={styles.cardHeader}>
+              <View style={styles.providerInfo}>
+                {item.provider.photoUrl ? (
+                  <Image
+                    source={{ uri: item.provider.photoUrl }}
+                    style={styles.avatar}
                   />
                 ) : (
-                  <Text style={styles.btnDeclineText}>Decline</Text>
+                  <View style={styles.avatarFallback}>
+                    <Text style={styles.avatarInitials}>{initials}</Text>
+                  </View>
                 )}
-              </TouchableOpacity>
-              <TouchableOpacity
+                <View style={styles.providerTextWrap}>
+                  <Text style={styles.providerName} numberOfLines={1}>
+                    {providerName}
+                  </Text>
+                  {item.provider.tagline ? (
+                    <Text style={styles.tagline} numberOfLines={1}>
+                      {item.provider.tagline}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+              <View
                 style={[
-                  styles.btnAccept,
-                  respondingId === item.id && styles.btnDisabled,
+                  styles.statusBadge,
+                  { backgroundColor: badge.bg, borderColor: badge.border },
                 ]}
-                disabled={respondingId !== null}
-                onPress={() => void onRescheduleRespond(item.id, "CONFIRMED")}
               >
-                {respondingId === item.id ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.btnAcceptText}>Accept Time</Text>
-                )}
-              </TouchableOpacity>
+                <Ionicons name={iconName as any} size={11} color={badge.text} />
+                <Text style={[styles.statusBadgeText, { color: badge.text }]}>
+                  {statusLabel(item.status)}
+                </Text>
+              </View>
             </View>
-          </View>
-        ) : null}
+
+            {/* Divider */}
+            <View style={styles.divider} />
+
+            {/* Service + date/time */}
+            <View style={styles.cardBody}>
+              <View style={styles.serviceInfo}>
+                <Text style={styles.serviceName} numberOfLines={2}>
+                  {item.givenService.serviceName || "Service"}
+                </Text>
+                <View style={styles.categoryRow}>
+                  <Ionicons name="layers-outline" size={11} color="#C4C4C4" />
+                  <Text style={styles.categoryName} numberOfLines={1}>
+                    {item.givenService.categoryName || "Uncategorized"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.dateTimeWrap}>
+                <Ionicons name="calendar-outline" size={13} color="#7C5CFC" />
+                <Text style={styles.dateTime}>
+                  {formatCardDateTime(item.scheduledDate, item.scheduledTime)}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* Reschedule banner */}
+          {item.status === "RESCHEDULED" ? (
+            <View style={styles.rescheduleBanner}>
+              <View style={styles.rescheduleHeaderRow}>
+                <View style={styles.rescheduleIconWrap}>
+                  <Ionicons name="time-outline" size={14} color="#EA580C" />
+                </View>
+                <Text style={styles.rescheduleBannerTitle}>
+                  Provider proposed a new time
+                </Text>
+              </View>
+              <Text style={styles.rescheduleBannerLine}>
+                {formatRescheduleLine(item.rescheduleDate, item.rescheduleTime)}
+              </Text>
+              <View style={styles.rescheduleActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.btnDecline,
+                    respondingId === item.id && styles.btnDisabled,
+                  ]}
+                  disabled={respondingId !== null}
+                  onPress={() =>
+                    void onRescheduleRespond(item.id, "CANCELLED_CLIENT")
+                  }
+                >
+                  {respondingId === item.id ? (
+                    <ActivityIndicator color="#DC2626" size="small" />
+                  ) : (
+                    <Text style={styles.btnDeclineText}>Decline</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.btnAccept,
+                    respondingId === item.id && styles.btnDisabled,
+                  ]}
+                  disabled={respondingId !== null}
+                  onPress={() => void onRescheduleRespond(item.id, "CONFIRMED")}
+                >
+                  {respondingId === item.id ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                      <Text style={styles.btnAcceptText}>Accept Time</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+        </View>
       </View>
     );
   };
 
   return (
     <View style={styles.root}>
+      {/* Filter bar */}
       <View style={styles.filterWrapper}>
         <ScrollView
           horizontal
@@ -531,7 +590,7 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
 
       {loading && !refreshing ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={COLORS.primary || "#4F46E5"} />
+          <ActivityIndicator size="large" color="#7C5CFC" />
         </View>
       ) : (
         <FlatList
@@ -547,7 +606,8 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => void load(true)}
-              tintColor={COLORS.primary || "#4F46E5"}
+              tintColor="#7C5CFC"
+              colors={["#7C5CFC"]}
             />
           }
           ListEmptyComponent={
@@ -555,8 +615,8 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
               <View style={styles.emptyIconWrap}>
                 <Ionicons
                   name="calendar-clear-outline"
-                  size={42}
-                  color={COLORS.gray?.[400] || "#9CA3AF"}
+                  size={32}
+                  color="#7C5CFC"
                 />
               </View>
               <Text style={styles.emptyTitle}>No Appointments</Text>
@@ -572,64 +632,83 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F9FAFB", // Very light gray for modern app backgrounds
+    backgroundColor: "#F4F3FA",
   },
+
+  /* ── Filter bar ── */
   filterWrapper: {
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-    paddingVertical: 12,
+    borderBottomColor: "#EBEBF5",
   },
   filterScroll: {
     paddingHorizontal: 16,
-    gap: 10,
+    paddingVertical: 10,
+    gap: 8,
     flexDirection: "row",
     alignItems: "center",
   },
   filterChip: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 24,
-    backgroundColor: "#F3F4F6",
-    borderWidth: 1,
-    borderColor: "transparent",
+    borderRadius: 999,
+    backgroundColor: "#F4F3FA",
+    borderWidth: 1.5,
+    borderColor: "#EBEBF5",
   },
   filterChipActive: {
-    backgroundColor: COLORS.primary || "#4F46E5",
-    borderColor: COLORS.primary || "#4F46E5",
-    shadowColor: COLORS.primary || "#4F46E5",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    backgroundColor: "#EDE9FE",
+    borderColor: "#C4B5FD",
   },
   filterChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4B5563",
-    letterSpacing: 0.3,
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#9B9BB0",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   filterChipTextActive: {
-    color: "#FFFFFF",
-    fontWeight: "700",
+    color: "#7C5CFC",
   },
+
+  /* ── List ── */
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
+    gap: 12,
   },
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  /* ── Card wrapper ── */
   cardWrap: {
-    marginBottom: 16,
+    flexDirection: "row",
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    overflow: "hidden",
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 2,
   },
-  card: {
-    padding: 16,
+  cardStripe: {
+    width: 4,
+    alignSelf: "stretch",
   },
+  cardContent: {
+    flex: 1,
+  },
+  card: {
+    padding: 14,
+  },
+
+  /* Provider header */
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -639,125 +718,160 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    marginRight: 12,
+    marginRight: 10,
+    gap: 11,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#F3F4F6",
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#F4F3FA",
+    flexShrink: 0,
   },
   avatarFallback: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#E5E7EB",
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#EDE9FE",
+    borderWidth: 1.5,
+    borderColor: "#C4B5FD",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   avatarInitials: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#6B7280",
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#7C5CFC",
   },
   providerTextWrap: {
-    marginLeft: 12,
     flex: 1,
+    gap: 3,
   },
   providerName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
-    color: "#111827",
+    color: "#1A1A2E",
+    letterSpacing: -0.2,
   },
   tagline: {
-    marginTop: 2,
-    fontSize: 13,
-    color: "#6B7280",
+    fontSize: 12,
+    color: "#9B9BB0",
+    fontWeight: "400",
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexShrink: 0,
   },
   statusBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.4,
     textTransform: "uppercase",
   },
+
+  /* Divider */
   divider: {
     height: 1,
-    backgroundColor: "#F3F4F6",
-    marginVertical: 14,
+    backgroundColor: "#F4F3FA",
+    marginVertical: 12,
   },
+
+  /* Card body */
   cardBody: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
+    gap: 12,
   },
   serviceInfo: {
     flex: 1,
-    paddingRight: 16,
+    gap: 4,
   },
   serviceName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1F2937",
-    lineHeight: 20,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1A1A2E",
+    lineHeight: 19,
+    letterSpacing: -0.1,
+  },
+  categoryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   categoryName: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "#6B7280",
+    fontSize: 12,
+    color: "#9B9BB0",
+    fontWeight: "500",
   },
   dateTimeWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
+    gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  iconCircle: {
-    marginRight: 6,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1,
+    borderColor: "#EDE9FE",
+    flexShrink: 0,
   },
   dateTime: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#374151",
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#7C5CFC",
+    fontVariant: ["tabular-nums"],
   },
+
+  /* ── Reschedule banner ── */
   rescheduleBanner: {
     borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
+    borderTopColor: "#FED7AA",
     backgroundColor: "#FFF7ED",
-    padding: 16,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+    padding: 14,
+    gap: 8,
   },
   rescheduleHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
+    gap: 8,
+  },
+  rescheduleIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: "#FFEDD5",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
   },
   rescheduleBannerTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
     color: "#9A3412",
-    marginLeft: 6,
   },
   rescheduleBannerLine: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "500",
     color: "#C2410C",
-    marginBottom: 14,
+    paddingLeft: 34,
   },
   rescheduleActions: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
+    marginTop: 4,
   },
   btnDecline: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#FECACA",
@@ -768,58 +882,59 @@ const styles = StyleSheet.create({
   btnDeclineText: {
     color: "#DC2626",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 13,
   },
   btnAccept: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: COLORS.secondary || "#10B981",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: COLORS.secondary || "#10B981",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 12,
+    backgroundColor: "#059669",
+    shadowColor: "#059669",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 3,
   },
   btnAcceptText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 13,
   },
-  btnDisabled: {
-    opacity: 0.6,
-  },
-  centered: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  btnDisabled: { opacity: 0.55 },
+
+  /* ── Empty ── */
   empty: {
-    paddingTop: 64,
+    paddingTop: 72,
     alignItems: "center",
     paddingHorizontal: 32,
+    gap: 10,
   },
   emptyIconWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#F3F4F6",
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: "#EDE9FE",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: "#C4B5FD",
+    marginBottom: 4,
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 8,
+    fontWeight: "800",
+    color: "#1A1A2E",
+    letterSpacing: -0.4,
   },
   emptyText: {
-    fontSize: 14,
-    color: "#6B7280",
+    fontSize: 13,
+    color: "#9B9BB0",
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 19,
+    fontWeight: "500",
   },
 });

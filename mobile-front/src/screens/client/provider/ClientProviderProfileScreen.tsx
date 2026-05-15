@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -60,31 +60,268 @@ type GivenServiceDetails = {
     yearsOfExperience: number | null;
     languagesSpoken: string[];
     paymentMethodsAccepted: string[];
+    isTopProvider?: boolean;
   };
 };
 
-const STATIC_REVIEWS = [
-  {
-    id: "r1",
-    name: "Sami K.",
-    stars: 5,
-    comment:
-      "Great service and very professional. Arrived on time and finished quickly.",
-  },
-  {
-    id: "r2",
-    name: "Meriem B.",
-    stars: 4,
-    comment: "On time and clear communication. Would definitely hire again.",
-  },
-  {
-    id: "r3",
-    name: "Hatem A.",
-    stars: 5,
-    comment:
-      "Excellent quality, highly recommended. Fixed the issue the first time.",
-  },
-];
+export type ReviewItem = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  providerReply: string | null;
+  createdAt: string;
+  client: {
+    firstName: string;
+    lastInitial: string;
+    imageUrl: string | null;
+  };
+  givenServiceName: string;
+};
+
+type ReviewBreakdownRow = {
+  star: number;
+  count: number;
+  percentage: number;
+};
+
+function mapApiToReviewItem(raw: unknown): ReviewItem | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const id = r.id;
+  if (typeof id !== "string") return null;
+  const rating = typeof r.rating === "number" ? r.rating : Number(r.rating);
+  if (!Number.isFinite(rating)) return null;
+  const comment =
+    r.comment === null || r.comment === undefined
+      ? null
+      : String(r.comment);
+  const providerReply =
+    r.providerReply === null || r.providerReply === undefined
+      ? null
+      : String(r.providerReply);
+  const createdAt =
+    typeof r.createdAt === "string" ? r.createdAt : String(r.createdAt ?? "");
+
+  const client = r.client as Record<string, unknown> | undefined;
+  const imageUrl =
+    client?.imageUrl != null && String(client.imageUrl).trim()
+      ? String(client.imageUrl)
+      : null;
+  const user = client?.user as Record<string, unknown> | undefined;
+  const firstName =
+    typeof user?.firstName === "string" ? user.firstName : "";
+  const lastName = typeof user?.lastName === "string" ? user.lastName : "";
+  const lastTrim = lastName.trim();
+  const lastInitial = lastTrim[0] ? `${lastTrim[0]}.` : "";
+
+  const gs = r.givenService as Record<string, unknown> | undefined;
+  const service = gs?.service as Record<string, unknown> | undefined;
+  const translations = service?.translations as unknown[] | undefined;
+  let givenServiceName = "Service";
+  if (Array.isArray(translations) && translations[0]) {
+    const t0 = translations[0] as Record<string, unknown>;
+    if (typeof t0.name === "string" && t0.name.trim())
+      givenServiceName = t0.name;
+  }
+
+  return {
+    id,
+    rating,
+    comment,
+    providerReply,
+    createdAt,
+    client: {
+      firstName,
+      lastInitial: lastInitial,
+      imageUrl,
+    },
+    givenServiceName,
+  };
+}
+
+function formatReviewDateShort(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function formatAvgOne(v: number): string {
+  const r = Math.round(v * 10) / 10;
+  return Number.isInteger(r) ? String(r) : r.toFixed(1);
+}
+
+function ProfileAverageStars({ average }: { average: number }) {
+  const stars = useMemo(() => {
+    const raw = Math.min(5, Math.max(0, average));
+    const a = Math.round(raw * 2) / 2;
+    return [1, 2, 3, 4, 5].map((i) => {
+      if (a >= i) return "full" as const;
+      if (a >= i - 0.5) return "half" as const;
+      return "empty" as const;
+    });
+  }, [average]);
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+      {stars.map((kind, idx) => (
+        <Ionicons
+          key={idx}
+          name={
+            kind === "full"
+              ? "star"
+              : kind === "half"
+                ? "star-half"
+                : "star-outline"
+          }
+          size={16}
+          color={kind === "empty" ? "#D1D5DB" : "#C9A84C"}
+        />
+      ))}
+    </View>
+  );
+}
+
+function CompactBreakdownBars({ rows }: { rows: ReviewBreakdownRow[] }) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    progress.setValue(0);
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 650,
+      useNativeDriver: false,
+    }).start();
+  }, [rows, progress]);
+
+  return (
+    <View style={styles.reviewsBreakdownWrap}>
+      {rows.map((row) => {
+        const fillPct =
+          typeof row.percentage === "number" && Number.isFinite(row.percentage)
+            ? Math.min(100, Math.max(0, row.percentage))
+            : 0;
+        const barColor =
+          row.star >= 4 ? "#C9A84C" : row.star === 3 ? "#F59E0B" : "#DC2626";
+        const widthAnim = progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: ["0%", `${fillPct}%`],
+        });
+        return (
+          <View key={row.star} style={styles.reviewsBreakdownRow}>
+            <Text style={styles.reviewsBreakdownStar}>{row.star}</Text>
+            <Ionicons name="star" size={11} color="#C9A84C" style={{ marginRight: 4 }} />
+            <View style={styles.reviewsBreakdownTrack}>
+              <Animated.View
+                style={[
+                  styles.reviewsBreakdownFill,
+                  { width: widthAnim, backgroundColor: barColor },
+                ]}
+              />
+            </View>
+            <Text style={styles.reviewsBreakdownCount}>{row.count}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function ClientReviewPreviewCard({ item }: { item: ReviewItem }) {
+  const [expanded, setExpanded] = useState(false);
+  const displayName =
+    `${item.client.firstName} ${item.client.lastInitial}`.trim() || "Client";
+  const li = item.client.lastInitial.replace(/\./g, "");
+  const fi = item.client.firstName.trim()[0] ?? "";
+  const initials = `${fi}${li[0] ?? ""}`.toUpperCase() || "?";
+
+  const avatarColors =
+    item.rating >= 5
+      ? {
+          bg: "#ECFDF5",
+          border: "rgba(5,150,105,0.35)",
+          text: "#059669",
+        }
+      : item.rating === 4
+        ? {
+            bg: "rgba(201,168,76,0.12)",
+            border: "rgba(201,168,76,0.28)",
+            text: "#B45309",
+          }
+        : { bg: "#F3F4F6", border: "#E5E7EB", text: "#6B7280" };
+
+  const hasLong =
+    (item.comment?.length ?? 0) > 120 ||
+    (item.comment?.split("\n").length ?? 0) > 2;
+
+  return (
+    <View style={styles.reviewCard}>
+      <View style={styles.reviewHeader}>
+        {item.client.imageUrl ? (
+          <Image
+            source={{ uri: item.client.imageUrl }}
+            style={styles.reviewAvatarPhoto}
+          />
+        ) : (
+          <View
+            style={[
+              styles.reviewAvatar,
+              {
+                backgroundColor: avatarColors.bg,
+                borderColor: avatarColors.border,
+              },
+            ]}
+          >
+            <Text style={[styles.reviewAvatarText, { color: avatarColors.text }]}>
+              {initials}
+            </Text>
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <View style={styles.reviewNameRow}>
+            <Text style={styles.reviewName}>{displayName}</Text>
+            <Text style={styles.reviewDateSmall}>
+              {formatReviewDateShort(item.createdAt)}
+            </Text>
+          </View>
+          <Stars count={item.rating} size={11} />
+          <View style={styles.reviewServiceChip}>
+            <Text style={styles.reviewServiceChipText} numberOfLines={1}>
+              {item.givenServiceName}
+            </Text>
+          </View>
+        </View>
+      </View>
+      {item.comment ? (
+        <>
+          <Text
+            style={styles.reviewComment}
+            numberOfLines={expanded ? undefined : 2}
+          >
+            {item.comment}
+          </Text>
+          {hasLong ? (
+            <TouchableOpacity onPress={() => setExpanded((e) => !e)}>
+              <Text style={styles.reviewReadMore}>
+                {expanded ? "Show less" : "Read more"}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </>
+      ) : null}
+      {item.providerReply ? (
+        <View style={styles.reviewProviderReply}>
+          <Text style={styles.reviewProviderReplyText}>{item.providerReply}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 // ─── Design tokens ──────────────────────────────────────────
 const C = {
@@ -186,39 +423,6 @@ function BulletRow({
   );
 }
 
-// ─── Review card ────────────────────────────────────────────
-function ReviewCard({
-  name,
-  stars,
-  comment,
-}: {
-  name: string;
-  stars: number;
-  comment: string;
-}) {
-  const initials = name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
-  return (
-    <View style={styles.reviewCard}>
-      <View style={styles.reviewHeader}>
-        <View style={styles.reviewAvatar}>
-          <Text style={styles.reviewAvatarText}>{initials}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.reviewName}>{name}</Text>
-          <Stars count={stars} size={11} />
-        </View>
-      </View>
-      <Text style={styles.reviewComment}>{comment}</Text>
-    </View>
-  );
-}
-
 // ─── Main Screen ────────────────────────────────────────────
 export const ClientProviderProfileScreen: React.FC<Props> = ({
   route,
@@ -236,26 +440,90 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [openingChat, setOpeningChat] = useState(false);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [breakdown, setBreakdown] = useState<ReviewBreakdownRow[]>([]);
+  const [totalReviews, setTotalReviews] = useState(0);
+  const [averageRating, setAverageRating] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    void api
-      .getGivenServiceDetails(givenServiceId)
-      .then((res) => {
+    setReviews([]);
+    setBreakdown([]);
+    setTotalReviews(0);
+    setAverageRating(0);
+
+    void (async () => {
+      try {
+        const res = await api.getGivenServiceDetails(givenServiceId);
         if (cancelled) return;
-        setData(res.data as GivenServiceDetails);
-      })
-      .catch(() => {
+        const d = res.data as GivenServiceDetails;
+        setData(d);
+
+        const pid =
+          d.bookingProviderId ??
+          (d.owner.type === "COMPANY" ? null : d.owner.id ?? null);
+        if (pid) {
+          setReviewsLoading(true);
+          try {
+            const [revRes, brRes] = await Promise.all([
+              api.getProviderReviews(pid, { take: 5, sort: "recent" }),
+              api.getProviderReviewsBreakdown(pid),
+            ]);
+            if (cancelled) return;
+            const rawItems = Array.isArray(revRes.data?.items)
+              ? revRes.data.items
+              : [];
+            const mapped: ReviewItem[] = [];
+            for (const raw of rawItems) {
+              const it = mapApiToReviewItem(raw);
+              if (it) mapped.push(it);
+            }
+            setReviews(mapped);
+            setTotalReviews(
+              typeof revRes.data?.total === "number" ? revRes.data.total : 0,
+            );
+            setAverageRating(
+              typeof revRes.data?.averageRating === "number"
+                ? revRes.data.averageRating
+                : 0,
+            );
+            const br = Array.isArray(brRes.data) ? brRes.data : [];
+            setBreakdown(
+              br
+                .filter(
+                  (x: unknown): x is ReviewBreakdownRow =>
+                    !!x &&
+                    typeof x === "object" &&
+                    typeof (x as ReviewBreakdownRow).star === "number",
+                )
+                .sort((a, b) => b.star - a.star),
+            );
+          } catch {
+            if (!cancelled) {
+              setReviews([]);
+              setBreakdown([]);
+              setTotalReviews(0);
+              setAverageRating(0);
+            }
+          } finally {
+            if (!cancelled) setReviewsLoading(false);
+          }
+        } else if (!cancelled) {
+          setReviewsLoading(false);
+        }
+      } catch {
         if (!cancelled) {
           setError("Could not load provider profile.");
           setData(null);
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -542,11 +810,12 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
             </View>
           </View>
 
-          {/* Top Provider badge */}
-          <View style={styles.topProviderBadge}>
-            <Ionicons name="ribbon" size={13} color={C.gold} />
-            <Text style={styles.topProviderText}>Top Provider</Text>
-          </View>
+          {data.owner.isTopProvider ? (
+            <View style={styles.topProviderBadge}>
+              <Ionicons name="ribbon" size={13} color={C.gold} />
+              <Text style={styles.topProviderText}>Top Provider</Text>
+            </View>
+          ) : null}
 
           {/* Stats row */}
           <View style={styles.statsRow}>
@@ -702,16 +971,71 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
 
           {/* ── Reviews ── */}
           <Section title="Recent reviews">
-            <View style={{ gap: 10 }}>
-              {STATIC_REVIEWS.map((r) => (
-                <ReviewCard
-                  key={r.id}
-                  name={r.name}
-                  stars={r.stars}
-                  comment={r.comment}
-                />
-              ))}
-            </View>
+            {!providerIdForBooking ? (
+              <Text style={styles.bodyText}>
+                Reviews are not available for this listing.
+              </Text>
+            ) : reviewsLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={C.gold}
+                style={{ alignSelf: "flex-start", marginVertical: 8 }}
+              />
+            ) : (
+              <>
+                <View style={styles.reviewsSummaryRow}>
+                  <Text style={styles.reviewsAvgBig}>
+                    {formatAvgOne(
+                      totalReviews > 0 ? averageRating : data.averageRating,
+                    )}
+                  </Text>
+                  <View style={styles.reviewsSummaryMid}>
+                    <ProfileAverageStars
+                      average={
+                        totalReviews > 0 ? averageRating : data.averageRating
+                      }
+                    />
+                    <Text style={styles.reviewsCountMeta}>
+                      (
+                      {totalReviews > 0 ? totalReviews : data.totalReviews}{" "}
+                      reviews)
+                    </Text>
+                  </View>
+                  {data.owner.isTopProvider ? (
+                    <View style={styles.reviewsTopBadgeInline}>
+                      <Text style={styles.reviewsTopBadgeEmoji}>🏅</Text>
+                      <Text style={styles.reviewsTopBadgeTxt}>Top Provider</Text>
+                    </View>
+                  ) : null}
+                </View>
+                {breakdown.length > 0 ? (
+                  <CompactBreakdownBars rows={breakdown} />
+                ) : null}
+                <View style={{ gap: 10, marginTop: 10 }}>
+                  {reviews.map((r) => (
+                    <ClientReviewPreviewCard key={r.id} item={r} />
+                  ))}
+                </View>
+                {totalReviews > 5 && providerIdForBooking ? (
+                  <TouchableOpacity
+                    style={styles.reviewsSeeAllBtn}
+                    activeOpacity={0.88}
+                    onPress={() =>
+                      navigation.navigate("PublicProviderReviews", {
+                        providerId: providerIdForBooking,
+                        providerName: data.owner.displayName,
+                        isTopProvider: data.owner.isTopProvider === true,
+                      })
+                    }
+                  >
+                    <Text style={styles.reviewsSeeAllTxt}>
+                      {`See all ${totalReviews} reviews`}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color={C.gold} />
+                  </TouchableOpacity>
+                ) : null}
+              </>
+            )}
           </Section>
         </View>
       </Animated.ScrollView>
@@ -1176,6 +1500,140 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   reviewComment: { fontSize: 13, color: C.textMuted, lineHeight: 18 },
+  reviewsSummaryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 4,
+  },
+  reviewsAvgBig: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: C.text,
+    minWidth: 48,
+  },
+  reviewsSummaryMid: { flex: 1, minWidth: 140, gap: 4 },
+  reviewsCountMeta: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: C.textMuted,
+  },
+  reviewsTopBadgeInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: C.goldPale,
+    borderWidth: 1,
+    borderColor: C.goldBorder,
+  },
+  reviewsTopBadgeEmoji: { fontSize: 12 },
+  reviewsTopBadgeTxt: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: C.gold,
+  },
+  reviewsBreakdownWrap: { gap: 4, marginTop: 8, marginBottom: 4 },
+  reviewsBreakdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  reviewsBreakdownStar: {
+    width: 12,
+    fontSize: 11,
+    fontWeight: "800",
+    color: C.text,
+  },
+  reviewsBreakdownTrack: {
+    flex: 1,
+    height: 5,
+    borderRadius: 4,
+    backgroundColor: "#EEF0F4",
+    overflow: "hidden",
+  },
+  reviewsBreakdownFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  reviewsBreakdownCount: {
+    width: 28,
+    textAlign: "right",
+    fontSize: 11,
+    fontWeight: "700",
+    color: C.textMuted,
+  },
+  reviewsSeeAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.goldBorder,
+    backgroundColor: C.goldPale,
+  },
+  reviewsSeeAllTxt: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: C.gold,
+  },
+  reviewNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 2,
+  },
+  reviewDateSmall: {
+    fontSize: 11,
+    color: C.textLight,
+    fontWeight: "600",
+  },
+  reviewServiceChip: {
+    alignSelf: "flex-start",
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: C.goldPale,
+    borderWidth: 1,
+    borderColor: C.goldBorder,
+    maxWidth: "100%",
+  },
+  reviewServiceChipText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: C.gold,
+  },
+  reviewReadMore: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: "800",
+    color: C.gold,
+  },
+  reviewAvatarPhoto: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: C.cardBorder,
+  },
+  reviewProviderReply: {
+    marginTop: 8,
+    paddingLeft: 10,
+    borderLeftWidth: 2,
+    borderLeftColor: C.cardBorder,
+  },
+  reviewProviderReplyText: {
+    fontSize: 12,
+    color: C.textLight,
+    lineHeight: 17,
+  },
 
   // CTA bar
   ctaBar: {

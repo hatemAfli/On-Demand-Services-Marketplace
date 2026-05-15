@@ -59,6 +59,100 @@ export type AppointmentStatus =
   | "COMPLETED"
   | "DISPUTED";
 
+/** Matches Prisma `ComplaintCategory`. */
+export type ComplaintCategory =
+  | "SERVICE_QUALITY"
+  | "NO_SHOW"
+  | "LATE_ARRIVAL"
+  | "UNPROFESSIONAL"
+  | "OVERCHARGING"
+  | "PROPERTY_DAMAGE"
+  | "SAFETY_CONCERN"
+  | "FRAUD"
+  | "OTHER";
+
+/** Matches Prisma `ComplaintStatus`. */
+export type ComplaintStatus =
+  | "OPEN"
+  | "UNDER_REVIEW"
+  | "RESOLVED"
+  | "DISMISSED"
+  | "WITHDRAWN";
+
+/** Matches Prisma `ComplaintDecision`. */
+export type ComplaintDecision =
+  | "WARNING_ISSUED"
+  | "ACCOUNT_SUSPENDED"
+  | "ACCOUNT_BANNED"
+  | "REFUND_ISSUED"
+  | "NO_ACTION"
+  | "FORWARDED_TO_COMPANY";
+
+/** Row from admin GET `/complaints` (after backend list mapping). */
+export type AdminComplaintListItem = {
+  id: string;
+  category: ComplaintCategory;
+  status: ComplaintStatus;
+  description: string;
+  targetIsEmployee: boolean;
+  createdAt: string;
+  client: {
+    imageUrl: string | null;
+    user: { firstName: string; lastName: string };
+  };
+  provider: {
+    photoUrl: string | null;
+    user: { firstName: string; lastName: string };
+  };
+  appointment: {
+    id: string;
+    scheduledDate: string;
+    scheduledTime: string;
+    serviceName: string;
+  };
+};
+
+export type AdminComplaintsListResponse = {
+  items: AdminComplaintListItem[];
+  total: number;
+};
+
+/** Provider-facing complaint row (no client PII). */
+export type ProviderComplaintSummaryItem = {
+  id: string;
+  category: ComplaintCategory;
+  status: ComplaintStatus;
+  decision: ComplaintDecision | null;
+  adminResponse: string | null;
+  createdAt: string;
+  appointment: {
+    scheduledDate: string;
+    scheduledTime: string;
+    serviceName: string;
+  };
+};
+
+export type ProviderComplaintsSummaryResponse = {
+  totalComplaints: number;
+  activeComplaints: number;
+  items: ProviderComplaintSummaryItem[];
+};
+
+/** Normalized complaint row for client list/detail (after parsing API JSON). */
+export type ClientComplaintRow = {
+  id: string;
+  category: ComplaintCategory;
+  status: ComplaintStatus;
+  description: string;
+  evidenceUrls: string[];
+  adminResponse: string | null;
+  decision: ComplaintDecision | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  appointment: { scheduledDate: string; scheduledTime: string };
+  provider: { firstName: string; lastName: string; photoUrl: string | null };
+};
+
 export type NotificationType =
   | "APPOINTMENT_NEW_REQUEST"
   | "APPOINTMENT_CONFIRMED"
@@ -79,6 +173,10 @@ export type NotificationType =
   | "DOCUMENT_ACCEPTED"
   | "DOCUMENT_REJECTED"
   | "NEW_REVIEW"
+  | "COMPLAINT_FILED"
+  | "COMPLAINT_STATUS_UPDATED"
+  | "COMPLAINT_RESOLVED"
+  | "COMPLAINT_DISMISSED"
   | "SYSTEM_ANNOUNCEMENT";
 
 export type AppNotification = {
@@ -659,6 +757,93 @@ export const api = {
         lang: i18n.language?.startsWith("ar") ? "ar" : "en",
       },
     }),
+
+  checkCanReview: (appointmentId: string) =>
+    apiClient.get<{
+      canReview: boolean;
+      alreadyReviewed: boolean;
+      existingRating: number | null;
+    }>(`/reviews/can-review/${appointmentId}`),
+
+  getProviderReviews: (
+    providerId: string,
+    params?: {
+      givenServiceId?: string;
+      minRating?: number;
+      take?: number;
+      skip?: number;
+      sort?: "recent" | "highest" | "lowest";
+    },
+  ) =>
+    apiClient.get<{
+      items: unknown[];
+      total: number;
+      averageRating: number;
+    }>(`/reviews/provider/${providerId}`, { params }),
+
+  getProviderReviewsBreakdown: (providerId: string) =>
+    apiClient.get<{ star: number; count: number; percentage: number }[]>(
+      `/reviews/provider/${providerId}/breakdown`,
+    ),
+
+  replyToReview: (reviewId: string, payload: { providerReply: string }) =>
+    apiClient.patch<{
+      id: string;
+      providerReply: string | null;
+      repliedAt: string | null;
+    }>(`/reviews/${reviewId}/reply`, payload),
+
+  createReview: (payload: {
+    appointmentId: string;
+    rating: number;
+    comment?: string;
+  }) => apiClient.post<unknown>("/reviews", payload),
+
+  createComplaint: (payload: {
+    appointmentId: string;
+    category: ComplaintCategory;
+    description: string;
+    evidenceUrls?: string[];
+  }) => apiClient.post<unknown>("/complaints", payload),
+
+  getMyComplaints: () => apiClient.get<unknown[]>("/complaints/me"),
+
+  getComplaintById: (id: string) => apiClient.get<unknown>(`/complaints/${id}`),
+
+  withdrawComplaint: (id: string, payload?: { reason?: string }) =>
+    apiClient.patch<unknown>(`/complaints/${id}/withdraw`, payload ?? {}),
+
+  getAllComplaints: (filters?: {
+    status?: ComplaintStatus;
+    category?: ComplaintCategory;
+    take?: number;
+    skip?: number;
+    sort?: "recent" | "oldest";
+    providerId?: string;
+    clientId?: string;
+  }) =>
+    apiClient.get<AdminComplaintsListResponse>("/complaints", {
+      params: Object.fromEntries(
+        Object.entries(filters ?? {}).filter(
+          ([, v]) => v !== undefined && v !== "",
+        ),
+      ),
+    }),
+
+  reviewComplaint: (
+    id: string,
+    payload: {
+      status: ComplaintStatus;
+      adminNotes?: string;
+      adminResponse?: string;
+      decision?: ComplaintDecision;
+    },
+  ) => apiClient.patch<unknown>(`/complaints/${id}/review`, payload),
+
+  getMyProviderComplaints: () =>
+    apiClient.get<ProviderComplaintsSummaryResponse>(
+      "/complaints/my-provider-complaints",
+    ),
 };
 
 export default apiClient;

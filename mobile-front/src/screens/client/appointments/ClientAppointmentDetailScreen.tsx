@@ -14,6 +14,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,6 +26,10 @@ import { ConfirmModal } from "../../../components/common";
 import { api, type AppointmentStatus } from "../../../services/api";
 import i18n from "../../../i18n";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
+import {
+  pickApiStringArray,
+  unwrapAppointmentApiPayload,
+} from "../../../utils/parseApiStringArray";
 
 type ClientAppointmentConfirmModal =
   | { kind: "cancel_request" }
@@ -152,7 +157,7 @@ function normalizeDetail(
     scheduledDate: toYmd(raw.scheduledDate as string) ?? "",
     scheduledTime: String(raw.scheduledTime ?? ""),
     notes: (raw.notes as string | null) ?? null,
-    photoUrls: Array.isArray(raw.photoUrls) ? (raw.photoUrls as string[]) : [],
+    photoUrls: pickApiStringArray(raw, "photoUrls", "photo_urls"),
     refusalReason: (raw.refusalReason as string | null) ?? null,
     rescheduleDate: toYmd(raw.rescheduleDate as string | null),
     rescheduleTime: (raw.rescheduleTime as string | null) ?? null,
@@ -161,12 +166,12 @@ function normalizeDetail(
     completedAt: toIsoString(raw.completedAt),
     durationMinutes:
       raw.durationMinutes != null ? Number(raw.durationMinutes) : null,
-    beforePhotoUrls: Array.isArray(raw.beforePhotoUrls)
-      ? (raw.beforePhotoUrls as string[])
-      : [],
-    afterPhotoUrls: Array.isArray(raw.afterPhotoUrls)
-      ? (raw.afterPhotoUrls as string[])
-      : [],
+    beforePhotoUrls: pickApiStringArray(
+      raw,
+      "beforePhotoUrls",
+      "before_photo_urls",
+    ),
+    afterPhotoUrls: pickApiStringArray(raw, "afterPhotoUrls", "after_photo_urls"),
     cancellationReason: (raw.cancellationReason as string | null) ?? null,
     cancelledBy: (raw.cancelledBy as string | null) ?? null,
     givenService: {
@@ -252,8 +257,7 @@ function getClientAppointmentConfirmCopy(
     case "cancel_request":
       return {
         title: "Cancel request?",
-        message:
-          "The provider will no longer see this booking request.",
+        message: "The provider will no longer see this booking request.",
         cancelLabel: "Keep request",
         confirmLabel: "Cancel",
         confirmVariant: "destructive",
@@ -261,8 +265,7 @@ function getClientAppointmentConfirmCopy(
     case "cancel_confirmed":
       return {
         title: "Cancel appointment?",
-        message:
-          "You may be subject to the provider's cancellation policy.",
+        message: "You may be subject to the provider's cancellation policy.",
         cancelLabel: "Keep",
         confirmLabel: "Cancel appointment",
         confirmVariant: "destructive",
@@ -366,7 +369,7 @@ function statusBannerMeta(status: AppointmentStatus): {
     case "CANCELLED_PROVIDER":
       return { bg: "#F3F4F6", text: "#6B7280", icon: "ban-outline" };
     case "DISPUTED":
-      return { bg: "#FFFBEB", text: "#B45309", icon: "warning-outline" };
+      return { bg: "#FEF2F2", text: "#DC2626", icon: "flag" };
     default:
       return { bg: "#F3F4F6", text: "#6B7280", icon: "ellipse-outline" };
   }
@@ -382,7 +385,9 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
 }) => {
   const { appointmentId } = route.params;
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const { t } = useAppTranslation();
+  const interventionThumbSize = Math.floor((windowWidth - 32 - 36 - 12) / 2);
 
   const [appointment, setAppointment] =
     useState<ClientAppointmentDetailModel | null>(null);
@@ -392,13 +397,16 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
     useState<ClientAppointmentConfirmModal | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [canReview, setCanReview] = useState(false);
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
+  const [checkingReview, setCheckingReview] = useState(false);
 
   const loadAppointment = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!opts?.silent) setLoading(true);
       try {
         const res = await api.getAppointmentById(appointmentId);
-        setAppointment(normalizeDetail(res.data as Record<string, unknown>));
+        setAppointment(normalizeDetail(unwrapAppointmentApiPayload(res.data)));
       } catch {
         if (!opts?.silent) {
           setAppointment(null);
@@ -471,6 +479,38 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
     };
   }, [runPolling, loadAppointment]);
 
+  useEffect(() => {
+    if (appointment?.status !== "COMPLETED") {
+      setCanReview(false);
+      setAlreadyReviewed(false);
+      setCheckingReview(false);
+      return;
+    }
+    let cancelled = false;
+    setCheckingReview(true);
+    setCanReview(false);
+    setAlreadyReviewed(false);
+    void api
+      .checkCanReview(appointmentId)
+      .then((res) => {
+        if (cancelled) return;
+        setCanReview(res.data.canReview);
+        setAlreadyReviewed(res.data.alreadyReviewed);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCanReview(false);
+          setAlreadyReviewed(false);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingReview(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [appointmentId, appointment?.status]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("client.screenTitles.ClientAppointmentDetail"),
@@ -498,10 +538,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
   }, [appointment]);
 
   const runAction = useCallback(
-    async (
-      fn: () => Promise<unknown>,
-      opts?: { onSuccess?: () => void },
-    ) => {
+    async (fn: () => Promise<unknown>, opts?: { onSuccess?: () => void }) => {
       setActionLoading(true);
       try {
         await fn();
@@ -534,6 +571,40 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
       ? `$${appointment.givenService.price} / hr`
       : `$${appointment.givenService.price}`;
 
+  const fileComplaintParams = {
+    appointmentId: appointment.id,
+    providerName:
+      `${appointment.provider.firstName} ${appointment.provider.lastName}`.trim(),
+    serviceName: appointment.givenService.serviceName,
+  };
+
+  const showReportProblemLink =
+    appointment.status === "COMPLETED" ||
+    appointment.status === "IN_PROGRESS" ||
+    appointment.status === "EN_ROUTE" ||
+    appointment.status === "DISPUTED";
+
+  const reportProblemLink = (opts?: { marginTop?: number }) =>
+    showReportProblemLink ? (
+      <TouchableOpacity
+        style={[
+          styles.reportProblemLinkRow,
+          opts?.marginTop != null ? { marginTop: opts.marginTop } : null,
+        ]}
+        onPress={() =>
+          navigation.navigate("ClientFileComplaint", fileComplaintParams)
+        }
+        hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      >
+        <Ionicons
+          name="flag-outline"
+          size={16}
+          color={COLORS.error || "#EF4444"}
+        />
+        <Text style={styles.reportProblemLinkText}>Report a problem</Text>
+      </TouchableOpacity>
+    ) : null;
+
   const showAwaitingClientStart =
     appointment.status === "IN_PROGRESS" && !hasClientStart;
 
@@ -543,42 +614,139 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
   const showConfirmComplete =
     appointment.status === "IN_PROGRESS" && hasProviderEnd && !hasClientEnd;
 
+  const hasInterventionPhotos =
+    appointment.beforePhotoUrls.length > 0 ||
+    appointment.afterPhotoUrls.length > 0;
+
+  const interventionPhotosSection = hasInterventionPhotos ? (
+    <View style={[styles.card, styles.interventionPhotosCard]}>
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionIconWrap}>
+          <Ionicons
+            name="images-outline"
+            size={16}
+            color={COLORS.primary || "#4F46E5"}
+          />
+        </View>
+        <Text style={styles.sectionTitle}>Service photos</Text>
+      </View>
+      {appointment.beforePhotoUrls.length > 0 ? (
+        <View style={styles.interventionPhotoGroup}>
+          <Text style={styles.gridLabel}>Before</Text>
+          <View style={styles.grid}>
+            {appointment.beforePhotoUrls.map((uri) => (
+              <Image
+                key={uri}
+                source={{ uri }}
+                style={[
+                  styles.gridImg,
+                  {
+                    width: interventionThumbSize,
+                    height: interventionThumbSize,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {appointment.afterPhotoUrls.length > 0 ? (
+        <View
+          style={[
+            styles.interventionPhotoGroup,
+            appointment.beforePhotoUrls.length > 0
+              ? styles.interventionPhotoGroupSpaced
+              : null,
+          ]}
+        >
+          <Text style={styles.gridLabel}>After</Text>
+          <View style={styles.grid}>
+            {appointment.afterPhotoUrls.map((uri) => (
+              <Image
+                key={uri}
+                source={{ uri }}
+                style={[
+                  styles.gridImg,
+                  {
+                    width: interventionThumbSize,
+                    height: interventionThumbSize,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+    </View>
+  ) : null;
+
   return (
     <View style={styles.root}>
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: insets.bottom + 24 },
+          { paddingBottom: insets.bottom + 32 },
         ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Status Banner */}
-        <View style={[styles.statusBanner, { backgroundColor: banner.bg }]}>
-          <View style={styles.statusBannerInner}>
+        {appointment.status === "DISPUTED" ? (
+          <View style={styles.disputedStatusBanner}>
+            <View style={styles.disputedStatusIconWrap}>
+              <Ionicons
+                name="flag"
+                size={24}
+                color={COLORS.error || "#EF4444"}
+              />
+            </View>
+            <View style={styles.disputedTextWrap}>
+              <Text style={styles.disputedStatusTitle}>
+                Complaint in progress
+              </Text>
+              <Text style={styles.disputedStatusSubtitle}>
+                A complaint has been filed for this appointment. Our team is
+                reviewing it.
+              </Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("ClientMyComplaints")}
+                hitSlop={{ top: 8, bottom: 8 }}
+                style={styles.disputedViewComplaintBtn}
+              >
+                <Text style={styles.disputedViewComplaintLink}>
+                  View details
+                </Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={14}
+                  color={COLORS.error || "#EF4444"}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.statusBanner, { backgroundColor: banner.bg }]}>
             <View style={styles.statusBadgeIcon}>
-              <Ionicons name={banner.icon} size={20} color={banner.text} />
+              <Ionicons name={banner.icon} size={22} color={banner.text} />
             </View>
             <Text style={[styles.statusBannerText, { color: banner.text }]}>
               {statusLabel(appointment.status)}
             </Text>
           </View>
-        </View>
+        )}
 
         {/* Provider Card */}
         <View style={styles.card}>
           <View style={styles.providerRow}>
-            <View style={styles.avatarContainer}>
-              {appointment.provider.photoUrl ? (
-                <Image
-                  source={{ uri: appointment.provider.photoUrl }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View style={styles.avatarFallback}>
-                  <Text style={styles.avatarInitials}>{initials}</Text>
-                </View>
-              )}
-            </View>
+            {appointment.provider.photoUrl ? (
+              <Image
+                source={{ uri: appointment.provider.photoUrl }}
+                style={styles.avatar}
+              />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarInitials}>{initials}</Text>
+              </View>
+            )}
             <View style={styles.providerText}>
               <Text style={styles.providerName}>{providerFullName}</Text>
               {appointment.provider.tagline ? (
@@ -588,7 +756,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
               ) : null}
               {appointment.provider.city ? (
                 <View style={styles.cityRow}>
-                  <Ionicons name="location-sharp" size={12} color="#9CA3AF" />
+                  <Ionicons name="location-sharp" size={14} color="#9CA3AF" />
                   <Text style={styles.city}>{appointment.provider.city}</Text>
                 </View>
               ) : null}
@@ -599,12 +767,14 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
         {/* Service & Booking Details Card */}
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
-            <Ionicons
-              name="briefcase-outline"
-              size={18}
-              color={COLORS.primary || "#4F46E5"}
-            />
-            <Text style={styles.sectionTitle}>Service Details</Text>
+            <View style={styles.sectionIconWrap}>
+              <Ionicons
+                name="briefcase"
+                size={16}
+                color={COLORS.primary || "#4F46E5"}
+              />
+            </View>
+            <Text style={styles.sectionTitle}>Booking Details</Text>
           </View>
 
           <View style={styles.serviceHeader}>
@@ -616,39 +786,50 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                 {appointment.givenService.categoryName || "Uncategorized"}
               </Text>
             </View>
-            <Text style={styles.priceTag}>{priceLabel}</Text>
+            <View style={styles.priceWrap}>
+              <Text style={styles.priceTag}>{priceLabel}</Text>
+            </View>
           </View>
 
-          <View style={styles.detailRow}>
-            <Ionicons name="calendar-outline" size={16} color="#6B7280" />
-            <Text style={styles.detailText}>
-              {formatBookingDateTime(
-                appointment.scheduledDate,
-                appointment.scheduledTime,
-              )}
-            </Text>
-          </View>
+          <View style={styles.divider} />
 
-          {appointment.givenService.estimatedDurationMinutes != null ? (
+          <View style={styles.detailList}>
             <View style={styles.detailRow}>
-              <Ionicons name="timer-outline" size={16} color="#6B7280" />
+              <View style={styles.detailIcon}>
+                <Ionicons name="calendar-clear" size={18} color="#6B7280" />
+              </View>
               <Text style={styles.detailText}>
-                Est. {appointment.givenService.estimatedDurationMinutes} minutes
+                {formatBookingDateTime(
+                  appointment.scheduledDate,
+                  appointment.scheduledTime,
+                )}
               </Text>
             </View>
-          ) : null}
+
+            {appointment.givenService.estimatedDurationMinutes != null ? (
+              <View style={styles.detailRow}>
+                <View style={styles.detailIcon}>
+                  <Ionicons name="time" size={18} color="#6B7280" />
+                </View>
+                <Text style={styles.detailText}>
+                  Est. {appointment.givenService.estimatedDurationMinutes}{" "}
+                  minutes
+                </Text>
+              </View>
+            ) : null}
+          </View>
 
           {appointment.notes ? (
-            <>
-              <Text style={styles.notesLabel}>Your notes</Text>
+            <View style={styles.notesSection}>
+              <Text style={styles.notesLabel}>Notes for provider</Text>
               <View style={styles.notesBox}>
                 <Text style={styles.notes}>{appointment.notes}</Text>
               </View>
-            </>
+            </View>
           ) : null}
 
           {appointment.photoUrls.length > 0 ? (
-            <>
+            <View style={styles.photosSection}>
               <Text style={styles.photosLabel}>Reference photos</Text>
               <ScrollView
                 horizontal
@@ -659,17 +840,19 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                   <Image key={uri} source={{ uri }} style={styles.photoThumb} />
                 ))}
               </ScrollView>
-            </>
+            </View>
           ) : null}
         </View>
+
+        {interventionPhotosSection}
 
         {/* Action Blocks - Status Specific */}
         {appointment.status === "PENDING" ? (
           <View style={styles.actionBlock}>
             <View style={styles.infoCard}>
-              <Ionicons name="hourglass-outline" size={20} color="#D97706" />
+              <Ionicons name="hourglass" size={22} color="#D97706" />
               <Text style={styles.infoCardText}>
-                Waiting for {providerFullName} to confirm your request
+                Waiting for {providerFullName} to confirm your request.
               </Text>
             </View>
             <TouchableOpacity
@@ -687,19 +870,16 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
 
         {appointment.status === "CONFIRMED" ? (
           <View style={styles.actionBlock}>
-            <View style={styles.infoCard}>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color="#059669"
-              />
-              <Text style={styles.infoCardText}>
-                Confirmed for {formatLongDate(appointment.scheduledDate)}
+            <View style={styles.successCard}>
+              <Ionicons name="checkmark-circle" size={22} color="#059669" />
+              <Text style={styles.successCardText}>
+                Confirmed for {formatLongDate(appointment.scheduledDate)}.
               </Text>
             </View>
             <TouchableOpacity
               disabled={actionLoading}
               onPress={() => setConfirmModal({ kind: "cancel_confirmed" })}
+              style={styles.cancelLinkWrap}
             >
               <Text style={styles.linkDanger}>Cancel appointment</Text>
             </TouchableOpacity>
@@ -711,7 +891,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
             <View style={styles.rescheduleCard}>
               <View style={styles.rescheduleHeader}>
                 <View style={styles.rescheduleIconWrap}>
-                  <Ionicons name="calendar" size={18} color="#EA580C" />
+                  <Ionicons name="calendar" size={20} color="#EA580C" />
                 </View>
                 <Text style={styles.rescheduleTitle}>New time proposed</Text>
               </View>
@@ -725,6 +905,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                 <TouchableOpacity
                   style={[
                     styles.btnOutlineRed,
+                    styles.flex1,
                     actionLoading && styles.btnDisabled,
                   ]}
                   disabled={actionLoading}
@@ -737,14 +918,13 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                 <TouchableOpacity
                   style={[
                     styles.btnPrimaryGreen,
+                    styles.flex1,
                     actionLoading && styles.btnDisabled,
                   ]}
                   disabled={actionLoading}
-                  onPress={() =>
-                    setConfirmModal({ kind: "accept_reschedule" })
-                  }
+                  onPress={() => setConfirmModal({ kind: "accept_reschedule" })}
                 >
-                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
                   <Text style={styles.btnPrimaryGreenText}>Accept</Text>
                 </TouchableOpacity>
               </View>
@@ -756,7 +936,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
           <View style={styles.actionBlock}>
             <View style={styles.enRouteCard}>
               <View style={styles.enRouteIconWrap}>
-                <Ionicons name="car" size={24} color="#0284C7" />
+                <Ionicons name="car" size={28} color="#0284C7" />
               </View>
               <Text style={styles.enRouteText}>
                 Your provider is on the way!
@@ -767,19 +947,18 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                 </Text>
               ) : null}
             </View>
+            {reportProblemLink({ marginTop: 12 })}
           </View>
         ) : null}
 
         {showAwaitingClientStart ? (
           <View style={styles.actionBlock}>
             <View style={styles.awaitingCard}>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color="#5B21B6"
-              />
+              <View style={styles.awaitingIconWrap}>
+                <Ionicons name="location" size={22} color="#5B21B6" />
+              </View>
               <Text style={styles.awaitingText}>
-                Provider has arrived — Confirm the service has started
+                Provider has arrived. Please confirm to start the service.
               </Text>
             </View>
             <TouchableOpacity
@@ -791,8 +970,8 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                 )
               }
             >
-              <Ionicons name="play" size={16} color="#FFFFFF" />
-              <Text style={styles.btnPrimaryText}>Confirm Service Started</Text>
+              <Ionicons name="play" size={18} color="#FFFFFF" />
+              <Text style={styles.btnPrimaryText}>Start Service</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -800,10 +979,11 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
         {showTimerPhase ? (
           <View style={styles.actionBlock}>
             <View style={styles.timerCard}>
+              <Text style={styles.timerLabel}>IN PROGRESS</Text>
               <Text style={styles.timerLarge}>
                 {formatElapsed(elapsedSeconds)}
               </Text>
-              <Text style={styles.timerLabel}>Service duration</Text>
+              <View style={styles.timerDivider} />
               <Text style={styles.timerSub}>
                 Started{" "}
                 {appointment.startedAt
@@ -825,7 +1005,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                 )
               }
             >
-              <Ionicons name="checkmark-done" size={16} color="#FFFFFF" />
+              <Ionicons name="checkmark-done" size={20} color="#FFFFFF" />
               <Text style={styles.btnPrimaryText}>
                 Confirm Service Complete
               </Text>
@@ -833,96 +1013,113 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
           </View>
         ) : null}
 
+        {appointment.status === "IN_PROGRESS"
+          ? reportProblemLink({ marginTop: 12 })
+          : null}
+
         {appointment.status === "COMPLETED" ? (
           <View style={styles.completedBlock}>
             <View style={styles.completedCard}>
-              <Ionicons name="checkmark-circle" size={28} color="#059669" />
+              <View style={styles.completedIconWrap}>
+                <Ionicons name="checkmark-sharp" size={32} color="#059669" />
+              </View>
               <Text style={styles.completedTitle}>Service Completed</Text>
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Summary</Text>
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Started</Text>
-                  <Text style={styles.summaryValue}>
-                    {formatDateTime(appointment.startedAt)}
-                  </Text>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionIconWrap}>
+                  <Ionicons
+                    name="list"
+                    size={16}
+                    color={COLORS.primary || "#4F46E5"}
+                  />
                 </View>
+                <Text style={styles.sectionTitle}>Summary</Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Started</Text>
+                <Text style={styles.summaryValue}>
+                  {formatDateTime(appointment.startedAt)}
+                </Text>
               </View>
               <View style={styles.summaryRow}>
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Ended</Text>
-                  <Text style={styles.summaryValue}>
-                    {formatDateTime(appointment.completedAt)}
-                  </Text>
-                </View>
+                <Text style={styles.summaryLabel}>Ended</Text>
+                <Text style={styles.summaryValue}>
+                  {formatDateTime(appointment.completedAt)}
+                </Text>
               </View>
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Duration</Text>
-                  <Text style={styles.summaryValue}>
-                    {appointment.durationMinutes != null
-                      ? `${appointment.durationMinutes} min`
-                      : "—"}
-                  </Text>
-                </View>
+              <View
+                style={[
+                  styles.summaryRow,
+                  { borderBottomWidth: 0, paddingBottom: 0, marginBottom: 0 },
+                ]}
+              >
+                <Text style={styles.summaryLabel}>Duration</Text>
+                <Text style={styles.summaryValue}>
+                  {appointment.durationMinutes != null
+                    ? `${appointment.durationMinutes} min`
+                    : "—"}
+                </Text>
               </View>
             </View>
 
-            {appointment.beforePhotoUrls.length > 0 ? (
-              <View style={styles.card}>
-                <Text style={styles.gridLabel}>Before</Text>
-                <View style={styles.grid}>
-                  {appointment.beforePhotoUrls.map((uri) => (
-                    <Image key={uri} source={{ uri }} style={styles.gridImg} />
-                  ))}
+            {checkingReview ? (
+              <View style={styles.reviewCheckRow}>
+                <ActivityIndicator size="small" color="#D97706" />
+              </View>
+            ) : canReview && !alreadyReviewed ? (
+              <View style={styles.reviewPromoCard}>
+                <View style={styles.reviewPromoHeader}>
+                  <View style={styles.reviewPromoIconWrap}>
+                    <Ionicons name="star" size={24} color="#D97706" />
+                  </View>
+                  <View style={styles.reviewPromoHeaderText}>
+                    <Text style={styles.reviewPromoTitle}>
+                      How was your experience?
+                    </Text>
+                    <Text style={styles.reviewPromoSub}>
+                      Help others by sharing your feedback.
+                    </Text>
+                  </View>
                 </View>
+                <TouchableOpacity
+                  style={styles.reviewPromoBtn}
+                  activeOpacity={0.88}
+                  onPress={() =>
+                    navigation.navigate("ClientLeaveReview", {
+                      appointmentId: appointment.id,
+                      providerName:
+                        `${appointment.provider.firstName} ${appointment.provider.lastName}`.trim(),
+                      serviceName: appointment.givenService.serviceName,
+                      providerPhoto: appointment.provider.photoUrl ?? null,
+                    })
+                  }
+                >
+                  <Text style={styles.reviewPromoBtnText}>Leave a review</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            ) : alreadyReviewed ? (
+              <View style={styles.reviewedChip}>
+                <Ionicons name="checkmark-circle" size={16} color="#047857" />
+                <Text style={styles.reviewedChipText}>
+                  You reviewed this appointment
+                </Text>
               </View>
             ) : null}
 
-            {appointment.afterPhotoUrls.length > 0 ? (
-              <View style={styles.card}>
-                <Text style={styles.gridLabel}>After</Text>
-                <View style={styles.grid}>
-                  {appointment.afterPhotoUrls.map((uri) => (
-                    <Image key={uri} source={{ uri }} style={styles.gridImg} />
-                  ))}
-                </View>
-              </View>
-            ) : null}
-
-            <TouchableOpacity
-              style={styles.btnPrimary}
-              onPress={() =>
-                navigation.navigate("ClientLeaveReview", {
-                  appointmentId: appointment.id,
-                  providerId: appointment.providerId,
-                })
-              }
-            >
-              <Ionicons name="star" size={16} color="#FFFFFF" />
-              <Text style={styles.btnPrimaryText}>Leave a Review</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.btnSecondary}
-              onPress={() =>
-                navigation.navigate("ClientReportProblem", {
-                  appointmentId: appointment.id,
-                  providerId: appointment.providerId,
-                })
-              }
-            >
-              <Text style={styles.btnSecondaryText}>Report a Problem</Text>
-            </TouchableOpacity>
+            {reportProblemLink({ marginTop: 14 })}
           </View>
         ) : null}
 
         {appointment.status === "REFUSED" ? (
           <View style={styles.actionBlock}>
             <View style={styles.errorCard}>
-              <Ionicons name="close-circle" size={28} color="#DC2626" />
+              <View style={styles.errorIconWrap}>
+                <Ionicons name="close" size={32} color="#DC2626" />
+              </View>
               <Text style={styles.errorTitle}>Request Refused</Text>
               {appointment.refusalReason ? (
                 <Text style={styles.errorMessage}>
@@ -937,7 +1134,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                 navigation.navigate("ClientSearchProvider", undefined);
               }}
             >
-              <Ionicons name="search" size={16} color="#FFFFFF" />
+              <Ionicons name="search" size={18} color="#FFFFFF" />
               <Text style={styles.btnPrimaryText}>Find Another Provider</Text>
             </TouchableOpacity>
           </View>
@@ -947,7 +1144,9 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
           appointment.status === "CANCELLED_PROVIDER") && (
           <View style={styles.actionBlock}>
             <View style={styles.cancelledCard}>
-              <Ionicons name="ban" size={28} color="#6B7280" />
+              <View style={styles.cancelledIconWrap}>
+                <Ionicons name="ban" size={28} color="#4B5563" />
+              </View>
               <Text style={styles.cancelledTitle}>Appointment Cancelled</Text>
               <Text style={styles.cancelledSubtitle}>
                 {appointment.status === "CANCELLED_CLIENT"
@@ -955,9 +1154,11 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                   : "Cancelled by provider"}
               </Text>
               {appointment.cancellationReason ? (
-                <Text style={styles.cancelledReason}>
-                  {appointment.cancellationReason}
-                </Text>
+                <View style={styles.cancelledReasonBox}>
+                  <Text style={styles.cancelledReason}>
+                    "{appointment.cancellationReason}"
+                  </Text>
+                </View>
               ) : null}
             </View>
             <TouchableOpacity
@@ -967,23 +1168,11 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                 navigation.navigate("ClientHome");
               }}
             >
-              <Ionicons name="add-circle-outline" size={16} color="#FFFFFF" />
+              <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
               <Text style={styles.btnPrimaryText}>Book Again</Text>
             </TouchableOpacity>
           </View>
         )}
-
-        {appointment.status === "DISPUTED" ? (
-          <View style={styles.actionBlock}>
-            <View style={styles.disputeCard}>
-              <Ionicons name="warning" size={20} color="#B45309" />
-              <Text style={styles.disputeText}>
-                This appointment is under review by our support team. We'll
-                notify you of any updates.
-              </Text>
-            </View>
-          </View>
-        ) : null}
       </ScrollView>
 
       {confirmModal ? (
@@ -997,10 +1186,9 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
             switch (confirmModal.kind) {
               case "cancel_request":
               case "cancel_confirmed":
-                void runAction(
-                  () => api.cancelAppointment(appointmentId, {}),
-                  { onSuccess: close },
-                );
+                void runAction(() => api.cancelAppointment(appointmentId, {}), {
+                  onSuccess: close,
+                });
                 break;
               case "decline_reschedule":
                 void runAction(
@@ -1033,40 +1221,36 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F4F4F5",
   },
   loadingRoot: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F4F4F5",
   },
   headerBack: {
-    marginLeft: 8,
-    padding: 4,
+    marginLeft: 4,
+    padding: 8,
   },
   scroll: {
     paddingHorizontal: 16,
     paddingTop: 16,
   },
   statusBanner: {
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  statusBannerInner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    gap: 12,
   },
   statusBadgeIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1075,55 +1259,115 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     flex: 1,
   },
+  disputedStatusBanner: {
+    flexDirection: "row",
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    gap: 12,
+  },
+  disputedStatusIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  disputedTextWrap: {
+    flex: 1,
+  },
+  disputedStatusTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#991B1B",
+    marginBottom: 4,
+  },
+  disputedStatusSubtitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#B91C1C",
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  disputedViewComplaintBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  disputedViewComplaintLink: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.error || "#EF4444",
+  },
+  reportProblemLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+  },
+  reportProblemLinkText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.error || "#EF4444",
+  },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
+    shadowRadius: 12,
+    elevation: 2,
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    marginBottom: 14,
+    gap: 8,
+    marginBottom: 16,
+  },
+  sectionIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(79, 70, 229, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "800",
     color: "#374151",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   providerRow: {
     flexDirection: "row",
-    gap: 14,
-  },
-  avatarContainer: {
-    overflow: "hidden",
+    alignItems: "center",
+    gap: 16,
   },
   avatar: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: "#E5E7EB",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#F3F4F6",
   },
   avatarFallback: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: "#E5E7EB",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitials: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: "#6B7280",
   },
@@ -1133,12 +1377,12 @@ const styles = StyleSheet.create({
   },
   providerName: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#111827",
   },
   tagline: {
     marginTop: 4,
-    fontSize: 13,
+    fontSize: 14,
     color: "#6B7280",
   },
   cityRow: {
@@ -1148,87 +1392,107 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   city: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#9CA3AF",
+    fontWeight: "500",
   },
   serviceHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 14,
+    alignItems: "center",
     gap: 12,
   },
   serviceInfo: {
     flex: 1,
   },
   serviceTitle: {
-    fontSize: 17,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "800",
     color: "#111827",
   },
   category: {
     marginTop: 4,
-    fontSize: 13,
+    fontSize: 14,
     color: "#6B7280",
+    fontWeight: "500",
+  },
+  priceWrap: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
   priceTag: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "800",
     color: COLORS.primary || "#4F46E5",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  },
+  divider: {
+    height: 1,
     backgroundColor: "#F3F4F6",
-    borderRadius: 10,
+    marginVertical: 16,
+  },
+  detailList: {
+    gap: 12,
   },
   detailRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    marginBottom: 10,
+    gap: 12,
+  },
+  detailIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
   },
   detailText: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: "600",
     color: "#374151",
+  },
+  notesSection: {
+    marginTop: 20,
   },
   notesLabel: {
-    marginTop: 14,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
     color: "#6B7280",
+    marginBottom: 8,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   notesBox: {
-    marginTop: 8,
-    padding: 12,
+    padding: 16,
     backgroundColor: "#F9FAFB",
-    borderRadius: 10,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.primary || "#4F46E5",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   notes: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#374151",
-    lineHeight: 20,
+    lineHeight: 22,
+  },
+  photosSection: {
+    marginTop: 20,
   },
   photosLabel: {
-    marginTop: 14,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
     color: "#6B7280",
+    marginBottom: 8,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   photoRow: {
-    marginTop: 10,
-    gap: 10,
+    gap: 12,
   },
   photoThumb: {
-    width: 100,
-    height: 100,
-    borderRadius: 12,
-    backgroundColor: "#E5E7EB",
+    width: 110,
+    height: 110,
+    borderRadius: 14,
+    backgroundColor: "#F3F4F6",
   },
   actionBlock: {
     marginBottom: 16,
@@ -1238,18 +1502,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     backgroundColor: "#FFFBEB",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#FCD34D",
   },
   infoCardText: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#92400E",
-    fontWeight: "500",
+    fontWeight: "600",
     flex: 1,
+    lineHeight: 22,
+  },
+  successCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  successCardText: {
+    fontSize: 15,
+    color: "#065F46",
+    fontWeight: "600",
+    flex: 1,
+    lineHeight: 22,
   },
   btnPrimary: {
     flexDirection: "row",
@@ -1257,35 +1537,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     backgroundColor: COLORS.primary || "#4F46E5",
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 16,
+    minHeight: 54,
     shadowColor: COLORS.primary || "#4F46E5",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
   },
   btnPrimaryText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 15,
-  },
-  btnSecondary: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginTop: 10,
-  },
-  btnSecondaryText: {
-    color: "#6B7280",
-    fontWeight: "700",
-    fontSize: 15,
+    fontSize: 16,
   },
   btnOutlineRed: {
     flexDirection: "row",
@@ -1295,13 +1558,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#FECACA",
     backgroundColor: "#FEF2F2",
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 16,
+    minHeight: 54,
   },
   btnOutlineRedText: {
     color: "#DC2626",
     fontWeight: "700",
-    fontSize: 15,
+    fontSize: 16,
   },
   btnPrimaryGreen: {
     flexDirection: "row",
@@ -1309,132 +1572,155 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     backgroundColor: COLORS.secondary || "#10B981",
-    borderRadius: 12,
-    paddingVertical: 12,
-    flex: 1,
+    borderRadius: 16,
+    minHeight: 54,
   },
   btnPrimaryGreenText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 15,
+    fontSize: 16,
   },
   btnDisabled: {
-    opacity: 0.6,
+    opacity: 0.65,
+  },
+  flex1: {
+    flex: 1,
   },
   rescheduleCard: {
     backgroundColor: "#FFF7ED",
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     borderWidth: 1,
     borderColor: "#FED7AA",
   },
   rescheduleHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    marginBottom: 10,
+    gap: 12,
+    marginBottom: 12,
   },
   rescheduleIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(234, 88, 12, 0.1)",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(234, 88, 12, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
   rescheduleTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#B45309",
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#9A3412",
   },
   rescheduleTime: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#92400E",
-    marginBottom: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#78350F",
+    marginBottom: 20,
+    lineHeight: 22,
   },
   rescheduleButtonRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
+  },
+  cancelLinkWrap: {
+    alignItems: "center",
+    paddingVertical: 12,
   },
   linkDanger: {
     color: "#DC2626",
-    fontWeight: "600",
-    fontSize: 14,
-    textDecorationLine: "underline",
+    fontWeight: "700",
+    fontSize: 15,
   },
   enRouteCard: {
     alignItems: "center",
     backgroundColor: "#EFF6FF",
-    borderRadius: 14,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
+    borderRadius: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
     borderWidth: 1,
     borderColor: "#BFDBFE",
   },
   enRouteIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(2, 132, 199, 0.1)",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(2, 132, 199, 0.12)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   enRouteText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#0284C7",
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0369A1",
     textAlign: "center",
   },
   enRouteSub: {
     marginTop: 8,
-    fontSize: 13,
-    color: "#0369A1",
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#075985",
   },
   awaitingCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
     backgroundColor: "#F5F3FF",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#DDD6FE",
-    marginBottom: 12,
+    marginBottom: 16,
+  },
+  awaitingIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#EDE9FE",
+    alignItems: "center",
+    justifyContent: "center",
   },
   awaitingText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     color: "#5B21B6",
     flex: 1,
+    lineHeight: 22,
   },
   timerCard: {
     alignItems: "center",
     backgroundColor: "#EEF2FF",
-    borderRadius: 14,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
+    borderRadius: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
     borderWidth: 1,
     borderColor: "#C7D2FE",
   },
-  timerLarge: {
-    fontSize: 42,
-    fontWeight: "800",
-    color: COLORS.primary || "#4F46E5",
-    marginBottom: 8,
-  },
   timerLabel: {
     fontSize: 13,
-    fontWeight: "600",
-    color: "#4F46E5",
+    fontWeight: "800",
+    color: "#4338CA",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  timerLarge: {
+    fontSize: 48,
+    fontWeight: "800",
+    color: COLORS.primary || "#4F46E5",
+  },
+  timerDivider: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#C7D2FE",
+    borderRadius: 2,
+    marginVertical: 16,
   },
   timerSub: {
-    marginTop: 6,
-    fontSize: 12,
-    color: "#6B7280",
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#6366F1",
   },
   completedBlock: {
     marginBottom: 0,
@@ -1442,127 +1728,220 @@ const styles = StyleSheet.create({
   completedCard: {
     alignItems: "center",
     backgroundColor: "#ECFDF5",
-    borderRadius: 14,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    marginBottom: 14,
+    borderRadius: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: "#A7F3D0",
   },
+  completedIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#D1FAE5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
   completedTitle: {
-    marginTop: 10,
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#059669",
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#065F46",
   },
   summaryRow: {
-    paddingBottom: 12,
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  summaryItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
   },
   summaryLabel: {
-    fontSize: 13,
+    fontSize: 15,
     color: "#6B7280",
-    fontWeight: "500",
+    fontWeight: "600",
   },
   summaryValue: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
     color: "#111827",
   },
-  gridLabel: {
-    fontSize: 13,
+  reviewCheckRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 16,
+    minHeight: 28,
+  },
+  reviewPromoCard: {
+    backgroundColor: "#FFFBEB",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  reviewPromoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 16,
+  },
+  reviewPromoIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "rgba(217, 119, 6, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewPromoHeaderText: {
+    flex: 1,
+  },
+  reviewPromoTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#92400E",
+  },
+  reviewPromoSub: {
+    marginTop: 4,
+    fontSize: 14,
+    color: "#B45309",
+    fontWeight: "500",
+    lineHeight: 20,
+  },
+  reviewPromoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#D97706",
+    borderRadius: 14,
+    minHeight: 48,
+  },
+  reviewPromoBtnText: {
+    color: "#FFFFFF",
     fontWeight: "700",
-    color: "#6B7280",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 10,
+    fontSize: 15,
+  },
+  reviewedChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
+    gap: 6,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(5, 150, 105, 0.25)",
+  },
+  reviewedChipText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#047857",
+  },
+  interventionPhotosCard: {
+    marginTop: 16,
+  },
+  interventionPhotoGroup: {},
+  interventionPhotoGroupSpaced: {
+    marginTop: 16,
+  },
+  gridLabel: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#374151",
+    marginBottom: 12,
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginBottom: 4,
-    gap: 8,
+    gap: 12,
   },
   gridImg: {
     width: "48%",
     aspectRatio: 1,
-    borderRadius: 12,
-    backgroundColor: "#E5E7EB",
+    borderRadius: 14,
+    backgroundColor: "#F3F4F6",
   },
   errorCard: {
     alignItems: "center",
     backgroundColor: "#FEF2F2",
-    borderRadius: 14,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    borderRadius: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: "#FECACA",
   },
+  errorIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
   errorTitle: {
-    marginTop: 10,
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "800",
     color: "#DC2626",
   },
   errorMessage: {
     marginTop: 8,
-    fontSize: 13,
+    fontSize: 15,
+    fontWeight: "500",
     color: "#991B1B",
     textAlign: "center",
-    lineHeight: 19,
+    lineHeight: 22,
   },
   cancelledCard: {
     alignItems: "center",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 14,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
+  cancelledIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
   cancelledTitle: {
-    marginTop: 10,
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#374151",
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111827",
   },
   cancelledSubtitle: {
     marginTop: 4,
-    fontSize: 13,
-    color: "#6B7280",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#4B5563",
+  },
+  cancelledReasonBox: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
+    width: "100%",
+    alignItems: "center",
   },
   cancelledReason: {
-    marginTop: 8,
-    fontSize: 13,
+    fontSize: 14,
+    fontStyle: "italic",
     color: "#6B7280",
     textAlign: "center",
-    lineHeight: 19,
-  },
-  disputeCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#FFFBEB",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FCD34D",
-  },
-  disputeText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#92400E",
-    flex: 1,
     lineHeight: 20,
   },
 });

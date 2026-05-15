@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useLayoutEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../../services/api";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { ProviderStackParamList } from "../../../navigation/types";
+import { useAppTranslation } from "../../../hooks/useAppTranslation";
 
 type ServiceCardVariant = "tall" | "addNew";
 
@@ -338,7 +339,23 @@ function RequestRow({
 // ─── Main screen ───────────────────────────────────────────
 export const ProviderServicesScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
+  const { t } = useAppTranslation();
   const { width } = useWindowDimensions();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: t("provider.screenTitles.ProviderServices"),
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ marginLeft: 8, padding: 4 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="chevron-back" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, t]);
   const [providedServices, setProvidedServices] = useState<ServiceCard[]>([]);
   const [requestedServices, setRequestedServices] = useState<
     VerificationRequestRow[]

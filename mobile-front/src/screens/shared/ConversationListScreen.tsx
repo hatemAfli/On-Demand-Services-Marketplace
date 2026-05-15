@@ -10,10 +10,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  useFocusEffect,
-  useNavigation,
-} from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants";
@@ -52,7 +49,11 @@ function formatConversationTime(iso: string | null): string {
     now.getMonth(),
     now.getDate(),
   ).getTime();
-  const startMsg = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const startMsg = new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate(),
+  ).getTime();
   const diffMs = now.getTime() - t;
   const diffMin = Math.floor(diffMs / 60_000);
 
@@ -122,7 +123,10 @@ export const ConversationListScreen: React.FC = () => {
   }, [load]);
 
   const totalUnread = useMemo(() => {
-    if (!user || (user.role !== UserRole.CLIENT && user.role !== UserRole.PROVIDER))
+    if (
+      !user ||
+      (user.role !== UserRole.CLIENT && user.role !== UserRole.PROVIDER)
+    )
       return 0;
     return items.reduce((acc, row) => {
       const n =
@@ -254,10 +258,15 @@ export const ConversationListScreen: React.FC = () => {
     [isClient, openChat, otherParty, senderIsCurrentUser, unreadForRow],
   );
 
-  if (!user || (user.role !== UserRole.CLIENT && user.role !== UserRole.PROVIDER)) {
+  if (
+    !user ||
+    (user.role !== UserRole.CLIENT && user.role !== UserRole.PROVIDER)
+  ) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
-        <Text style={styles.muted}>Sign in as a client or provider to view messages.</Text>
+        <Text style={styles.muted}>
+          Sign in as a client or provider to view messages.
+        </Text>
       </View>
     );
   }
@@ -315,7 +324,8 @@ export const ConversationListScreen: React.FC = () => {
               </View>
               <Text style={styles.emptyTitle}>No conversations yet</Text>
               <Text style={styles.emptySub}>
-                When you message a provider or client, your chats will appear here.
+                When you message a provider or client, your chats will appear
+                here.
               </Text>
             </View>
           }

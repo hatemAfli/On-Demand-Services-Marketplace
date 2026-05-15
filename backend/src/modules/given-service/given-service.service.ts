@@ -182,6 +182,7 @@ export class GivenServiceService {
           totalReviews: Number(provider.totalReviews ?? 0),
           cancellationRate: Number(provider.cancellationRate ?? 0),
           gender: provider.gender ?? null,
+          isTopProvider: provider.isTopProvider ?? false,
         },
       };
     }
@@ -232,6 +233,7 @@ export class GivenServiceService {
         totalReviews: Number(company.totalReviews ?? 0),
         cancellationRate: 0,
         gender: null,
+        isTopProvider: false,
       },
     };
   }

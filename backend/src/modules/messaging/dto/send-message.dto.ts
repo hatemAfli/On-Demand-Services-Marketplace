@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsOptional,
   IsString,
@@ -37,6 +38,7 @@ export class SendMessageDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(3)
   @IsString({ each: true })
   mediaUrls?: string[];
 }

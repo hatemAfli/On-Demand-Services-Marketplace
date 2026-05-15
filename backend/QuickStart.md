@@ -199,4 +199,24 @@ npm install
 
 - User profile update endpoints
 - Provider/company validation by admin
-- File upload (documents, photos)
+
+### Supabase Storage buckets (mobile uploads)
+
+| Bucket | Purpose | Policies SQL |
+|--------|---------|----------------|
+| `avatars` | Client profile photos | `mobile-front/supabase/storage-policies-avatars.sql` |
+| `provider-documents` | Provider verification files | (dashboard / project docs) |
+| `service_photos` | Service catalog images | `backend/supabase/storage-service-photos-policies.sql` |
+| `gallery` | Provider service catalog gallery only | (configure in dashboard) |
+| **`chat-attachments`** | **Client ↔ provider chat message images** | **`backend/supabase/storage-chat-attachments-policies.sql`** |
+| **`appointment-request-photos`** | **Client photos on booking requests** | **`backend/supabase/storage-appointment-request-photos-policies.sql`** |
+| **`appointment-intervention-photos`** | **Provider before/after intervention photos** | **`backend/supabase/storage-appointment-intervention-photos-policies.sql`** |
+
+**Booking request photos:** create public bucket `appointment-request-photos`, run the policies SQL, then clients upload to  
+`clients/<userId>/batches/<batchId>/…` before `POST /appointments`. URLs are stored on `appointments.photo_urls` and shown to the provider on the appointment detail screen.
+
+**Intervention photos (before/after):** create public bucket `appointment-intervention-photos`, run the policies SQL. Providers upload to  
+`providers/<providerUserId>/appointments/<appointmentId>/before|after/…` on START/END execution. URLs are stored on `appointments.before_photo_urls` and `appointments.after_photo_urls` for the client, **platform admin**, and **company admin** (employee providers) via the API.
+
+**Chat attachments:** create public bucket `chat-attachments`, run the policies SQL. Mobile uploads to  
+`conversations/<conversationId>/<senderUserId>/…` before `POST` messaging send. URLs are stored on `messages.media_urls`.

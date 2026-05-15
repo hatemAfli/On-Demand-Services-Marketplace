@@ -1,7 +1,17 @@
+/**
+ * Provider before/after intervention photos (service execution).
+ * Bucket: appointment-intervention-photos (public read for admin / company / client UIs).
+ *
+ * Path: providers/{providerId}/appointments/{appointmentId}/before|after/{file}
+ */
 import { File as ExpoFile } from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
 import { supabase } from "./supabase";
-import { PROVIDER_GALLERY_BUCKET } from "./providerServiceGalleryUpload";
+
+export const APPOINTMENT_INTERVENTION_PHOTOS_BUCKET =
+  "appointment-intervention-photos";
+
+export type InterventionPhotoPhase = "before" | "after";
 
 type ImageKind = "jpeg" | "png" | "webp";
 
@@ -13,6 +23,7 @@ function resolveImageKind(
   if (m.includes("png")) return "png";
   if (m.includes("webp")) return "webp";
   if (m.includes("jpeg") || m.includes("jpg")) return "jpeg";
+  if (m.includes("heic") || m.includes("heif")) return "jpeg";
   const u = uri.split("?")[0]?.toLowerCase() ?? "";
   if (u.endsWith(".png")) return "png";
   if (u.endsWith(".webp")) return "webp";
@@ -63,9 +74,19 @@ async function readAsBuffer(uri: string): Promise<ArrayBuffer> {
   return file.arrayBuffer();
 }
 
-/** Evidence photos for appointment execution (public URLs in `gallery` bucket). */
-export async function uploadAppointmentJobPhoto(
+export function appointmentInterventionPhotoStoragePath(
+  providerId: string,
   appointmentId: string,
+  phase: InterventionPhotoPhase,
+  ext: string,
+): string {
+  return `providers/${providerId}/appointments/${appointmentId}/${phase}/${uniqueFileName(ext)}`;
+}
+
+export async function uploadAppointmentInterventionPhoto(
+  providerId: string,
+  appointmentId: string,
+  phase: InterventionPhotoPhase,
   localUri: string,
   mimeType?: string | null,
 ): Promise<string> {
@@ -80,10 +101,15 @@ export async function uploadAppointmentJobPhoto(
     { compress: imageKind === "png" ? 1 : 0.82, format },
   );
 
-  const objectPath = `job-evidence/${appointmentId}/${uniqueFileName(ext)}`;
+  const objectPath = appointmentInterventionPhotoStoragePath(
+    providerId,
+    appointmentId,
+    phase,
+    ext,
+  );
   const bytes = await readAsBuffer(manipulated.uri);
   const { error } = await supabase.storage
-    .from(PROVIDER_GALLERY_BUCKET)
+    .from(APPOINTMENT_INTERVENTION_PHOTOS_BUCKET)
     .upload(objectPath, bytes, {
       contentType,
       upsert: false,
@@ -91,7 +117,27 @@ export async function uploadAppointmentJobPhoto(
   if (error) throw new Error(error.message);
 
   const { data } = supabase.storage
-    .from(PROVIDER_GALLERY_BUCKET)
+    .from(APPOINTMENT_INTERVENTION_PHOTOS_BUCKET)
     .getPublicUrl(objectPath);
   return data.publicUrl;
+}
+
+export async function uploadAppointmentInterventionPhotos(
+  providerId: string,
+  appointmentId: string,
+  phase: InterventionPhotoPhase,
+  localUris: string[],
+): Promise<string[]> {
+  const urls: string[] = [];
+  for (const uri of localUris) {
+    urls.push(
+      await uploadAppointmentInterventionPhoto(
+        providerId,
+        appointmentId,
+        phase,
+        uri,
+      ),
+    );
+  }
+  return urls;
 }

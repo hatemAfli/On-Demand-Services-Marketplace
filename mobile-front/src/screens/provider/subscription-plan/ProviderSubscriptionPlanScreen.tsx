@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useLayoutEffect, useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -6,7 +6,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import type { ProviderStackParamList } from "../../../navigation/types";
+import { useAppTranslation } from "../../../hooks/useAppTranslation";
+import { COLORS } from "../../../constants";
+
+type Nav = NativeStackNavigationProp<
+  ProviderStackParamList,
+  "ProviderSubscriptionPlan"
+>;
 
 type BillingCycle = "monthly" | "annual";
 
@@ -156,7 +167,28 @@ const billingItems: BillingItem[] = [
 ];
 
 export function ProviderSubscriptionPlanScreen() {
+  const navigation = useNavigation<Nav>();
+  const { t } = useAppTranslation();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: t("provider.screenTitles.ProviderSubscriptionPlan"),
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ marginLeft: 8, padding: 4 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons
+            name="chevron-back"
+            size={24}
+            color={COLORS.text.primary}
+          />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, t]);
 
   const priceSuffix = useMemo(
     () => (billingCycle === "annual" ? "/user/yr" : "/user/mo"),

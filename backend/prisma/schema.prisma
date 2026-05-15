@@ -141,6 +141,10 @@ enum NotificationType {
   DOCUMENT_REJECTED // provider: a document was rejected
   // Review
   NEW_REVIEW // provider: client left a review
+  COMPLAINT_FILED // provider: a complaint was filed against them
+  COMPLAINT_STATUS_UPDATED // client: admin updated their complaint status
+  COMPLAINT_RESOLVED // client: complaint resolved with decision
+  COMPLAINT_DISMISSED // client: complaint dismissed
   // System
   SYSTEM_ANNOUNCEMENT // all users: platform announcement
 }
@@ -149,6 +153,40 @@ enum MessageStatus {
   SENT // inserted in DB
   DELIVERED // recipient's device received it
   READ // recipient opened the conversation
+}
+
+enum ReviewVisibility {
+  PUBLIC // shown to all clients
+  HIDDEN // hidden by platform admin (inappropriate content)
+}
+
+enum ComplaintStatus {
+  OPEN // just submitted, not yet seen by admin
+  UNDER_REVIEW // admin opened and is investigating
+  RESOLVED // admin took action and closed the complaint
+  DISMISSED // admin reviewed and dismissed as invalid
+  WITHDRAWN // client withdrew the complaint
+}
+
+enum ComplaintCategory {
+  SERVICE_QUALITY // work was poor quality or incomplete
+  NO_SHOW // provider never arrived
+  LATE_ARRIVAL // provider arrived significantly late
+  UNPROFESSIONAL // rude, disrespectful, or inappropriate behaviour
+  OVERCHARGING // charged more than agreed price
+  PROPERTY_DAMAGE // provider damaged client's property
+  SAFETY_CONCERN // client felt unsafe
+  FRAUD // provider was deceptive or fraudulent
+  OTHER // anything not covered above
+}
+
+enum ComplaintDecision {
+  WARNING_ISSUED // admin sent a formal warning to the provider
+  ACCOUNT_SUSPENDED // provider account suspended temporarily
+  ACCOUNT_BANNED // provider permanently banned
+  REFUND_ISSUED // admin processed a compensation
+  NO_ACTION // dismissed, no action taken
+  FORWARDED_TO_COMPANY // dependent provider → forwarded to company admin
 }
 
 // User Model (synced with Supabase Auth)
@@ -198,6 +236,8 @@ model Client {
   favorites     ClientFavorite[]
   appointments  Appointment[]
   conversations Conversation[]
+  reviews         Review[]
+  complaints      Complaint[]
 
   @@map("clients")
 }
@@ -220,11 +260,17 @@ model Provider {
   languagesSpoken     String[]     @default(["Arabic"]) @map("languages_spoken")
   gender              ProviderGender? @map("gender")
   totalReviews        Int          @default(0) @map("total_reviews")
-  cancellationRate    Decimal?     @default(0) @db.Decimal(5, 2)
+  /// Weighted average updated after every review — separate from per-service averages on GivenService
+  averageRating        Decimal?     @default(0) @map("average_rating") @db.Decimal(3, 2)
+  cancellationRate     Decimal?     @default(0) @db.Decimal(5, 2)
   averageResponseTime Decimal?     @map("average_response_time") @db.Decimal(10, 2)
   isTopProvider       Boolean      @default(false) @map("is_top_provider")
   paymentMethodsAccepted String[]  @default(["Cash"]) @map("payment_methods_accepted")
   companyId           String?      @map("company_id") @db.Uuid
+  /// Total complaints ever received (any status) — for admin overview.
+  totalComplaints Int @default(0) @map("total_complaints")
+  /// Active unresolved complaints — used for auto-suspension logic.
+  activeComplaints Int @default(0) @map("active_complaints")
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")
 
@@ -236,6 +282,8 @@ model Provider {
   daysOff       ProviderDayOff[]
   appointments  Appointment[]
   conversations Conversation[]
+  reviews         Review[]
+  complaints      Complaint[]
 
   @@map("providers")
 }
@@ -344,6 +392,7 @@ model PlatformAdmin {
   // Relations
   user                         User                   @relation(fields: [id], references: [id], onDelete: Cascade)
   createdLegalDocumentVersions LegalDocumentVersion[]
+  handledComplaints            Complaint[]
 
   @@map("platform_admins")
 }
@@ -563,6 +612,7 @@ model GivenService {
   service   Service          @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   galleries ServiceGallery[]
   appointments Appointment[]
+  reviews        Review[]
 
   @@index([serviceId])
   @@index([ownerType, ownerId])
@@ -654,12 +704,116 @@ model Appointment {
   givenService  GivenService              @relation(fields: [givenServiceId], references: [id], onDelete: Restrict)
   provider      Provider                  @relation(fields: [providerId], references: [id], onDelete: Restrict)
   confirmations AppointmentConfirmation[]
+  review        Review?
+  complaints    Complaint[]
 
   @@index([clientId, status])
   @@index([providerId, scheduledDate])
   @@index([givenServiceId])
   @@index([status])
   @@map("appointments")
+}
+
+/// A review left by a client after a COMPLETED appointment.
+/// One review per appointment — enforced by @@unique([appointmentId]).
+model Review {
+  id             String           @id @default(uuid()) @db.Uuid
+  appointmentId  String           @unique @map("appointment_id") @db.Uuid
+  clientId       String           @map("client_id") @db.Uuid
+  providerId     String           @map("provider_id") @db.Uuid
+  givenServiceId String           @map("given_service_id") @db.Uuid
+
+  /// Star rating 1–5
+  rating Int
+
+  /// Optional written comment
+  comment String? @db.Text
+
+  /// Optional provider public reply to the review
+  providerReply String?   @map("provider_reply") @db.Text
+  repliedAt     DateTime? @map("replied_at")
+
+  visibility ReviewVisibility @default(PUBLIC)
+
+  /// Admin can hide with a reason
+  hiddenReason String?   @map("hidden_reason") @db.Text
+  hiddenAt     DateTime? @map("hidden_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  appointment  Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  provider     Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  givenService GivenService @relation(fields: [givenServiceId], references: [id], onDelete: Cascade)
+
+  @@index([providerId, createdAt])
+  @@index([givenServiceId, createdAt])
+  @@index([clientId])
+  @@index([visibility, providerId])
+  @@map("reviews")
+}
+
+/// A complaint filed by a client against a provider after a COMPLETED or problematic appointment.
+model Complaint {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// The appointment this complaint relates to.
+  appointmentId String @map("appointment_id") @db.Uuid
+
+  /// The client who filed the complaint.
+  clientId String @map("client_id") @db.Uuid
+
+  /// The provider being reported.
+  providerId String @map("provider_id") @db.Uuid
+
+  /// Category of the issue.
+  category ComplaintCategory
+
+  /// Detailed description from the client.
+  description String @db.Text
+
+  /// Optional evidence photos uploaded by the client.
+  evidenceUrls String[] @default([]) @map("evidence_urls")
+
+  /// Current status of the complaint lifecycle.
+  status ComplaintStatus @default(OPEN)
+
+  /// Admin who handled this complaint (null until assigned).
+  handledByAdminId String? @map("handled_by_admin_id") @db.Uuid
+
+  /// Admin internal notes (not visible to client).
+  adminNotes String? @map("admin_notes") @db.Text
+
+  /// Admin's public response sent back to the client.
+  adminResponse String? @map("admin_response") @db.Text
+
+  /// Final decision taken by the admin.
+  decision ComplaintDecision? @map("decision")
+
+  /// Timestamps for each lifecycle transition.
+  openedAt   DateTime  @default(now()) @map("opened_at")
+  reviewedAt DateTime? @map("reviewed_at")
+  resolvedAt DateTime? @map("resolved_at")
+
+  /// Whether the complaint targets a company employee (dependent provider).
+  /// If true, the company admin is also notified (company feature — future).
+  targetIsEmployee Boolean @default(false) @map("target_is_employee")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  appointment     Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  client          Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  provider        Provider       @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  handledByAdmin  PlatformAdmin? @relation(fields: [handledByAdminId], references: [id], onDelete: SetNull)
+
+  @@unique([appointmentId, clientId]) // one complaint per appointment per client
+  @@index([status, createdAt])
+  @@index([providerId, status])
+  @@index([clientId])
+  @@index([handledByAdminId])
+  @@map("complaints")
 }
 
 /// Dual-confirmation log: client and provider each confirm START and END.

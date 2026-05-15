@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -15,6 +15,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { api } from "../../../services/api";
+import { useAppTranslation } from "../../../hooks/useAppTranslation";
 
 // ─── Types (unchanged) ────────────────────────────────────
 type Props = NativeStackScreenProps<ClientStackParamList, "ClientFavorites">;
@@ -178,7 +179,23 @@ function FavoriteCard({
 
 // ─── Main screen ───────────────────────────────────────────
 export const ClientFavoritesScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: t("client.screenTitles.ClientFavorites"),
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ marginLeft: 8, padding: 4 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, t]);
 
   // ── State (unchanged) ────────────────────────────────────
   const [counts, setCounts] = useState<FavoriteCounts>({

@@ -79,6 +79,18 @@ export function getNotificationVisual(type: NotificationType): NotificationIconC
   if (type === "DOCUMENT_REJECTED") {
     return { icon: "document-outline", bgColor: "#FEE2E2", iconColor: "#DC2626" };
   }
+  if (
+    type === "COMPLAINT_FILED" ||
+    type === "COMPLAINT_STATUS_UPDATED" ||
+    type === "COMPLAINT_RESOLVED" ||
+    type === "COMPLAINT_DISMISSED"
+  ) {
+    return {
+      icon: "shield-outline",
+      bgColor: type === "COMPLAINT_RESOLVED" ? "#DCFCE7" : "#FEF3C7",
+      iconColor: type === "COMPLAINT_RESOLVED" ? "#16A34A" : "#B45309",
+    };
+  }
 
   return {
     icon: "notifications-outline",
@@ -189,7 +201,18 @@ export const NotificationsScreen: React.FC = () => {
         typeof item.data?.appointmentId === "string"
           ? item.data.appointmentId
           : undefined;
+      const complaintId =
+        typeof item.data?.complaintId === "string" ? item.data.complaintId : undefined;
       if (!screen) return;
+
+      if (screen === "ClientComplaintDetail" && complaintId) {
+        navigation.navigate("ClientComplaintDetail", { complaintId });
+        return;
+      }
+      if (screen === "ProviderComplaints") {
+        navigation.navigate("ProviderComplaints");
+        return;
+      }
 
       if (screen === "ClientAppointmentDetail" && appointmentId) {
         navigation.navigate("ClientAppointmentDetail", { appointmentId });

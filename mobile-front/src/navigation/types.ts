@@ -38,6 +38,12 @@ export type ClientStackParamList = {
       }
     | undefined;
   ClientProviderProfile: { givenServiceId: string };
+  /** Read-only provider reviews (marketplace / client). */
+  PublicProviderReviews: {
+    providerId: string;
+    providerName: string;
+    isTopProvider?: boolean;
+  };
   ClientSlotPicker: {
     providerId: string;
     givenServiceId: string;
@@ -59,12 +65,27 @@ export type ClientStackParamList = {
     otherUserName: string;
     otherUserPhoto: string | null;
   };
-  ClientReclamation: undefined;
   /** Client bookings / appointments list (preferred name for new flows). */
   ClientAppointments: undefined;
   ClientAppointmentDetail: { appointmentId: string };
-  ClientLeaveReview: { appointmentId: string; providerId: string };
-  ClientReportProblem: { appointmentId: string; providerId: string };
+  ClientLeaveReview: {
+    appointmentId: string;
+    providerName: string;
+    serviceName: string;
+    providerPhoto: string | null;
+  };
+  ClientFileComplaint: {
+    appointmentId: string;
+    providerName: string;
+    serviceName: string;
+  };
+  ClientComplaintSuccess: {
+    category: string;
+    providerName: string;
+  };
+  /** Client's filed complaints (from GET /complaints/me). */
+  ClientMyComplaints: undefined;
+  ClientComplaintDetail: { complaintId: string };
   ClientFavorites: undefined;
   ClientFavoritesList: { type: "CATEGORY" | "SERVICE" | "PROVIDER" };
   Notifications: undefined;
@@ -86,11 +107,14 @@ export type ClientStackRouteWithoutParams = Exclude<
   | "ClientCategoryServices"
   | "ClientSearchProvider"
   | "ClientProviderProfile"
+  | "PublicProviderReviews"
   | "ClientSlotPicker"
   | "ClientBookingConfirmation"
   | "ClientAppointmentDetail"
   | "ClientLeaveReview"
-  | "ClientReportProblem"
+  | "ClientFileComplaint"
+  | "ClientComplaintSuccess"
+  | "ClientComplaintDetail"
   | "ClientHomeSearch"
   | "ClientFavoritesList"
   | "NotificationDetail"
@@ -144,13 +168,15 @@ export type ProviderStackParamList = {
   };
   Notifications: undefined;
   NotificationDetail: NotificationDetailParams;
-  ProviderReclamations: undefined;
+  ProviderComplaints: undefined;
   ProviderSchedule: undefined;
   ProviderDaysOff: undefined;
   ProviderCalendar: undefined;
   ProviderAppointmentDetail: { appointmentId: string };
   ProviderSubscriptionPlan: undefined;
   ProviderRatings: undefined;
+  /** Paginated public reviews for the signed-in provider (own id from profile). */
+  ProviderReviews: undefined;
   ProviderProfile: undefined;
   ProviderEditProfile: undefined;
   ProviderDocumentDetails: {

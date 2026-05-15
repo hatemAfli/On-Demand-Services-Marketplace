@@ -13,23 +13,25 @@ import type { ClientStackParamList } from "./types";
 import { COLORS } from "../constants";
 import { useAppTranslation } from "../hooks/useAppTranslation";
 
-import { ClientSidebar } from "../screens/client/ClientSidebar";
+import { ClientSidebar } from "../screens/client/sidebar/ClientSidebar";
 
 import { ClientHomeScreen } from "../screens/client/home/ClientHomeScreen";
 import { ClientHomeSearchScreen } from "../screens/client/home/ClientHomeSearchScreen";
 import { ListOfServicesScreen } from "../screens/client/category-services/ListOfServicesScreen";
 import { ClientSearchProviderScreen } from "../screens/client/search";
 import { ClientProviderProfileScreen } from "../screens/client/provider/ClientProviderProfileScreen";
+import { PublicProviderReviewsScreen } from "../screens/client/provider/PublicProviderReviewsScreen";
 import { ClientSlotPickerScreen } from "../screens/client/appointments/ClientSlotPickerScreen";
 import { ClientBookingConfirmationScreen } from "../screens/client/appointments/ClientBookingConfirmationScreen";
-import { ClientMessagesScreen } from "../screens/client/ClientMessagesScreen";
 import { ConversationListScreen } from "../screens/shared/ConversationListScreen";
 import { ChatScreen } from "../screens/shared/ChatScreen";
-import { ClientReclamationScreen } from "../screens/client/ClientReclamationScreen";
 import { ClientAppointmentsScreen } from "../screens/client/appointments/ClientAppointmentsScreen";
 import { ClientAppointmentDetailScreen } from "../screens/client/appointments/ClientAppointmentDetailScreen";
 import { ClientLeaveReviewScreen } from "../screens/client/appointments/ClientLeaveReviewScreen";
-import { ClientReportProblemScreen } from "../screens/client/appointments/ClientReportProblemScreen";
+import { ClientFileComplaintScreen } from "../screens/client/appointments/ClientFileComplaintScreen";
+import { ClientComplaintSuccessScreen } from "../screens/client/appointments/ClientComplaintSuccessScreen";
+import { ClientMyComplaintsScreen } from "../screens/client/complaints/ClientMyComplaintsScreen";
+import { ClientComplaintDetailScreen } from "../screens/client/complaints/ClientComplaintDetailScreen";
 import { ClientFavoritesScreen } from "../screens/client/favorite/ClientFavoritesScreen";
 import { ClientFavoritesListScreen } from "../screens/client/favorite/ClientFavoritesListScreen";
 import { NotificationsScreen } from "../screens/shared/NotificationsScreen";
@@ -59,8 +61,6 @@ export const ClientOverlayNavigator: React.FC = () => {
   );
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [currentRouteName, setCurrentRouteName] =
-    useState<keyof ClientStackParamList>("ClientHome");
 
   const anim = useRef(new Animated.Value(0)).current;
 
@@ -87,16 +87,6 @@ export const ClientOverlayNavigator: React.FC = () => {
     <React.Fragment>
       <Stack.Navigator
         initialRouteName="ClientHome"
-        screenListeners={{
-          state: (e) => {
-            const state = e.data.state;
-            const next = state.routes[state.index]
-              ?.name as keyof ClientStackParamList;
-            if (next) {
-              setCurrentRouteName(next);
-            }
-          },
-        }}
         screenOptions={({ route }) => ({
           headerShown:
             route.name !== "ClientHomeSearch" &&
@@ -105,6 +95,7 @@ export const ClientOverlayNavigator: React.FC = () => {
             route.name !== "ClientProviderProfile" &&
             route.name !== "ClientSlotPicker" &&
             route.name !== "ClientBookingConfirmation" &&
+            route.name !== "ClientComplaintSuccess" &&
             route.name !== "ClientFavoritesList" &&
             route.name !== "ClientEditProfile" &&
             route.name !== "ClientChangeEmail" &&
@@ -117,6 +108,7 @@ export const ClientOverlayNavigator: React.FC = () => {
             route.name !== "Notifications" &&
             route.name !== "NotificationDetail" &&
             route.name !== "ConversationList" &&
+            route.name !== "ClientMessages" &&
             route.name !== "ChatScreen",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
@@ -155,6 +147,10 @@ export const ClientOverlayNavigator: React.FC = () => {
           component={ClientProviderProfileScreen}
         />
         <Stack.Screen
+          name="PublicProviderReviews"
+          component={PublicProviderReviewsScreen}
+        />
+        <Stack.Screen
           name="ClientSlotPicker"
           component={ClientSlotPickerScreen}
         />
@@ -163,7 +159,11 @@ export const ClientOverlayNavigator: React.FC = () => {
           component={ClientBookingConfirmationScreen}
           options={{ gestureEnabled: false }}
         />
-        <Stack.Screen name="ClientMessages" component={ClientMessagesScreen} />
+        <Stack.Screen
+          name="ClientMessages"
+          component={ConversationListScreen}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="ConversationList"
           component={ConversationListScreen}
@@ -173,10 +173,6 @@ export const ClientOverlayNavigator: React.FC = () => {
           name="ChatScreen"
           component={ChatScreen}
           options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="ClientReclamation"
-          component={ClientReclamationScreen}
         />
         <Stack.Screen
           name="ClientAppointments"
@@ -191,8 +187,21 @@ export const ClientOverlayNavigator: React.FC = () => {
           component={ClientLeaveReviewScreen}
         />
         <Stack.Screen
-          name="ClientReportProblem"
-          component={ClientReportProblemScreen}
+          name="ClientFileComplaint"
+          component={ClientFileComplaintScreen}
+        />
+        <Stack.Screen
+          name="ClientComplaintSuccess"
+          component={ClientComplaintSuccessScreen}
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="ClientMyComplaints"
+          component={ClientMyComplaintsScreen}
+        />
+        <Stack.Screen
+          name="ClientComplaintDetail"
+          component={ClientComplaintDetailScreen}
         />
         <Stack.Screen
           name="ClientFavorites"
@@ -270,7 +279,6 @@ export const ClientOverlayNavigator: React.FC = () => {
         <ClientSidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
-          currentRouteName={currentRouteName}
         />
       </Animated.View>
     </React.Fragment>

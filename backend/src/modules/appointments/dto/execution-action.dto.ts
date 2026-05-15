@@ -1,4 +1,4 @@
-import { IsArray, IsEnum, IsOptional, IsString } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsEnum, IsOptional, IsString } from 'class-validator';
 
 export enum ExecutionAction {
   EN_ROUTE = 'EN_ROUTE',
@@ -12,6 +12,7 @@ export class ExecutionActionDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(10)
   @IsString({ each: true })
   photoUrls?: string[];
 }

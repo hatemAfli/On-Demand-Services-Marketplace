@@ -17,21 +17,21 @@ import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "../../context/AuthContext";
-import { useAppTranslation } from "../../hooks/useAppTranslation";
-import { AccountStatus } from "../../types";
-import { AuthNoticeModal } from "../../components/common";
-import { api } from "../../services/api";
-import { supabase } from "../../services/supabase";
-import { requestPhotoLibraryPermission } from "../../services/clientAvatarUpload";
+import { useAuth } from "../../../context/AuthContext";
+import { useAppTranslation } from "../../../hooks/useAppTranslation";
+import { AccountStatus } from "../../../types";
+import { AuthNoticeModal } from "../../../components/common";
+import { api } from "../../../services/api";
+import { supabase } from "../../../services/supabase";
+import { requestPhotoLibraryPermission } from "../../../services/clientAvatarUpload";
 import {
   uploadProviderVerificationDocument,
   isImageMimeOrPath,
-} from "../../services/providerDocumentUpload";
+} from "../../../services/providerDocumentUpload";
 import {
   PROVIDER_DOCUMENT_TYPES,
   type ProviderDocumentType,
-} from "../../types/documents";
+} from "../../../types/documents";
 
 const DOC_ACCENT = "#C9A84C";
 

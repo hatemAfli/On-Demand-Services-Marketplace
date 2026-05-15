@@ -7,15 +7,17 @@ import { AdminDashboardScreen } from "./AdminDashboardScreen";
 import { AdminUsersScreen } from "./users/AdminUsersScreen";
 import { AdminValidationsScreen } from "./validations/AdminValidationsScreen";
 import { AdminValidationProviderDetailScreen } from "./validations/AdminValidationProviderDetailScreen";
-import { AdminReclamationsScreen } from "./AdminReclamationsScreen";
+import { AdminComplaintsScreen } from "./complaints/AdminComplaintsScreen";
+import { AdminComplaintDetailScreen } from "./complaints/AdminComplaintDetailScreen";
 import { AdminProfileScreen } from "./AdminProfileScreen";
 import type { AdminValidationsStackParamList } from "./validations/adminValidationsNavigation";
+import type { AdminComplaintsStackParamList } from "./complaints/adminComplaintsNavigation";
 
 type AdminTabParamList = {
   DashboardTab: undefined;
   UsersTab: undefined;
   ValidationsTab: undefined;
-  ReclamationsTab: undefined;
+  ComplaintsTab: undefined;
   ProfileTab: undefined;
 };
 
@@ -27,9 +29,8 @@ const Tab = createBottomTabNavigator<AdminTabParamList>();
 const DashboardStackNav =
   createNativeStackNavigator<AdminDashboardStackParamList>();
 const UsersStackNav = createNativeStackNavigator<{ Users: undefined }>();
-const ReclamationsStackNav = createNativeStackNavigator<{
-  Reclamations: undefined;
-}>();
+const ComplaintsStackNav =
+  createNativeStackNavigator<AdminComplaintsStackParamList>();
 const ProfileStackNav = createNativeStackNavigator<{ Profile: undefined }>();
 const ValidationsStackNav =
   createNativeStackNavigator<AdminValidationsStackParamList>();
@@ -64,13 +65,17 @@ const ValidationsStack: React.FC = () => (
   </ValidationsStackNav.Navigator>
 );
 
-const ReclamationsStack: React.FC = () => (
-  <ReclamationsStackNav.Navigator screenOptions={defaultStackScreenOptions}>
-    <ReclamationsStackNav.Screen
-      name="Reclamations"
-      component={AdminReclamationsScreen}
+const ComplaintsStack: React.FC = () => (
+  <ComplaintsStackNav.Navigator screenOptions={defaultStackScreenOptions}>
+    <ComplaintsStackNav.Screen
+      name="AdminComplaints"
+      component={AdminComplaintsScreen}
     />
-  </ReclamationsStackNav.Navigator>
+    <ComplaintsStackNav.Screen
+      name="AdminComplaintDetail"
+      component={AdminComplaintDetailScreen}
+    />
+  </ComplaintsStackNav.Navigator>
 );
 
 const ProfileStack: React.FC = () => (
@@ -83,7 +88,7 @@ type TabIconName =
   | "speedometer-outline"
   | "people-outline"
   | "checkmark-done-outline"
-  | "chatbox-ellipses-outline"
+  | "shield-outline"
   | "person-circle-outline";
 
 const getTabIcon = (routeName: keyof AdminTabParamList): TabIconName => {
@@ -94,8 +99,8 @@ const getTabIcon = (routeName: keyof AdminTabParamList): TabIconName => {
       return "people-outline";
     case "ValidationsTab":
       return "checkmark-done-outline";
-    case "ReclamationsTab":
-      return "chatbox-ellipses-outline";
+    case "ComplaintsTab":
+      return "shield-outline";
     case "ProfileTab":
       return "person-circle-outline";
     default:
@@ -151,9 +156,9 @@ export const AdminNavigator: React.FC = () => {
         options={{ title: "Validations" }}
       />
       <Tab.Screen
-        name="ReclamationsTab"
-        component={ReclamationsStack}
-        options={{ title: "Reclamations" }}
+        name="ComplaintsTab"
+        component={ComplaintsStack}
+        options={{ title: "Complaints" }}
       />
       <Tab.Screen
         name="ProfileTab"
