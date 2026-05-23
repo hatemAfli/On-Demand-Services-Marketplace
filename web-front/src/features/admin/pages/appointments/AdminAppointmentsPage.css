@@ -1,0 +1,13 @@
+.admin-appointments-page {
+  max-width: 1400px;
+}
+
+.admin-appointments-page__error {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #cf1322;
+  background: #fff1f0;
+  border: 1px solid #ffccc7;
+  border-radius: 8px;
+}

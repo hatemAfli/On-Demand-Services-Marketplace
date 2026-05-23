@@ -1,11 +1,27 @@
 import { UserRole } from '@prisma/client';
-import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class ListAdminUsersQueryDto {
   @IsOptional()
   @IsEnum(UserRole)
   role?: UserRole;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() || undefined : value,
+  )
+  @IsString()
+  @MaxLength(200)
+  search?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -17,6 +33,6 @@ export class ListAdminUsersQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(500)
+  @Max(100)
   take?: number;
 }

@@ -1,0 +1,81 @@
+.admin-complaints-page__alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #f87171;
+  border-radius: 10px;
+}
+
+.admin-complaints-page__alert-btn {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: #dc2626;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.admin-complaints-page__alert-btn:hover {
+  background: #b91c1c;
+}
+
+.admin-complaints-page__error {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #cf1322;
+  background: #fff1f0;
+  border: 1px solid #ffccc7;
+  border-radius: 8px;
+}
+
+.admin-complaints-page__category {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.admin-complaints-page__decision-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  background: #f3f4f6;
+  border-radius: 6px;
+}
+
+.admin-complaints-page__pending {
+  font-size: 13px;
+  color: #8c8c8c;
+}
+
+.admin-complaints-page__unassigned {
+  font-size: 13px;
+  font-weight: 500;
+  color: #cf1322;
+}
+
+.admin-table-action--urgent {
+  color: #cf1322 !important;
+}
+
+.admin-table-action--warn {
+  color: #d97706 !important;
+}
+
+.admin-user-mini__badge--purple {
+  background: #f3e8ff !important;
+  color: #6b21a8 !important;
+}

@@ -1,7 +1,6 @@
 import { ReloadOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons'
 import {
   App,
-  Alert,
   Avatar,
   Button,
   Card,
@@ -23,7 +22,7 @@ import type { AccountStatus, UserRole } from '../../../../types/user'
 import './UsersAdminPage.css'
 
 const PAGE_SIZE = 20
-const FETCH_CAP = 500
+const SEARCH_DEBOUNCE_MS = 350
 
 type SegmentValue = 'all' | UserRole
 
@@ -110,60 +109,54 @@ export function UsersAdminPage() {
 
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<AdminUserListItem[]>([])
-  const [totalFromApi, setTotalFromApi] = useState(0)
-  const [search, setSearch] = useState('')
+  const [total, setTotal] = useState(0)
+  const [searchInput, setSearchInput] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearchQuery(searchInput.trim())
+      setPage(1)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
+
+  useEffect(() => {
+    setPage(1)
+    setSearchInput('')
+    setSearchQuery('')
+  }, [segment])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await api.listAdminUsers({
         role: apiRole,
-        skip: 0,
-        take: FETCH_CAP,
+        search: searchQuery || undefined,
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
       })
-      const { items: rows, total } = res.data
+      const { items: rows, total: count } = res.data
       setItems(rows ?? [])
-      setTotalFromApi(total ?? 0)
+      setTotal(count ?? 0)
     } catch (e) {
       message.error(formatApiMessage(e))
       setItems([])
-      setTotalFromApi(0)
+      setTotal(0)
     } finally {
       setLoading(false)
     }
-  }, [apiRole, message])
+  }, [apiRole, page, searchQuery, message])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  useEffect(() => {
-    setPage(1)
-  }, [segment])
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return items
-    return items.filter((u) => {
-      const name = `${u.firstName} ${u.lastName}`.toLowerCase()
-      return (
-        name.includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        (u.phoneNumber && u.phoneNumber.toLowerCase().includes(q))
-      )
-    })
-  }, [items, search])
-
-  const pagedData = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE
-    return filtered.slice(start, start + PAGE_SIZE)
-  }, [filtered, page])
-
   const pagination: TablePaginationConfig = {
     current: page,
     pageSize: PAGE_SIZE,
-    total: filtered.length,
+    total,
     showSizeChanger: false,
     showTotal: (t) => `${t} users`,
     onChange: (p) => setPage(p),
@@ -183,8 +176,6 @@ export function UsersAdminPage() {
   const onSegmentChange = (val: SegmentValue) => {
     navigate(PATH_BY_SEGMENT[val])
   }
-
-  const truncatedTotal = totalFromApi > FETCH_CAP
 
   const columns: ColumnsType<AdminUserListItem> = [
     {
@@ -219,7 +210,12 @@ export function UsersAdminPage() {
       ellipsis: true,
       render: (email: string) => (
         <Tooltip title={email}>
-          <Typography.Text copyable={{ text: email }}>{email}</Typography.Text>
+          <Typography.Text
+            copyable={{ text: email }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {email}
+          </Typography.Text>
         </Tooltip>
       ),
     },
@@ -230,7 +226,12 @@ export function UsersAdminPage() {
       width: 140,
       render: (p: string | null) =>
         p ? (
-          <Typography.Text copyable={{ text: p }}>{p}</Typography.Text>
+          <Typography.Text
+            copyable={{ text: p }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {p}
+          </Typography.Text>
         ) : (
           <Typography.Text type="secondary">—</Typography.Text>
         ),
@@ -288,6 +289,9 @@ export function UsersAdminPage() {
       ? 'All roles'
       : roleTag(segment as UserRole).label + 's'
 
+  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const rangeEnd = Math.min(page * PAGE_SIZE, total)
+
   return (
     <div className="users-admin">
       <div className="users-admin-hero">
@@ -297,35 +301,35 @@ export function UsersAdminPage() {
             Directory
           </Typography.Title>
           <p className="users-admin-subtitle">
-            Browse accounts across the platform. Filter by role, search by name or
-            contact, and review verification and account status at a glance.
+            Browse accounts across the platform. Filter by role and search by name,
+            email, or phone — results are loaded from the full database.
           </p>
           <div className="users-admin-stats">
             <span className="users-admin-stat-pill">
               <TeamOutlined style={{ color: '#6366f1' }} />
-              Showing <strong>{filtered.length}</strong>
-              {search.trim() ? ' matched' : ' loaded'}
-              {segment !== 'all' ? ` · ${filterLabel}` : ''}
+              {searchQuery ? (
+                <>
+                  <strong>{total}</strong> match{total === 1 ? '' : 'es'}
+                  {segment !== 'all' ? ` · ${filterLabel}` : ''}
+                </>
+              ) : (
+                <>
+                  <strong>{total}</strong> total
+                  {segment !== 'all' ? ` · ${filterLabel}` : ''}
+                  {total > 0 ? (
+                    <>
+                      {' '}
+                      · showing {rangeStart}–{rangeEnd}
+                    </>
+                  ) : null}
+                </>
+              )}
             </span>
-            {!search.trim() && totalFromApi > 0 ? (
-              <span className="users-admin-stat-pill">
-                Total in role view: <strong>{totalFromApi}</strong>
-              </span>
-            ) : null}
           </div>
         </div>
       </div>
 
       <Card className="users-admin-card" variant="borderless">
-        {truncatedTotal ? (
-          <Alert
-            type="warning"
-            showIcon
-            style={{ marginBottom: 16 }}
-            message={`The directory lists up to ${FETCH_CAP} users per request. Total matching this filter: ${totalFromApi}.`}
-          />
-        ) : null}
-
         <div className="users-admin-toolbar">
           <div className="users-admin-toolbar-left">
             <Segmented<SegmentValue>
@@ -342,11 +346,8 @@ export function UsersAdminPage() {
             allowClear
             prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
             placeholder="Search name, email, or phone…"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
         </div>
 
@@ -355,9 +356,13 @@ export function UsersAdminPage() {
             className="users-admin-table"
             rowKey="id"
             columns={columns}
-            dataSource={pagedData}
+            dataSource={items}
             pagination={pagination}
             scroll={{ x: 960 }}
+            onRow={(record) => ({
+              onClick: () => navigate(`/admin/users/${record.id}`),
+              style: { cursor: 'pointer' },
+            })}
           />
         </Spin>
       </Card>

@@ -5,12 +5,15 @@ import {
   Animated,
   FlatList,
   Image,
+  Modal,
   Platform,
+  Pressable,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -92,9 +95,7 @@ function mapApiToReviewItem(raw: unknown): ReviewItem | null {
   const rating = typeof r.rating === "number" ? r.rating : Number(r.rating);
   if (!Number.isFinite(rating)) return null;
   const comment =
-    r.comment === null || r.comment === undefined
-      ? null
-      : String(r.comment);
+    r.comment === null || r.comment === undefined ? null : String(r.comment);
   const providerReply =
     r.providerReply === null || r.providerReply === undefined
       ? null
@@ -108,8 +109,7 @@ function mapApiToReviewItem(raw: unknown): ReviewItem | null {
       ? String(client.imageUrl)
       : null;
   const user = client?.user as Record<string, unknown> | undefined;
-  const firstName =
-    typeof user?.firstName === "string" ? user.firstName : "";
+  const firstName = typeof user?.firstName === "string" ? user.firstName : "";
   const lastName = typeof user?.lastName === "string" ? user.lastName : "";
   const lastTrim = lastName.trim();
   const lastInitial = lastTrim[0] ? `${lastTrim[0]}.` : "";
@@ -180,7 +180,7 @@ function ProfileAverageStars({ average }: { average: number }) {
                 : "star-outline"
           }
           size={16}
-          color={kind === "empty" ? "#D1D5DB" : "#C9A84C"}
+          color={kind === "empty" ? "#D1D5DB" : C.star}
         />
       ))}
     </View>
@@ -207,7 +207,7 @@ function CompactBreakdownBars({ rows }: { rows: ReviewBreakdownRow[] }) {
             ? Math.min(100, Math.max(0, row.percentage))
             : 0;
         const barColor =
-          row.star >= 4 ? "#C9A84C" : row.star === 3 ? "#F59E0B" : "#DC2626";
+          row.star >= 4 ? C.accent : row.star === 3 ? "#F59E0B" : "#DC2626";
         const widthAnim = progress.interpolate({
           inputRange: [0, 1],
           outputRange: ["0%", `${fillPct}%`],
@@ -215,7 +215,12 @@ function CompactBreakdownBars({ rows }: { rows: ReviewBreakdownRow[] }) {
         return (
           <View key={row.star} style={styles.reviewsBreakdownRow}>
             <Text style={styles.reviewsBreakdownStar}>{row.star}</Text>
-            <Ionicons name="star" size={11} color="#C9A84C" style={{ marginRight: 4 }} />
+            <Ionicons
+              name="star"
+              size={11}
+              color={C.star}
+              style={{ marginRight: 4 }}
+            />
             <View style={styles.reviewsBreakdownTrack}>
               <Animated.View
                 style={[
@@ -249,9 +254,9 @@ function ClientReviewPreviewCard({ item }: { item: ReviewItem }) {
         }
       : item.rating === 4
         ? {
-            bg: "rgba(201,168,76,0.12)",
-            border: "rgba(201,168,76,0.28)",
-            text: "#B45309",
+            bg: C.accentPale,
+            border: C.accentBorder,
+            text: C.accent,
           }
         : { bg: "#F3F4F6", border: "#E5E7EB", text: "#6B7280" };
 
@@ -277,7 +282,9 @@ function ClientReviewPreviewCard({ item }: { item: ReviewItem }) {
               },
             ]}
           >
-            <Text style={[styles.reviewAvatarText, { color: avatarColors.text }]}>
+            <Text
+              style={[styles.reviewAvatarText, { color: avatarColors.text }]}
+            >
               {initials}
             </Text>
           </View>
@@ -316,29 +323,34 @@ function ClientReviewPreviewCard({ item }: { item: ReviewItem }) {
       ) : null}
       {item.providerReply ? (
         <View style={styles.reviewProviderReply}>
-          <Text style={styles.reviewProviderReplyText}>{item.providerReply}</Text>
+          <Text style={styles.reviewProviderReplyText}>
+            {item.providerReply}
+          </Text>
         </View>
       ) : null}
     </View>
   );
 }
 
-// ─── Design tokens ──────────────────────────────────────────
+// ─── Design tokens (aligned with ClientSearchProviderScreen violet theme) ───
 const C = {
-  bg: "#0F1117",
-  surface: "#1A1D27",
-  surfaceLight: "#222535",
-  card: "#FAFAF8",
-  cardBorder: "#EDEDE8",
-  gold: "#C9A84C",
-  goldLight: "#E8C97A",
-  goldPale: "rgba(201,168,76,0.12)",
-  goldBorder: "rgba(201,168,76,0.28)",
-  text: "#0F1117",
-  textMuted: "#6B7280",
+  screenBg: "#F4F3FA",
+  accent: "#7C5CFC",
+  accentPale: "#EDE9FE",
+  accentBorder: "#C4B5FD",
+  /** Filled stars stay warm for readability (matches search result cards). */
+  star: "#F59E0B",
+  card: "#FFFFFF",
+  cardBorder: "#EBEBF5",
+  text: "#1A1A2E",
+  textMuted: "#9B9BB0",
   textLight: "#9CA3AF",
   white: "#FFFFFF",
-  ivory: "#FAFAF8",
+  ivory: "#FFFFFF",
+  /** Top Provider badge (same family as search chips). */
+  topAmberBg: "rgba(255,251,235,0.95)",
+  topAmberBorder: "#FDE68A",
+  topAmberText: "#B45309",
   error: "#DC2626",
   success: "#059669",
   successBg: "#ECFDF5",
@@ -346,6 +358,8 @@ const C = {
 
 const HEADER_SCROLL_START = 36;
 const HEADER_SCROLL_END = 96;
+
+const GALLERY_CAROUSEL_GAP = 12;
 
 // ─── Star row ───────────────────────────────────────────────
 function Stars({ count, size = 13 }: { count: number; size?: number }) {
@@ -356,7 +370,7 @@ function Stars({ count, size = 13 }: { count: number; size?: number }) {
           key={i}
           name={i <= count ? "star" : "star-outline"}
           size={size}
-          color={i <= count ? C.gold : "#D1D5DB"}
+          color={i <= count ? C.star : "#D1D5DB"}
         />
       ))}
     </View>
@@ -376,7 +390,7 @@ function StatPill({
   return (
     <View style={styles.statPill}>
       <View style={styles.statIconWrap}>
-        <Ionicons name={icon} size={14} color={C.gold} />
+        <Ionicons name={icon} size={14} color={C.accent} />
       </View>
       <View>
         <Text style={styles.statValue}>{value}</Text>
@@ -424,15 +438,15 @@ function BulletRow({
 }
 
 // ─── Main Screen ────────────────────────────────────────────
-export const ClientProviderProfileScreen: React.FC<Props> = ({
-  route,
-}) => {
+export const ClientProviderProfileScreen: React.FC<Props> = ({ route }) => {
   const navigation =
     useNavigation<NativeStackNavigationProp<ClientStackParamList>>();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const { user } = useAuth();
   const givenServiceId = route.params.givenServiceId;
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
+  const galleryLightboxRef = useRef<FlatList>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -445,6 +459,38 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
   const [breakdown, setBreakdown] = useState<ReviewBreakdownRow[]>([]);
   const [totalReviews, setTotalReviews] = useState(0);
   const [averageRating, setAverageRating] = useState(0);
+  const [galleryCarouselIndex, setGalleryCarouselIndex] = useState(0);
+  const [galleryLightboxOpen, setGalleryLightboxOpen] = useState(false);
+  const [galleryLightboxIndex, setGalleryLightboxIndex] = useState(0);
+
+  /** Card horizontal inset: ScrollView margins (16×2) + contentCard padding (20×2). */
+  const galleryCarouselLayout = useMemo(() => {
+    const cardInset = 16 * 2 + 20 * 2;
+    const slideW = Math.max(220, windowWidth - cardInset);
+    const slideH = Math.round(slideW * 0.54);
+    const snapInterval = slideW + GALLERY_CAROUSEL_GAP;
+    return { slideW, slideH, snapInterval };
+  }, [windowWidth]);
+
+  useEffect(() => {
+    if (!galleryLightboxOpen) return;
+    const len = data?.galleries?.length ?? 0;
+    if (len === 0) return;
+    const idx = Math.min(Math.max(0, galleryLightboxIndex), len - 1);
+    const id = setTimeout(() => {
+      try {
+        galleryLightboxRef.current?.scrollToIndex({
+          index: idx,
+          animated: false,
+        });
+      } catch {
+        /* layout not ready */
+      }
+    }, 32);
+    return () => clearTimeout(id);
+    // Intentionally only when the modal opens — do not re-scroll when the user swipes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- galleryLightboxIndex read from the opening render only
+  }, [galleryLightboxOpen, data?.galleries?.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -461,10 +507,11 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
         if (cancelled) return;
         const d = res.data as GivenServiceDetails;
         setData(d);
+        setGalleryCarouselIndex(0);
 
         const pid =
           d.bookingProviderId ??
-          (d.owner.type === "COMPANY" ? null : d.owner.id ?? null);
+          (d.owner.type === "COMPANY" ? null : (d.owner.id ?? null));
         if (pid) {
           setReviewsLoading(true);
           try {
@@ -610,7 +657,7 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
   // Animated header on scroll (light toolbar)
   const headerBg = scrollY.interpolate({
     inputRange: [HEADER_SCROLL_START, HEADER_SCROLL_END],
-    outputRange: ["rgba(249,250,251,0)", "rgba(249,250,251,0.97)"],
+    outputRange: ["rgba(244,243,250,0)", "rgba(244,243,250,0.97)"],
     extrapolate: "clamp",
   });
   const headerTitleOpacity = scrollY.interpolate({
@@ -624,7 +671,7 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
     return (
       <SafeAreaView style={styles.loadingRoot} edges={["top", "bottom"]}>
         <StatusBar barStyle="dark-content" />
-        <ActivityIndicator size="large" color={C.gold} />
+        <ActivityIndicator size="large" color={C.accent} />
         <Text style={styles.loadingText}>Loading profile…</Text>
       </SafeAreaView>
     );
@@ -654,7 +701,8 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
   }
 
   const providerUserId = data.owner.userId;
-  const canOpenChat = !!providerUserId && (!user?.id || providerUserId !== user.id);
+  const canOpenChat =
+    !!providerUserId && (!user?.id || providerUserId !== user.id);
 
   const rating = data.averageRating.toFixed(1);
   const priceLabel =
@@ -664,7 +712,7 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
 
   const providerIdForBooking =
     data.bookingProviderId ??
-    (data.owner.type === "COMPANY" ? null : data.owner.id ?? null);
+    (data.owner.type === "COMPANY" ? null : (data.owner.id ?? null));
 
   const includedItems = data.whatIsIncluded
     ? data.whatIsIncluded
@@ -719,13 +767,9 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
             accessibilityLabel="Message provider"
           >
             {openingChat ? (
-              <ActivityIndicator size="small" color={C.text} />
+              <ActivityIndicator size="small" color={C.accent} />
             ) : (
-              <Ionicons
-                name="chatbubble-outline"
-                size={20}
-                color={C.text}
-              />
+              <Ionicons name="chatbubble-outline" size={20} color={C.accent} />
             )}
           </TouchableOpacity>
           <TouchableOpacity
@@ -781,7 +825,7 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
                 />
               ) : (
                 <View style={styles.avatarPlaceholder}>
-                  <Ionicons name="person" size={32} color={C.gold} />
+                  <Ionicons name="person" size={32} color={C.accent} />
                 </View>
               )}
               {/* Gold ring */}
@@ -812,7 +856,7 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
 
           {data.owner.isTopProvider ? (
             <View style={styles.topProviderBadge}>
-              <Ionicons name="ribbon" size={13} color={C.gold} />
+              <Ionicons name="ribbon" size={13} color={C.topAmberText} />
               <Text style={styles.topProviderText}>Top Provider</Text>
             </View>
           ) : null}
@@ -934,7 +978,7 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
               <View style={styles.chipRow}>
                 {data.owner.paymentMethodsAccepted.map((p) => (
                   <View key={p} style={styles.payChip}>
-                    <Ionicons name="card-outline" size={12} color={C.gold} />
+                    <Ionicons name="card-outline" size={12} color={C.accent} />
                     <Text style={styles.payChipText}>{p}</Text>
                   </View>
                 ))}
@@ -945,27 +989,67 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
           {/* ── Gallery ── */}
           {gallery.length > 0 && (
             <Section title="Gallery">
-              <FlatList
-                data={gallery}
-                keyExtractor={(g) => g.id}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 10 }}
-                renderItem={({ item, index }) => (
-                  <View
-                    style={[
-                      styles.galleryItem,
-                      index === 0 && { width: 200, height: 140 },
-                    ]}
-                  >
-                    <Image
-                      source={{ uri: item.imageUrl }}
-                      style={styles.galleryImage}
-                      resizeMode="cover"
-                    />
+              <View>
+                <FlatList
+                  data={gallery}
+                  keyExtractor={(g) => g.id}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  decelerationRate="fast"
+                  snapToInterval={galleryCarouselLayout.snapInterval}
+                  snapToAlignment="start"
+                  disableIntervalMomentum
+                  ItemSeparatorComponent={() => (
+                    <View style={{ width: GALLERY_CAROUSEL_GAP }} />
+                  )}
+                  renderItem={({ item, index }) => (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Gallery photo ${index + 1} of ${gallery.length}. Opens full screen.`}
+                      onPress={() => {
+                        setGalleryLightboxIndex(index);
+                        setGalleryLightboxOpen(true);
+                      }}
+                      style={[
+                        styles.galleryCarouselSlide,
+                        {
+                          width: galleryCarouselLayout.slideW,
+                          height: galleryCarouselLayout.slideH,
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: item.imageUrl }}
+                        style={styles.galleryCarouselImage}
+                        resizeMode="cover"
+                      />
+                    </Pressable>
+                  )}
+                  onMomentumScrollEnd={(e) => {
+                    const snap = galleryCarouselLayout.snapInterval;
+                    const idx = Math.round(
+                      e.nativeEvent.contentOffset.x / snap,
+                    );
+                    setGalleryCarouselIndex(
+                      Math.min(gallery.length - 1, Math.max(0, idx)),
+                    );
+                  }}
+                />
+                {gallery.length > 1 ? (
+                  <View style={styles.galleryDotsRow}>
+                    {gallery.map((g, i) => (
+                      <View
+                        key={g.id}
+                        style={[
+                          styles.galleryDot,
+                          i === galleryCarouselIndex &&
+                            styles.galleryDotActive,
+                        ]}
+                      />
+                    ))}
                   </View>
-                )}
-              />
+                ) : null}
+              </View>
             </Section>
           )}
 
@@ -978,7 +1062,7 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
             ) : reviewsLoading ? (
               <ActivityIndicator
                 size="small"
-                color={C.gold}
+                color={C.accent}
                 style={{ alignSelf: "flex-start", marginVertical: 8 }}
               />
             ) : (
@@ -996,15 +1080,16 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
                       }
                     />
                     <Text style={styles.reviewsCountMeta}>
-                      (
-                      {totalReviews > 0 ? totalReviews : data.totalReviews}{" "}
+                      ({totalReviews > 0 ? totalReviews : data.totalReviews}{" "}
                       reviews)
                     </Text>
                   </View>
                   {data.owner.isTopProvider ? (
                     <View style={styles.reviewsTopBadgeInline}>
                       <Text style={styles.reviewsTopBadgeEmoji}>🏅</Text>
-                      <Text style={styles.reviewsTopBadgeTxt}>Top Provider</Text>
+                      <Text style={styles.reviewsTopBadgeTxt}>
+                        Top Provider
+                      </Text>
                     </View>
                   ) : null}
                 </View>
@@ -1031,7 +1116,11 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
                     <Text style={styles.reviewsSeeAllTxt}>
                       {`See all ${totalReviews} reviews`}
                     </Text>
-                    <Ionicons name="chevron-forward" size={16} color={C.gold} />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={C.accent}
+                    />
                   </TouchableOpacity>
                 ) : null}
               </>
@@ -1040,13 +1129,96 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
         </View>
       </Animated.ScrollView>
 
+      <Modal
+        visible={galleryLightboxOpen && gallery.length > 0}
+        animationType="fade"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setGalleryLightboxOpen(false)}
+      >
+        <View style={styles.galleryLightboxRoot}>
+          <StatusBar barStyle="light-content" />
+          <FlatList
+            ref={galleryLightboxRef}
+            style={styles.galleryLightboxList}
+            data={gallery}
+            keyExtractor={(g) => g.id}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            initialNumToRender={3}
+            onScrollToIndexFailed={({ index }) => {
+              setTimeout(() => {
+                try {
+                  galleryLightboxRef.current?.scrollToIndex({
+                    index,
+                    animated: false,
+                  });
+                } catch {
+                  /* noop */
+                }
+              }, 120);
+            }}
+            getItemLayout={(_, index) => ({
+              length: windowWidth,
+              offset: windowWidth * index,
+              index,
+            })}
+            onMomentumScrollEnd={(e) => {
+              const idx = Math.round(
+                e.nativeEvent.contentOffset.x / windowWidth,
+              );
+              setGalleryLightboxIndex(
+                Math.min(gallery.length - 1, Math.max(0, idx)),
+              );
+            }}
+            renderItem={({ item }) => (
+              <View
+                style={[
+                  styles.galleryLightboxPage,
+                  { width: windowWidth, height: windowHeight },
+                ]}
+              >
+                <Image
+                  source={{ uri: item.imageUrl }}
+                  style={{
+                    width: windowWidth,
+                    height: Math.max(280, Math.floor(windowHeight * 0.82)),
+                  }}
+                  resizeMode="contain"
+                />
+              </View>
+            )}
+          />
+          <TouchableOpacity
+            style={[
+              styles.galleryLightboxCloseBtn,
+              { top: insets.top + 10 },
+            ]}
+            onPress={() => setGalleryLightboxOpen(false)}
+            activeOpacity={0.85}
+            accessibilityLabel="Close gallery"
+          >
+            <Ionicons name="close" size={26} color={C.white} />
+          </TouchableOpacity>
+          {gallery.length > 1 ? (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.galleryLightboxCounter,
+                { bottom: insets.bottom + 20 },
+              ]}
+            >
+              <Text style={styles.galleryLightboxCounterText}>
+                {galleryLightboxIndex + 1} / {gallery.length}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      </Modal>
+
       {/* ── Fixed bottom CTA ── */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.ctaBarInner}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.ctaPriceLabel}>Starting from</Text>
-            <Text style={styles.ctaPrice}>{priceLabel}</Text>
-          </View>
           <View style={styles.ctaActionsRow}>
             <TouchableOpacity
               style={[
@@ -1058,9 +1230,13 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
               activeOpacity={0.88}
             >
               {openingChat ? (
-                <ActivityIndicator size="small" color={C.gold} />
+                <ActivityIndicator size="small" color={C.accent} />
               ) : (
-                <Ionicons name="chatbubble-outline" size={18} color={C.gold} />
+                <Ionicons
+                  name="chatbubble-outline"
+                  size={18}
+                  color={C.accent}
+                />
               )}
               <Text style={styles.ctaMessageBtnText}>Message</Text>
             </TouchableOpacity>
@@ -1084,13 +1260,12 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
                   givenServiceId: data.givenServiceId,
                   providerName: data.owner.displayName,
                   serviceName: data.serviceName,
-                  estimatedDurationMinutes:
-                    data.estimatedDurationMinutes ?? 60,
+                  estimatedDurationMinutes: data.estimatedDurationMinutes ?? 60,
                 });
               }}
             >
               <Text style={styles.ctaBtnText}>Book this service</Text>
-              <Ionicons name="arrow-forward" size={16} color={C.bg} />
+              <Ionicons name="arrow-forward" size={16} color={C.white} />
             </TouchableOpacity>
           </View>
         </View>
@@ -1101,12 +1276,12 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({
 
 // ─── Styles ─────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F9FAFB" },
+  root: { flex: 1, backgroundColor: C.screenBg },
 
   // Loading / error states
   loadingRoot: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: C.screenBg,
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
@@ -1128,7 +1303,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: C.cardBorder,
   },
   goBackBtnText: { color: C.text, fontWeight: "700" },
 
@@ -1148,12 +1323,12 @@ const styles = StyleSheet.create({
   backBtnLight: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    backgroundColor: C.screenBg,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: C.cardBorder,
   },
   floatingHeaderTitleLight: {
     fontSize: 16,
@@ -1165,7 +1340,7 @@ const styles = StyleSheet.create({
   headerFavoriteBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 12,
     backgroundColor: "#FFF1F2",
     borderWidth: 1.2,
     borderColor: "#FECACA",
@@ -1184,12 +1359,12 @@ const styles = StyleSheet.create({
   headerGlassBtn: {
     width: 36,
     height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 12,
+    backgroundColor: C.screenBg,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: C.cardBorder,
   },
 
   categoryBadgeInline: {
@@ -1198,20 +1373,20 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 20,
     marginBottom: 6,
-    backgroundColor: C.goldPale,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: C.goldBorder,
+    borderColor: C.accentBorder,
   },
   categoryBadgeInlineText: {
     fontSize: 11,
     fontWeight: "700",
-    color: C.gold,
+    color: C.accent,
     letterSpacing: 0.4,
   },
 
   // Main content card
   contentCard: {
-    backgroundColor: C.ivory,
+    backgroundColor: "#FFFFFF",
     borderRadius: 28,
     marginHorizontal: 16,
     marginTop: 4,
@@ -1219,12 +1394,14 @@ const styles = StyleSheet.create({
     paddingTop: 22,
     paddingBottom: 20,
     gap: 20,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 12,
+        shadowColor: "#1A1A2E",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.07,
+        shadowRadius: 14,
       },
       android: { elevation: 3 },
     }),
@@ -1251,11 +1428,11 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 22,
-    backgroundColor: C.goldPale,
+    backgroundColor: "#F9F8FF",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: C.goldBorder,
+    borderColor: C.accentBorder,
   },
   avatarRing: {
     position: "absolute",
@@ -1264,7 +1441,7 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 25,
     borderWidth: 3,
-    borderColor: C.gold,
+    borderColor: C.accentBorder,
     top: -3,
     left: -3,
   },
@@ -1305,21 +1482,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
-    backgroundColor: C.goldPale,
+    backgroundColor: C.topAmberBg,
     borderWidth: 1,
-    borderColor: C.goldBorder,
+    borderColor: C.topAmberBorder,
   },
   topProviderText: {
     fontSize: 11,
     fontWeight: "800",
-    color: C.gold,
+    color: C.topAmberText,
     letterSpacing: 0.3,
   },
 
   // Stats
   statsRow: {
     flexDirection: "row",
-    backgroundColor: C.card,
+    backgroundColor: "#F9F8FF",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: C.cardBorder,
@@ -1332,11 +1509,11 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 9,
-    backgroundColor: C.goldPale,
+    backgroundColor: "#F9F8FF",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: C.goldBorder,
+    borderColor: C.accentBorder,
   },
   statValue: { fontSize: 14, fontWeight: "800", color: C.text },
   statLabel: { fontSize: 10, color: C.textMuted, marginTop: 1 },
@@ -1352,7 +1529,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: C.card,
+    backgroundColor: "#F9F8FF",
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
@@ -1367,18 +1544,18 @@ const styles = StyleSheet.create({
   priceValue: {
     fontSize: 24,
     fontWeight: "800",
-    color: C.gold,
+    color: C.accent,
     letterSpacing: -0.5,
   },
   pricingTypeBadge: {
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 10,
-    backgroundColor: C.goldPale,
+    backgroundColor: C.accentPale,
     borderWidth: 1,
-    borderColor: C.goldBorder,
+    borderColor: C.accentBorder,
   },
-  pricingTypeText: { fontSize: 11, fontWeight: "800", color: C.gold },
+  pricingTypeText: { fontSize: 11, fontWeight: "800", color: C.accent },
 
   // Section
   section: {
@@ -1396,7 +1573,7 @@ const styles = StyleSheet.create({
     width: 3,
     height: 14,
     borderRadius: 2,
-    backgroundColor: C.gold,
+    backgroundColor: C.accent,
   },
   sectionTitle: {
     fontSize: 13,
@@ -1430,7 +1607,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
-    backgroundColor: C.card,
+    backgroundColor: "#F9F8FF",
     borderWidth: 1,
     borderColor: C.cardBorder,
   },
@@ -1442,11 +1619,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
-    backgroundColor: C.goldPale,
+    backgroundColor: C.accentPale,
     borderWidth: 1,
-    borderColor: C.goldBorder,
+    borderColor: C.accentBorder,
   },
-  payChipText: { fontSize: 12, fontWeight: "700", color: C.gold },
+  payChipText: { fontSize: 12, fontWeight: "700", color: C.accent },
 
   // Detail grid
   detailGrid: { gap: 8 },
@@ -1462,15 +1639,89 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
 
-  // Gallery
-  galleryItem: {
-    width: 140,
-    height: 110,
-    borderRadius: 14,
+  // Gallery carousel
+  galleryCarouselSlide: {
+    borderRadius: 18,
     overflow: "hidden",
     backgroundColor: C.cardBorder,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#1A1A2E",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.12,
+        shadowRadius: 10,
+      },
+      android: { elevation: 4 },
+    }),
   },
-  galleryImage: { width: "100%", height: "100%" },
+  galleryCarouselImage: { width: "100%", height: "100%" },
+  galleryDotsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+  },
+  galleryDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.accentPale,
+    borderWidth: 1,
+    borderColor: C.accentBorder,
+  },
+  galleryDotActive: {
+    width: 20,
+    borderRadius: 4,
+    backgroundColor: C.accent,
+    borderColor: C.accent,
+  },
+  galleryLightboxRoot: {
+    flex: 1,
+    backgroundColor: "#0A0A0F",
+  },
+  /** Without flex, FlatList collapses inside Modal on Android → empty black viewport. */
+  galleryLightboxList: {
+    flex: 1,
+    width: "100%",
+    backgroundColor: "#0A0A0F",
+  },
+  galleryLightboxPage: {
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#0A0A0F",
+  },
+  galleryLightboxCloseBtn: {
+    position: "absolute",
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    zIndex: 2,
+  },
+  galleryLightboxCounter: {
+    position: "absolute",
+    alignSelf: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  galleryLightboxCounterText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: C.white,
+    letterSpacing: 0.4,
+  },
 
   // Reviews
   reviewCard: {
@@ -1486,13 +1737,13 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: C.goldPale,
+    backgroundColor: C.accentPale,
     borderWidth: 1,
-    borderColor: C.goldBorder,
+    borderColor: C.accentBorder,
     alignItems: "center",
     justifyContent: "center",
   },
-  reviewAvatarText: { fontSize: 12, fontWeight: "800", color: C.gold },
+  reviewAvatarText: { fontSize: 12, fontWeight: "800", color: C.accent },
   reviewName: {
     fontSize: 13,
     fontWeight: "800",
@@ -1526,15 +1777,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: C.goldPale,
+    backgroundColor: C.topAmberBg,
     borderWidth: 1,
-    borderColor: C.goldBorder,
+    borderColor: C.topAmberBorder,
   },
   reviewsTopBadgeEmoji: { fontSize: 12 },
   reviewsTopBadgeTxt: {
     fontSize: 11,
     fontWeight: "800",
-    color: C.gold,
+    color: C.topAmberText,
   },
   reviewsBreakdownWrap: { gap: 4, marginTop: 8, marginBottom: 4 },
   reviewsBreakdownRow: {
@@ -1552,7 +1803,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 5,
     borderRadius: 4,
-    backgroundColor: "#EEF0F4",
+    backgroundColor: "#EDE9FE",
     overflow: "hidden",
   },
   reviewsBreakdownFill: {
@@ -1573,15 +1824,15 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 6,
     paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: C.goldBorder,
-    backgroundColor: C.goldPale,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: C.accentBorder,
+    backgroundColor: "#F9F8FF",
   },
   reviewsSeeAllTxt: {
     fontSize: 14,
     fontWeight: "800",
-    color: C.gold,
+    color: C.accent,
   },
   reviewNameRow: {
     flexDirection: "row",
@@ -1601,21 +1852,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
-    backgroundColor: C.goldPale,
+    backgroundColor: C.accentPale,
     borderWidth: 1,
-    borderColor: C.goldBorder,
+    borderColor: C.accentBorder,
     maxWidth: "100%",
   },
   reviewServiceChipText: {
     fontSize: 11,
     fontWeight: "800",
-    color: C.gold,
+    color: C.accent,
   },
   reviewReadMore: {
     marginTop: 4,
     fontSize: 12,
     fontWeight: "800",
-    color: C.gold,
+    color: C.accent,
   },
   reviewAvatarPhoto: {
     width: 34,
@@ -1641,7 +1892,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: C.ivory,
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: C.cardBorder,
     paddingTop: 14,
@@ -1659,25 +1910,28 @@ const styles = StyleSheet.create({
   ctaBarInner: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
+    width: "100%",
   },
   ctaActionsRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
     gap: 10,
-    flexShrink: 0,
+    flex: 1,
+    minWidth: 0,
   },
   ctaMessageBtn: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    borderRadius: 999,
     backgroundColor: "#FFFFFF",
     borderWidth: 1.5,
-    borderColor: C.gold,
+    borderColor: C.accentBorder,
   },
   ctaMessageBtnDisabled: {
     opacity: 0.5,
@@ -1686,24 +1940,25 @@ const styles = StyleSheet.create({
   ctaMessageBtnText: {
     fontSize: 14,
     fontWeight: "800",
-    color: C.gold,
+    color: C.accent,
   },
-  ctaPriceLabel: { fontSize: 11, color: C.textMuted, fontWeight: "600" },
-  ctaPrice: { fontSize: 18, fontWeight: "800", color: C.text, marginTop: 1 },
   ctaBtn: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
-    backgroundColor: C.gold,
-    paddingHorizontal: 22,
+    backgroundColor: C.accent,
+    paddingHorizontal: 12,
     paddingVertical: 14,
-    borderRadius: 16,
+    borderRadius: 999,
     ...Platform.select({
       ios: {
-        shadowColor: C.gold,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 10,
+        shadowColor: "#7C5CFC",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.28,
+        shadowRadius: 14,
       },
       android: { elevation: 6 },
     }),
@@ -1722,7 +1977,9 @@ const styles = StyleSheet.create({
   ctaBtnText: {
     fontSize: 14,
     fontWeight: "800",
-    color: C.bg,
+    color: C.white,
     letterSpacing: 0.2,
+    flexShrink: 1,
+    textAlign: "center",
   },
 });

@@ -94,7 +94,6 @@ export function AdminLayout() {
             'sub-users',
             'sub-validation',
             'sub-catalog',
-            'sub-orders',
             'sub-finance',
             'sub-analytics',
             'sub-content',

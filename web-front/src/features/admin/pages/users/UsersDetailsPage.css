@@ -1,0 +1,146 @@
+.users-detail {
+  max-width: 960px;
+  margin: 0 auto;
+  padding-bottom: 48px;
+}
+
+.users-detail--centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  gap: 12px;
+}
+
+.users-detail__header {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  align-items: flex-start;
+}
+
+.users-detail__back {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #d9d9d9;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.users-detail__back:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+.users-detail__header-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.users-detail__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.users-detail__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.users-detail__email {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.users-detail__actions-card {
+  margin-bottom: 16px;
+}
+
+.users-detail__actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.users-detail__card {
+  margin-bottom: 16px;
+}
+
+.users-detail__section-title {
+  margin: 0 0 12px !important;
+}
+
+.users-detail__stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.users-detail__stat {
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.users-detail__stat strong {
+  display: block;
+  font-size: 20px;
+  color: #0f172a;
+}
+
+.users-detail__stat span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.users-detail__bio {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #475569;
+  white-space: pre-wrap;
+}
+
+.users-detail__doc-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.users-detail__doc-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #6366f1;
+}
+
+.users-detail__danger-zone {
+  border-color: #fecaca !important;
+  background: #fffbfb;
+}
+
+.users-detail__danger-title {
+  color: #991b1b !important;
+}
+
+.users-detail__avatar {
+  background: #6366f1 !important;
+  flex-shrink: 0;
+}

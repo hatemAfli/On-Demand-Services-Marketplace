@@ -403,6 +403,58 @@ export class ComplaintsService {
     });
   }
 
+  async getComplaintStats(): Promise<{
+    total: number;
+    open: number;
+    underReview: number;
+    resolvedThisMonth: number;
+    byCategory: Record<ComplaintCategory, number>;
+  }> {
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const categories = Object.values(ComplaintCategory);
+
+    const [total, open, underReview, resolvedThisMonth, categoryCounts] =
+      await Promise.all([
+        this.prisma.complaint.count(),
+        this.prisma.complaint.count({
+          where: { status: ComplaintStatus.OPEN },
+        }),
+        this.prisma.complaint.count({
+          where: { status: ComplaintStatus.UNDER_REVIEW },
+        }),
+        this.prisma.complaint.count({
+          where: {
+            status: ComplaintStatus.RESOLVED,
+            resolvedAt: { gte: monthStart },
+          },
+        }),
+        Promise.all(
+          categories.map((category) =>
+            this.prisma.complaint.count({ where: { category } }),
+          ),
+        ),
+      ]);
+
+    const byCategory = categories.reduce(
+      (acc, category, index) => {
+        acc[category] = categoryCounts[index] ?? 0;
+        return acc;
+      },
+      {} as Record<ComplaintCategory, number>,
+    );
+
+    return {
+      total,
+      open,
+      underReview,
+      resolvedThisMonth,
+      byCategory,
+    };
+  }
+
   async getAllComplaints(
     dto: GetComplaintsDto,
   ): Promise<{ items: ComplaintAdminListItem[]; total: number }> {

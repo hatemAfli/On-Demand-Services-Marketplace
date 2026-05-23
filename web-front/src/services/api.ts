@@ -25,6 +25,8 @@ import type {
 } from '../types/legal-document'
 import type { AdminCompaniesListResponse } from '../types/admin-company'
 import type { AdminUsersListResponse } from '../types/admin-user'
+import type { AdminUserDetail } from '../types/admin-user-detail'
+import type { AccountStatus } from '../types/user'
 import type { UserRole } from '../types/user'
 import type { AdminVerificationListResponse, AdminVerificationRequestItem } from '../types/verification-admin'
 
@@ -74,9 +76,21 @@ export const api = {
 
   listAdminUsers: (params?: {
     role?: UserRole
+    search?: string
     skip?: number
     take?: number
   }) => apiClient.get<AdminUsersListResponse>('/admin/users', { params }),
+
+  getAdminUserById: (id: string) =>
+    apiClient.get<AdminUserDetail>(`/admin/users/${id}`),
+
+  updateAdminUserStatus: (
+    id: string,
+    body: { status: AccountStatus; reason?: string },
+  ) => apiClient.patch<{ id: string; status: AccountStatus; message: string }>(
+    `/admin/users/${id}/status`,
+    body,
+  ),
 
   listAdminCompanies: (params?: { skip?: number; take?: number }) =>
     apiClient.get<AdminCompaniesListResponse>('/admin/companies', { params }),

@@ -10,10 +10,17 @@ import {
   ServiceCategoriesAdminPage,
   ServicesAdminPage,
   UsersAdminPage,
+  UsersDetailsPage,
   CompaniesAdminPage,
   PendingProvidersPage,
   PendingCompaniesPage,
   ValidationHistoryPage,
+  AdminAppointmentsPage,
+  AdminAppointmentDetailPage,
+  AdminComplaintsPage,
+  AdminComplaintDetailPage,
+  AdminReviewsPage,
+  AdminReviewDetailPage,
 } from './features/admin'
 import {
   CompanyAdminLayout,
@@ -104,6 +111,7 @@ function AppShell() {
                 />
                 <Route path="users/company-admins" element={<UsersAdminPage />} />
                 <Route path="users/platform-admins" element={<UsersAdminPage />} />
+                <Route path="users/:id" element={<UsersDetailsPage />} />
                 <Route path="companies" element={<CompaniesAdminPage />} />
                 <Route path="validations/pending-providers" element={<PendingProvidersPage />} />
                 <Route path="validations/pending-companies" element={<PendingCompaniesPage />} />
@@ -117,18 +125,18 @@ function AppShell() {
                   element={<ServicesAdminPage />}
                 />
                 <Route path="orders/list" element={<PlaceholderPage title="Orders" />} />
+                <Route path="appointments/list" element={<AdminAppointmentsPage />} />
                 <Route
-                  path="appointments/list"
-                  element={<PlaceholderPage title="Appointments" />}
+                  path="appointments/:id"
+                  element={<AdminAppointmentDetailPage />}
                 />
+                <Route path="reclamations" element={<AdminComplaintsPage />} />
                 <Route
-                  path="reclamations"
-                  element={<PlaceholderPage title="Reclamations" />}
+                  path="reclamations/:id"
+                  element={<AdminComplaintDetailPage />}
                 />
-                <Route
-                  path="reviews"
-                  element={<PlaceholderPage title="Reviews & ratings" />}
-                />
+                <Route path="reviews" element={<AdminReviewsPage />} />
+                <Route path="reviews/:id" element={<AdminReviewDetailPage />} />
                 <Route
                   path="finance/overview"
                   element={<PlaceholderPage title="Financial overview" />}

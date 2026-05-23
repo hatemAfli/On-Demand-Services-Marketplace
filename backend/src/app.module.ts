@@ -16,9 +16,11 @@ import { SearchModule } from './modules/search/search.module';
 import { FavoritesModule } from './modules/favorites/favorites.module';
 import { AvailabilityModule } from './modules/availability/availability.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { AdminAppointmentsModule } from './modules/appointments/admin-appointments.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { AdminReviewsModule } from './modules/reviews/admin-reviews.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { AppController } from './app.controller';
@@ -46,9 +48,11 @@ import { AppService } from './app.service';
     FavoritesModule,
     AvailabilityModule,
     AppointmentsModule,
+    AdminAppointmentsModule,
     NotificationsModule,
     MessagingModule,
     ReviewsModule,
+    AdminReviewsModule,
     ComplaintsModule,
   ],
   controllers: [AppController],

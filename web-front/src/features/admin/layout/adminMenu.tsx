@@ -80,13 +80,9 @@ export function buildAdminMenuItems(c: MenuCountProps): MenuProps['items'] {
       ],
     },
     {
-      key: 'sub-orders',
+      key: '/admin/appointments/list',
       icon: <CalendarOutlined />,
-      label: 'Orders & Appointments',
-      children: [
-        { key: '/admin/orders/list', label: 'All orders' },
-        { key: '/admin/appointments/list', label: 'Appointments' },
-      ],
+      label: 'Appointments',
     },
     {
       key: '/admin/reclamations',

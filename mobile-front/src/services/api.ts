@@ -763,6 +763,7 @@ export const api = {
       canReview: boolean;
       alreadyReviewed: boolean;
       existingRating: number | null;
+      existingComment: string | null;
     }>(`/reviews/can-review/${appointmentId}`),
 
   getProviderReviews: (

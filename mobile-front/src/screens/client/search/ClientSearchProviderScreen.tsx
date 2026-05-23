@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
+import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import { api } from "../../../services/api";
 
 type Props = NativeStackScreenProps<
@@ -104,8 +105,11 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
   route,
   navigation,
 }) => {
+  const { t } = useAppTranslation();
   const serviceId = route.params?.serviceId;
-  const serviceName = route.params?.serviceName ?? "Service";
+  const serviceName =
+    route.params?.serviceName ??
+    t("client.searchProvider.defaultServiceName");
   const clientLat = route.params?.clientLat;
   const clientLng = route.params?.clientLng;
 
@@ -132,7 +136,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
   useEffect(() => {
     if (!serviceId) {
       setLoading(false);
-      setError("Missing service id.");
+      setError(t("client.searchProvider.missingServiceId"));
       return;
     }
     let cancelled = false;
@@ -174,7 +178,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
         );
       } catch {
         if (!cancelled) {
-          setError("Could not load providers. Please try again.");
+          setError(t("client.searchProvider.loadError"));
           if (!append) {
             setItems([]);
             setFavoriteProviderIds(new Set());
@@ -206,11 +210,37 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
     serviceId,
     sort,
     limit,
+    t,
   ]);
 
   const resultLabel = useMemo(
-    () => `${total} provider${total === 1 ? "" : "s"} found`,
-    [total],
+    () =>
+      total === 1
+        ? t("client.searchProvider.resultsCountOne", { count: total })
+        : t("client.searchProvider.resultsCountMany", { count: total }),
+    [total, t],
+  );
+
+  const sortOptions = useMemo(
+    () =>
+      [
+        {
+          key: "RECOMMENDED" as const,
+          label: t("client.searchProvider.sortBestMatch"),
+          icon: "sparkles-outline",
+        },
+        {
+          key: "RATING_DESC" as const,
+          label: t("client.searchProvider.sortTopRated"),
+          icon: "star-outline",
+        },
+        {
+          key: "PRICE_ASC" as const,
+          label: t("client.searchProvider.sortLowestPrice"),
+          icon: "pricetag-outline",
+        },
+      ] as const,
+    [t],
   );
 
   const canLoadMore = page < totalPages;
@@ -359,6 +389,8 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
           }}
           disabled={favoriteLoading}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={t("client.searchProvider.a11yToggleFavorite")}
         >
           {favoriteLoading ? (
             <ActivityIndicator
@@ -408,14 +440,20 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
                 <Ionicons name="location-outline" size={12} color="#9B9BB0" />
                 <Text style={styles.infoChipText}>
                   {item.owner.city}
-                  {distance !== null ? ` · ${distance.toFixed(1)} km` : ""}
+                  {distance !== null
+                    ? t("client.searchProvider.distanceKmSuffix", {
+                        km: distance.toFixed(1),
+                      })
+                    : ""}
                 </Text>
               </View>
               {item.serviceRadiusKm ? (
                 <View style={styles.infoChip}>
                   <Ionicons name="radio-outline" size={12} color="#9B9BB0" />
                   <Text style={styles.infoChipText}>
-                    {item.serviceRadiusKm} km radius
+                    {t("client.searchProvider.serviceRadiusKm", {
+                      km: item.serviceRadiusKm,
+                    })}
                   </Text>
                 </View>
               ) : null}
@@ -425,13 +463,17 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
               {item.owner.isTopProvider ? (
                 <View style={styles.badgeTop}>
                   <Ionicons name="medal" size={11} color="#B45309" />
-                  <Text style={styles.badgeTopText}>Top Provider</Text>
+                  <Text style={styles.badgeTopText}>
+                    {t("client.searchProvider.badgeTopProvider")}
+                  </Text>
                 </View>
               ) : null}
               {item.isAvailableImmediately ? (
                 <View style={styles.badgeNow}>
                   <View style={styles.badgeNowDot} />
-                  <Text style={styles.badgeNowText}>Available now</Text>
+                  <Text style={styles.badgeNowText}>
+                    {t("client.searchProvider.badgeAvailableNow")}
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -440,11 +482,15 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
 
             <View style={styles.cardFooterRow}>
               <View>
-                <Text style={styles.priceLabel}>Starting from</Text>
+                <Text style={styles.priceLabel}>
+                  {t("client.searchProvider.startingFrom")}
+                </Text>
                 <View style={styles.priceRow}>
                   <Text style={styles.priceValue}>{item.price}</Text>
                   <Text style={styles.pricingType}>
-                    {item.pricingType === "HOURLY" ? "/ hr" : "fixed"}
+                    {item.pricingType === "HOURLY"
+                      ? t("client.categoryServices.unitHour")
+                      : t("client.searchProvider.pricingFixed")}
                   </Text>
                 </View>
               </View>
@@ -457,7 +503,9 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
                   })
                 }
               >
-                <Text style={styles.ctaBtnText}>View profile</Text>
+                <Text style={styles.ctaBtnText}>
+                  {t("client.searchProvider.viewProfile")}
+                </Text>
                 <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
@@ -479,6 +527,8 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
             onPress={() => navigation.goBack()}
             activeOpacity={0.85}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel={t("client.searchProvider.a11yBack")}
           >
             <Ionicons name="chevron-back" size={20} color="#1A1A2E" />
           </TouchableOpacity>
@@ -495,6 +545,8 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
             }
             activeOpacity={0.85}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel={t("client.searchProvider.a11yOpenFavorites")}
           >
             <Ionicons name="heart" size={18} color="#EF4444" />
           </TouchableOpacity>
@@ -510,23 +562,11 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
         >
           {/* Sort chips */}
           <View style={styles.chipGroupLabel}>
-            <Text style={styles.chipGroupLabelText}>Sort</Text>
+            <Text style={styles.chipGroupLabelText}>
+              {t("client.searchProvider.filterSort")}
+            </Text>
           </View>
-          {(
-            [
-              {
-                key: "RECOMMENDED",
-                label: "Best match",
-                icon: "sparkles-outline",
-              },
-              { key: "RATING_DESC", label: "Top rated", icon: "star-outline" },
-              {
-                key: "PRICE_ASC",
-                label: "Lowest price",
-                icon: "pricetag-outline",
-              },
-            ] as { key: SortKey; label: string; icon: string }[]
-          ).map((opt) => (
+          {sortOptions.map((opt) => (
             <Chip
               key={opt.key}
               label={opt.label}
@@ -541,21 +581,21 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
 
           {/* Filter chips */}
           <Chip
-            label="Available now"
+            label={t("client.searchProvider.filterAvailableNow")}
             icon="flash-outline"
             active={onlyAvailable}
             onPress={() => setOnlyAvailable((v) => !v)}
             accent="emerald"
           />
           <Chip
-            label="Top Provider"
+            label={t("client.searchProvider.filterTopProvider")}
             icon="medal-outline"
             active={onlyTop}
             onPress={() => setOnlyTop((v) => !v)}
             accent="amber"
           />
           <Chip
-            label="Independent"
+            label={t("client.searchProvider.filterIndependent")}
             icon="person-outline"
             active={ownerType === "PROVIDER"}
             onPress={() =>
@@ -564,7 +604,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
             accent="violet"
           />
           <Chip
-            label="Company"
+            label={t("client.searchProvider.filterCompany")}
             icon="business-outline"
             active={ownerType === "COMPANY"}
             onPress={() =>
@@ -573,14 +613,14 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
             accent="violet"
           />
           <Chip
-            label="Male"
+            label={t("client.searchProvider.filterMale")}
             icon="male-outline"
             active={gender === "MALE"}
             onPress={() => setGender((v) => (v === "MALE" ? "ALL" : "MALE"))}
             accent="violet"
           />
           <Chip
-            label="Female"
+            label={t("client.searchProvider.filterFemale")}
             icon="female-outline"
             active={gender === "FEMALE"}
             onPress={() =>
@@ -595,7 +635,9 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
         <View style={styles.center}>
           <View style={styles.loadingCard}>
             <ActivityIndicator size="large" color="#7C5CFC" />
-            <Text style={styles.loadingText}>Finding providers…</Text>
+            <Text style={styles.loadingText}>
+              {t("client.searchProvider.loading")}
+            </Text>
           </View>
         </View>
       ) : error ? (
@@ -620,9 +662,11 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
               <View style={styles.emptyIconWrap}>
                 <Ionicons name="search-outline" size={32} color="#9B9BB0" />
               </View>
-              <Text style={styles.emptyTitle}>No providers found</Text>
+              <Text style={styles.emptyTitle}>
+                {t("client.searchProvider.emptyTitle")}
+              </Text>
               <Text style={styles.emptySub}>
-                Try adjusting your filters or search area.
+                {t("client.searchProvider.emptySub")}
               </Text>
             </View>
           }
@@ -630,7 +674,9 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
             loadingMore ? (
               <View style={styles.listFooter}>
                 <ActivityIndicator color="#7C5CFC" size="small" />
-                <Text style={styles.listFooterText}>Loading more…</Text>
+                <Text style={styles.listFooterText}>
+                  {t("client.searchProvider.loadingMore")}
+                </Text>
               </View>
             ) : null
           }

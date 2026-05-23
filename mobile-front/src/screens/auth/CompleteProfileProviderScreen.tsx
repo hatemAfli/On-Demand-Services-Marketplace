@@ -670,9 +670,6 @@ export const CompleteProfileProviderScreen: React.FC<
     <View style={styles.stepContainer}>
       <View style={styles.stepHeader}>
         <Ionicons name="construct-outline" size={56} color={ACCENT} />
-        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.providerStep1Title")}
-        </Text>
       </View>
 
       <View style={styles.photoBlock}>
@@ -738,9 +735,6 @@ export const CompleteProfileProviderScreen: React.FC<
     <View style={styles.stepContainer}>
       <View style={styles.stepHeader}>
         <Ionicons name="location-outline" size={56} color={ACCENT} />
-        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.providerStep2Title")}
-        </Text>
       </View>
 
       <View style={styles.form}>
@@ -760,17 +754,13 @@ export const CompleteProfileProviderScreen: React.FC<
           value={formData.address}
           onChangeText={(value) => updateField("address", value)}
           leftIcon="home-outline"
-          multiline
-          numberOfLines={2}
+          autoCapitalize="words"
         />
 
         {Platform.OS === "web" ? (
           <View style={styles.webMapFallback}>
             <Text style={[styles.mapSectionTitle, isRTL && styles.rtlText]}>
               {t("completeProfile.mapLocationTitle")}
-            </Text>
-            <Text style={[styles.mapHint, isRTL && styles.rtlText]}>
-              {t("completeProfile.mapLocationHint")}
             </Text>
             <View style={styles.coordinatesContainer}>
               <View style={styles.coordinateInput}>
@@ -801,11 +791,6 @@ export const CompleteProfileProviderScreen: React.FC<
           <View style={styles.mapSection}>
             <Text style={[styles.mapSectionTitle, isRTL && styles.rtlText]}>
               {t("completeProfile.mapLocationTitle")}
-            </Text>
-            <Text style={[styles.mapHint, isRTL && styles.rtlText]}>
-              {USE_OSM_WEB_MAP
-                ? t("completeProfile.mapOsmExpoGoHint")
-                : t("completeProfile.mapLocationHint")}
             </Text>
             <View style={styles.mapWrap}>
               {USE_OSM_WEB_MAP ? (
@@ -867,12 +852,6 @@ export const CompleteProfileProviderScreen: React.FC<
     <View style={styles.stepContainer}>
       <View style={styles.stepHeader}>
         <Ionicons name="document-text-outline" size={56} color={ACCENT} />
-        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.providerStep3Title")}
-        </Text>
-        <Text style={[styles.stepSubtitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.providerStep3Subtitle")}
-        </Text>
       </View>
 
       <Text style={[styles.sectionLabel, isRTL && styles.rtlText]}>
@@ -1433,13 +1412,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#111827",
-    marginBottom: 8,
-  },
-  mapHint: {
-    fontSize: 13,
-    color: "#4B5563",
-    lineHeight: 19,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   mapWrap: {
     height: 260,

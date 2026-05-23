@@ -170,7 +170,8 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
   if (!service) return null;
 
   const desc =
-    service.description?.trim() || t("client.categoryServices.empty");
+    service.description?.trim() ||
+    t("client.categoryServices.noDescription");
   const sheetSubtitle = t("client.categoryServices.sheetSubtitle", {
     name: service.name,
   });
@@ -206,8 +207,14 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
       transparent
       onRequestClose={onClose}
     >
-      <Pressable style={s.backdrop} onPress={onClose}>
-        <Pressable style={s.sheet} onPress={(e) => e.stopPropagation()}>
+      <View style={s.backdrop}>
+        <Pressable
+          style={s.backdropDismiss}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel={t("client.categoryServices.a11yCloseSheet")}
+        />
+        <View style={s.sheet}>
           {/* ── Drag handle ── */}
           <View style={s.handleRow}>
             <View style={s.handle} />
@@ -236,6 +243,8 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
               style={s.closeBtn}
               onPress={onClose}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={t("client.categoryServices.a11yCloseSheet")}
             >
               <FontAwesome6 name="xmark" size={12} color={C.text} />
             </TouchableOpacity>
@@ -246,6 +255,8 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
               onPress={toggleFavorite}
               disabled={favoriteLoading}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={t("client.categoryServices.a11yToggleFavorite")}
             >
               {favoriteLoading ? (
                 <ActivityIndicator
@@ -272,10 +283,10 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
           <ScrollView
             style={s.body}
             contentContainerStyle={s.bodyContent}
-            showsVerticalScrollIndicator={false}
-            bounces
-            alwaysBounceVertical
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
             nestedScrollEnabled
+            directionalLockEnabled
           >
             {/* Title block */}
             <View style={s.titleBlock}>
@@ -284,7 +295,9 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
                 {isFavorite && (
                   <View style={s.savedBadge}>
                     <Ionicons name="heart" size={10} color={C.error} />
-                    <Text style={s.savedBadgeText}>Saved</Text>
+                    <Text style={s.savedBadgeText}>
+                      {t("client.categoryServices.savedBadge")}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -295,21 +308,21 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
             <View style={s.chipRow}>
               <InfoChip
                 icon="shield-halved"
-                label="Verified providers"
+                label={t("client.categoryServices.chipVerifiedProviders")}
                 color={C.success}
                 bg={C.successBg}
                 border={C.successBorder}
               />
               <InfoChip
                 icon="star"
-                label="Top rated"
+                label={t("client.categoryServices.chipTopRated")}
                 color={C.gold}
                 bg={C.goldBg}
                 border={C.goldBorder}
               />
               <InfoChip
                 icon="bolt"
-                label="Fast response"
+                label={t("client.categoryServices.chipFastResponse")}
                 color={C.accent}
                 bg={C.accentBg}
                 border={C.accentBorder}
@@ -320,7 +333,9 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
             <View style={s.divider} />
 
             {/* Description */}
-            <Text style={s.sectionLabel}>About this service</Text>
+            <Text style={s.sectionLabel}>
+              {t("client.categoryServices.aboutSection")}
+            </Text>
             <Text style={s.desc}>{desc}</Text>
             <TouchableOpacity activeOpacity={0.7}>
               <Text style={s.readMore}>
@@ -360,7 +375,9 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
                     <Text style={s.counterValue}>
                       {providerCount !== null ? String(providerCount) : "—"}
                     </Text>
-                    <Text style={s.counterValueSub}>available</Text>
+                    <Text style={s.counterValueSub}>
+                      {t("client.categoryServices.availableCount")}
+                    </Text>
                   </>
                 )}
               </View>
@@ -371,17 +388,19 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
               <View style={s.expectRow}>
                 <View style={[s.expectDot, { backgroundColor: C.success }]} />
                 <Text style={s.expectText}>
-                  On-site service at your location
+                  {t("client.categoryServices.expectOnSite")}
                 </Text>
               </View>
               <View style={s.expectRow}>
                 <View style={[s.expectDot, { backgroundColor: C.accent }]} />
-                <Text style={s.expectText}>Book your preferred time slot</Text>
+                <Text style={s.expectText}>
+                  {t("client.categoryServices.expectBookSlot")}
+                </Text>
               </View>
               <View style={s.expectRow}>
                 <View style={[s.expectDot, { backgroundColor: C.gold }]} />
                 <Text style={s.expectText}>
-                  Pay directly after service completion
+                  {t("client.categoryServices.expectPayAfter")}
                 </Text>
               </View>
             </View>
@@ -444,8 +463,8 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
               )}
             </TouchableOpacity>
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 };
@@ -454,8 +473,11 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
 const s = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(15,17,23,0.50)",
     justifyContent: "flex-end",
+    backgroundColor: "rgba(15,17,23,0.50)",
+  },
+  backdropDismiss: {
+    flex: 1,
   },
   sheet: {
     height: "88%",
@@ -463,6 +485,7 @@ const s = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: "hidden",
+    flexDirection: "column",
   },
 
   // ── Handle ──────────────────────────────────────────────────
@@ -581,11 +604,9 @@ const s = StyleSheet.create({
     minHeight: 0,
   },
   bodyContent: {
-    flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 20,
-    // Keep enough scroll room so bottom sections are visible above fixed CTA.
-    paddingBottom: 170,
+    paddingBottom: 24,
   },
 
   // ── Title ───────────────────────────────────────────────────
@@ -764,10 +785,7 @@ const s = StyleSheet.create({
 
   // ── Footer ──────────────────────────────────────────────────
   footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    flexShrink: 0,
     backgroundColor: C.white,
     borderTopWidth: 1,
     borderTopColor: C.border,

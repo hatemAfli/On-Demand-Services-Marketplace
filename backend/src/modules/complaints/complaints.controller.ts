@@ -58,6 +58,12 @@ export class ComplaintsController {
     return this.complaintsService.getAllComplaints(dto);
   }
 
+  @Get('stats')
+  @Roles(UserRole.PLATFORM_ADMIN)
+  getComplaintStats() {
+    return this.complaintsService.getComplaintStats();
+  }
+
   @Get(':id')
   @Roles(UserRole.CLIENT, UserRole.PLATFORM_ADMIN)
   getComplaintById(
