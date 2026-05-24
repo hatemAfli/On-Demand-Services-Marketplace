@@ -211,6 +211,7 @@ npm install
 | **`chat-attachments`** | **Client ↔ provider chat message images** | **`backend/supabase/storage-chat-attachments-policies.sql`** |
 | **`appointment-request-photos`** | **Client photos on booking requests** | **`backend/supabase/storage-appointment-request-photos-policies.sql`** |
 | **`appointment-intervention-photos`** | **Provider before/after intervention photos** | **`backend/supabase/storage-appointment-intervention-photos-policies.sql`** |
+| **`complaints_photos`** | **Client complaint evidence photos** | **`backend/supabase/storage-complaints-photos-policies.sql`** |
 
 **Booking request photos:** create public bucket `appointment-request-photos`, run the policies SQL, then clients upload to  
 `clients/<userId>/batches/<batchId>/…` before `POST /appointments`. URLs are stored on `appointments.photo_urls` and shown to the provider on the appointment detail screen.
@@ -220,3 +221,6 @@ npm install
 
 **Chat attachments:** create public bucket `chat-attachments`, run the policies SQL. Mobile uploads to  
 `conversations/<conversationId>/<senderUserId>/…` before `POST` messaging send. URLs are stored on `messages.media_urls`.
+
+**Complaint evidence photos:** create public bucket `complaints_photos`, run the policies SQL. Clients upload to  
+`appointments/<appointmentId>/clients/<userId>/evidence/<batchId>/…` before `POST /complaints`. URLs are stored on `complaints.evidence_urls` and shown to the **client**, **targeted provider**, and **platform/company admins**.

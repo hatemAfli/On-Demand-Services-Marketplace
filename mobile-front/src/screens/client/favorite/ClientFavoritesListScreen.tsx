@@ -14,7 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { api } from "../../../services/api";
 
@@ -60,7 +60,6 @@ export const ClientFavoritesListScreen: React.FC<Props> = ({
   navigation,
 }) => {
   const { type } = route.params;
-  const insets = useSafeAreaInsets();
   const [items, setItems] = useState<FavoriteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -158,14 +157,14 @@ export const ClientFavoritesListScreen: React.FC<Props> = ({
 
   if (loading) {
     return (
-      <View style={styles.loaderWrap}>
+      <SafeAreaView style={styles.loaderWrap} edges={["top", "bottom"]}>
         <ActivityIndicator size="large" color="#C4956A" />
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top + 6 }]}>
+    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
       {/* ── Header ── */}
       <View style={styles.listHeader}>
         <TouchableOpacity
@@ -395,7 +394,7 @@ export const ClientFavoritesListScreen: React.FC<Props> = ({
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 };
 

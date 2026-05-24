@@ -192,6 +192,10 @@ export class AppointmentsService {
         client: { include: { user: true } },
         provider: { include: { user: true } },
         confirmations: true,
+        complaints: {
+          select: { id: true },
+          take: 1,
+        },
       },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
@@ -236,6 +240,7 @@ export class AppointmentsService {
         data: {
           status: AppointmentStatus.CONFIRMED,
           refusalReason: null,
+          confirmedAt: new Date(),
         },
       });
       const providerUser = await this.prisma.user.findUnique({
@@ -354,6 +359,7 @@ export class AppointmentsService {
           scheduledTime: appointment.rescheduleTime,
           rescheduleDate: null,
           rescheduleTime: null,
+          confirmedAt: new Date(),
         },
       });
       const clientUser = await this.prisma.user.findUnique({

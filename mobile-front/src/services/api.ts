@@ -141,6 +141,7 @@ export type ProviderComplaintsSummaryResponse = {
 /** Normalized complaint row for client list/detail (after parsing API JSON). */
 export type ClientComplaintRow = {
   id: string;
+  appointmentId: string;
   category: ComplaintCategory;
   status: ComplaintStatus;
   description: string;
@@ -148,8 +149,17 @@ export type ClientComplaintRow = {
   adminResponse: string | null;
   decision: ComplaintDecision | null;
   createdAt: string;
+  reviewedAt: string | null;
   resolvedAt: string | null;
-  appointment: { scheduledDate: string; scheduledTime: string };
+  appointment: {
+    id: string;
+    scheduledDate: string;
+    scheduledTime: string;
+    status?: AppointmentStatus;
+    serviceName?: string;
+    categoryName?: string;
+    notes?: string | null;
+  };
   provider: { firstName: string; lastName: string; photoUrl: string | null };
 };
 

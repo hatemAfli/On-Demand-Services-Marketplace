@@ -15,13 +15,15 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { isAxiosError } from "axios";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
-import { COLORS } from "../../../constants";
-import { api, type ClientComplaintRow } from "../../../services/api";
+import { ConfirmModal, PhotoCarousel } from "../../../components/common";
+import { api, type AppointmentStatus, type ClientComplaintRow } from "../../../services/api";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import { CATEGORY_OPTIONS, getCategoryOption } from "./categoryMeta";
 import { parseClientComplaintRow } from "./parseComplaint";
 import {
   formatBookingDateTime,
+  formatComplaintReference,
+  formatComplaintTimestamp,
   statusBarColor,
   statusPillStyle,
 } from "./complaintUi";
@@ -49,6 +51,36 @@ function statusIcon(status: string): { name: string; color: string } {
   }
 }
 
+function appointmentStatusLabel(
+  status: AppointmentStatus,
+  t: (key: string) => string,
+): string {
+  const key = `client.complaints.detail.appointmentStatusLabels.${status}`;
+  const label = t(key);
+  return label === key ? status.replace(/_/g, " ") : label;
+}
+
+type DetailRowProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  isLast?: boolean;
+};
+
+function DetailRow({ icon, label, value, isLast = false }: DetailRowProps) {
+  return (
+    <View style={[styles.detailRow, isLast && styles.detailRowLast]}>
+      <View style={styles.detailIconWrap}>
+        <Ionicons name={icon} size={14} color="#7C5CFC" />
+      </View>
+      <View style={styles.detailTextCol}>
+        <Text style={styles.detailLabel}>{label}</Text>
+        <Text style={styles.detailValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
 export const ClientComplaintDetailScreen: React.FC<Props> = ({
   navigation,
   route,
@@ -58,6 +90,8 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
   const insets = useSafeAreaInsets();
   const [row, setRow] = useState<ClientComplaintRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
   const rowRef = useRef<ClientComplaintRow | null>(null);
   rowRef.current = row;
 
@@ -94,37 +128,21 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
     });
   }, [navigation, t]);
 
-  const withdrawComplaint = useCallback(() => {
+  const confirmWithdraw = useCallback(async () => {
     if (!row) return;
-    Alert.alert(
-      t("client.complaints.withdrawAlertTitle"),
-      t("client.complaints.withdrawAlertMessage"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("client.complaints.withdrawConfirmAction"),
-          style: "destructive",
-          onPress: () => {
-            void api
-              .withdrawComplaint(row.id)
-              .then(() => {
-                setRow((prev) =>
-                  prev ? { ...prev, status: "WITHDRAWN" } : prev,
-                );
-              })
-              .catch((err) => {
-                const msg = isAxiosError(err)
-                  ? (err.response?.data as { message?: string })?.message
-                  : undefined;
-                Alert.alert(
-                  t("common.error"),
-                  msg ?? t("client.complaints.withdrawError"),
-                );
-              });
-          },
-        },
-      ],
-    );
+    setWithdrawLoading(true);
+    try {
+      await api.withdrawComplaint(row.id);
+      setRow((prev) => (prev ? { ...prev, status: "WITHDRAWN" } : prev));
+      setWithdrawModalOpen(false);
+    } catch (err) {
+      const msg = isAxiosError(err)
+        ? (err.response?.data as { message?: string })?.message
+        : undefined;
+      Alert.alert(t("common.error"), msg ?? t("client.complaints.withdrawError"));
+    } finally {
+      setWithdrawLoading(false);
+    }
   }, [row, t]);
 
   /* ── Loading ── */
@@ -173,6 +191,88 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
       ? t(`client.complaints.decision.${row.decision}`)
       : null;
   const statusInfo = statusIcon(row.status);
+  const complaintRef = formatComplaintReference(row.id);
+  const filedAt = row.createdAt
+    ? formatComplaintTimestamp(row.createdAt)
+    : "—";
+  const reviewedAtLabel = row.reviewedAt
+    ? formatComplaintTimestamp(row.reviewedAt)
+    : null;
+  const resolvedAtLabel = row.resolvedAt
+    ? formatComplaintTimestamp(row.resolvedAt)
+    : null;
+  const appointmentId = row.appointment.id || row.appointmentId;
+  const appointmentStatus = row.appointment.status;
+
+  const complaintDetailRows: {
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+    value: string;
+  }[] = [
+    {
+      icon: "finger-print-outline",
+      label: t("client.complaints.detail.reference"),
+      value: `#${complaintRef}`,
+    },
+    {
+      icon: "time-outline",
+      label: t("client.complaints.detail.filedAt"),
+      value: filedAt,
+    },
+  ];
+  if (reviewedAtLabel) {
+    complaintDetailRows.push({
+      icon: "eye-outline",
+      label: t("client.complaints.detail.reviewedAt"),
+      value: reviewedAtLabel,
+    });
+  }
+  if (resolvedAtLabel) {
+    complaintDetailRows.push({
+      icon: "checkmark-circle-outline",
+      label: t("client.complaints.detail.resolvedAt"),
+      value: resolvedAtLabel,
+    });
+  }
+
+  const appointmentDetailRows: {
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+    value: string;
+  }[] = [];
+  if (row.appointment.serviceName) {
+    appointmentDetailRows.push({
+      icon: "construct-outline",
+      label: t("client.complaints.detail.service"),
+      value: row.appointment.serviceName,
+    });
+  }
+  if (row.appointment.categoryName) {
+    appointmentDetailRows.push({
+      icon: "grid-outline",
+      label: t("client.complaints.detail.serviceCategory"),
+      value: row.appointment.categoryName,
+    });
+  }
+  appointmentDetailRows.push({
+    icon: "calendar-outline",
+    label: t("client.complaints.detail.scheduledFor"),
+    value: schedule,
+  });
+  if (appointmentStatus) {
+    appointmentDetailRows.push({
+      icon: "pulse-outline",
+      label: t("client.complaints.detail.appointmentStatus"),
+      value: appointmentStatusLabel(appointmentStatus, t),
+    });
+  }
+  if (row.appointment.notes?.trim()) {
+    appointmentDetailRows.push({
+      icon: "chatbubble-ellipses-outline",
+      label: t("client.complaints.detail.bookingNotes"),
+      value: row.appointment.notes.trim(),
+    });
+  }
 
   return (
     <ScrollView
@@ -239,6 +339,64 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
         </View>
       </View>
 
+      <View style={styles.card}>
+        <View style={styles.sectionTitleRow}>
+          <View style={styles.sectionIconWrap}>
+            <Ionicons name="information-circle-outline" size={13} color="#7C5CFC" />
+          </View>
+          <Text style={styles.sectionTitle}>
+            {t("client.complaints.detail.complaintInfo")}
+          </Text>
+        </View>
+        {complaintDetailRows.map((item, index) => (
+          <DetailRow
+            key={item.label}
+            icon={item.icon}
+            label={item.label}
+            value={item.value}
+            isLast={index === complaintDetailRows.length - 1}
+          />
+        ))}
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.sectionTitleRow}>
+          <View style={styles.sectionIconWrap}>
+            <Ionicons name="calendar-outline" size={13} color="#7C5CFC" />
+          </View>
+          <Text style={styles.sectionTitle}>
+            {t("client.complaints.detail.appointmentInfo")}
+          </Text>
+        </View>
+        {appointmentDetailRows.map((item, index) => (
+          <DetailRow
+            key={item.label}
+            icon={item.icon}
+            label={item.label}
+            value={item.value}
+            isLast={
+              index === appointmentDetailRows.length - 1 && !appointmentId
+            }
+          />
+        ))}
+        {appointmentId ? (
+          <TouchableOpacity
+            style={styles.viewAppointmentBtn}
+            onPress={() =>
+              navigation.navigate("ClientAppointmentDetail", {
+                appointmentId,
+              })
+            }
+            activeOpacity={0.88}
+          >
+            <Text style={styles.viewAppointmentBtnText}>
+              {t("client.complaints.detail.viewAppointment")}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color="#7C5CFC" />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
       {/* ── Description ── */}
       <View style={styles.card}>
         <View style={styles.sectionTitleRow}>
@@ -268,13 +426,12 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
               </Text>
             </View>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.evidenceRow}>
-              {row.evidenceUrls.map((uri) => (
-                <Image key={uri} source={{ uri }} style={styles.evidenceImg} />
-              ))}
-            </View>
-          </ScrollView>
+          <PhotoCarousel
+            photos={row.evidenceUrls}
+            accessibilityLabelPrefix={t("client.complaints.evidence")}
+            horizontalInset={64}
+            activeDotColor="#7C5CFC"
+          />
         </View>
       ) : null}
 
@@ -307,15 +464,27 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
       {canWithdraw ? (
         <TouchableOpacity
           style={styles.withdrawWide}
-          onPress={withdrawComplaint}
+          onPress={() => setWithdrawModalOpen(true)}
           activeOpacity={0.85}
         >
-          <Ionicons name="close-outline" size={16} color="#DC2626" />
+          <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
           <Text style={styles.withdrawWideText}>
             {t("client.complaints.withdraw")}
           </Text>
         </TouchableOpacity>
       ) : null}
+
+      <ConfirmModal
+        visible={withdrawModalOpen}
+        onDismiss={() => !withdrawLoading && setWithdrawModalOpen(false)}
+        title={t("client.complaints.withdrawAlertTitle")}
+        message={t("client.complaints.withdrawAlertMessage")}
+        cancelLabel={t("common.cancel")}
+        confirmLabel={t("client.complaints.withdrawConfirmAction")}
+        confirmVariant="destructive"
+        loading={withdrawLoading}
+        onConfirm={confirmWithdraw}
+      />
     </ScrollView>
   );
 };
@@ -546,19 +715,62 @@ const styles = StyleSheet.create({
     fontWeight: "400",
   },
 
-  /* Evidence */
-  evidenceRow: {
+  detailRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
     gap: 10,
-    paddingTop: 2,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F4F3FA",
   },
-  evidenceImg: {
-    width: 96,
-    height: 96,
-    borderRadius: 14,
-    backgroundColor: "#F4F3FA",
+  detailRowLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
+  },
+  detailIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    backgroundColor: "#EDE9FE",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  detailTextCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#9B9BB0",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1A1A2E",
+    lineHeight: 20,
+  },
+  viewAppointmentBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#EDE9FE",
     borderWidth: 1,
-    borderColor: "#EBEBF5",
+    borderColor: "#C4B5FD",
+  },
+  viewAppointmentBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#7C5CFC",
   },
 
   /* ── Admin response ── */

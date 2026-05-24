@@ -46,13 +46,13 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
     Animated.parallel([
       Animated.spring(scaleAnim, {
         toValue: 1,
-        tension: 50,
-        friction: 7,
+        tension: 55,
+        friction: 6.5,
         useNativeDriver: true,
       }),
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 520,
         useNativeDriver: true,
       }),
     ]).start();
@@ -97,10 +97,29 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      {/* cute, subtle background */}
+      <View pointerEvents="none" style={styles.bg}>
+        <View style={styles.blob1} />
+        <View style={styles.blob2} />
+        <View style={styles.blob3} />
+        <Ionicons
+          name="sparkles"
+          size={18}
+          color="#A78BFA"
+          style={styles.sparkleA}
+        />
+        <Ionicons
+          name="sparkles"
+          size={16}
+          color="#FB7185"
+          style={styles.sparkleB}
+        />
+      </View>
+
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + 32 },
+          { paddingBottom: insets.bottom + 28 },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -109,56 +128,60 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
         <Animated.View
           style={[
             styles.iconOuter,
-            {
-              transform: [{ scale: scaleAnim }],
-              opacity: fadeAnim,
-            },
+            { transform: [{ scale: scaleAnim }], opacity: fadeAnim },
           ]}
         >
-          <View style={styles.iconCircle}>
-            <Ionicons name="checkmark-circle" size={56} color={CHECK_GREEN} />
+          <View style={styles.iconHalo}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="checkmark-circle" size={42} color={CHECK_GREEN} />
+            </View>
+          </View>
+
+          <View style={styles.miniTag}>
+            <Ionicons name="heart" size={11} color="#FB7185" />
+            <Text style={styles.miniTagText}>All set</Text>
           </View>
         </Animated.View>
 
         {/* Main Title */}
-        <Animated.Text
-          style={[
-            styles.title,
-            {
-              opacity: fadeAnim,
-            },
-          ]}
-        >
+        <Animated.Text style={[styles.title, { opacity: fadeAnim }]}>
           Request sent!
         </Animated.Text>
 
         {/* Subtitle */}
-        <Animated.Text
-          style={[
-            styles.subtitle,
-            {
-              opacity: fadeAnim,
-            },
-          ]}
-        >
+        <Animated.Text style={[styles.subtitle, { opacity: fadeAnim }]}>
           Your booking request has been sent to{" "}
           <Text style={styles.subtitleBold}>{providerName}</Text>. You'll be
           notified once they respond.
         </Animated.Text>
 
-        {/* Recap Card with Icon Badges */}
-        <Animated.View
-          style={[
-            styles.recapCard,
-            {
-              opacity: fadeAnim,
-            },
-          ]}
-        >
+        {/* Recap Card */}
+        <Animated.View style={[styles.recapCard, { opacity: fadeAnim }]}>
+          <View style={styles.recapHeader}>
+            <View style={styles.recapHeaderLeft}>
+              <View style={styles.recapHeaderBadge}>
+                <Ionicons name="receipt-outline" size={14} color="#7C3AED" />
+              </View>
+              <View>
+                <Text style={styles.recapHeaderTitle}>Booking details</Text>
+                <Text style={styles.recapHeaderSub}>
+                  Please review the request summary
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.statusPill}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusText}>Pending</Text>
+            </View>
+          </View>
+
+          <View style={styles.softDivider} />
+
           {/* Service Row */}
           <View style={styles.recapRow}>
-            <View style={styles.iconBadge}>
-              <Ionicons name="briefcase" size={20} color={COLORS.primary} />
+            <View style={[styles.iconBadge, styles.badgeLavender]}>
+              <Ionicons name="briefcase-outline" size={16} color="#7C3AED" />
             </View>
             <View style={styles.recapTextCol}>
               <Text style={styles.recapLabel}>Service</Text>
@@ -170,8 +193,8 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
 
           {/* Provider Row */}
           <View style={styles.recapRow}>
-            <View style={styles.iconBadge}>
-              <Ionicons name="person" size={20} color={COLORS.primary} />
+            <View style={[styles.iconBadge, styles.badgePink]}>
+              <Ionicons name="person-outline" size={16} color="#DB2777" />
             </View>
             <View style={styles.recapTextCol}>
               <Text style={styles.recapLabel}>Provider</Text>
@@ -181,13 +204,10 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
             </View>
           </View>
 
-          {/* Divider */}
-          <View style={styles.divider} />
-
           {/* Date Row */}
           <View style={styles.recapRow}>
-            <View style={styles.iconBadge}>
-              <Ionicons name="calendar" size={20} color={COLORS.primary} />
+            <View style={[styles.iconBadge, styles.badgeSky]}>
+              <Ionicons name="calendar-outline" size={16} color="#0284C7" />
             </View>
             <View style={styles.recapTextCol}>
               <Text style={styles.recapLabel}>Scheduled Date</Text>
@@ -197,8 +217,8 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
 
           {/* Time Row */}
           <View style={styles.recapRow}>
-            <View style={styles.iconBadge}>
-              <Ionicons name="time" size={20} color={COLORS.primary} />
+            <View style={[styles.iconBadge, styles.badgeMint]}>
+              <Ionicons name="time-outline" size={16} color="#059669" />
             </View>
             <View style={styles.recapTextCol}>
               <Text style={styles.recapLabel}>Scheduled Time</Text>
@@ -206,248 +226,353 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
             </View>
           </View>
 
-          {/* Status Row */}
-          <View style={[styles.recapRow, styles.statusRow]}>
-            <Text style={styles.recapLabel}>Status</Text>
-            <View style={styles.badgePending}>
-              <View style={styles.badgeDot} />
-              <Text style={styles.badgePendingText}>Awaiting Response</Text>
-            </View>
+          {/* Clear “what next” footer */}
+          <View style={styles.nextCard}>
+            <Ionicons name="notifications-outline" size={15} color="#7C3AED" />
+            <Text style={styles.nextText}>
+              We’ll notify you when the provider confirms or proposes a new
+              time.
+            </Text>
           </View>
         </Animated.View>
 
-        {/* Info Box */}
-        <View style={styles.infoBox}>
-          <Ionicons
-            name="information-circle"
-            size={20}
-            color={COLORS.primary}
-          />
-          <Text style={styles.infoText}>
-            Check your notifications for updates. You can also view all your
-            appointments from your bookings.
-          </Text>
+        {/* Action Buttons */}
+        <View style={styles.actionsWrap}>
+          <TouchableOpacity
+            style={styles.btnPrimary}
+            onPress={goBookings}
+            activeOpacity={0.88}
+          >
+            <View style={styles.btnPrimaryIcon}>
+              <Ionicons name="calendar-outline" size={15} color="#fff" />
+            </View>
+            <Text style={styles.btnPrimaryText}>View My Bookings</Text>
+            <Ionicons
+              name="chevron-forward"
+              size={15}
+              color="rgba(255,255,255,0.92)"
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.btnSecondary}
+            onPress={goHome}
+            activeOpacity={0.88}
+          >
+            <Ionicons name="home-outline" size={15} color="#7C3AED" />
+            <Text style={styles.btnSecondaryText}>Back to Home</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Action Buttons */}
-        <TouchableOpacity
-          style={styles.btnPrimary}
-          onPress={goBookings}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="calendar-clear" size={18} color={COLORS.white} />
-          <Text style={styles.btnPrimaryText}>View My Bookings</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.btnSecondary}
-          onPress={goHome}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="home-outline" size={18} color={COLORS.primary} />
-          <Text style={styles.btnSecondaryText}>Back to Home</Text>
-        </TouchableOpacity>
+        {/* tiny reassurance */}
+        <View style={styles.footerHint}>
+          <Ionicons
+            name="lock-closed-outline"
+            size={14}
+            color={COLORS.gray[500]}
+          />
+          <Text style={styles.footerHintText}>
+            Your details stay private and secure.
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: COLORS.white,
+  safe: { flex: 1, backgroundColor: "#FFF7FB" },
+
+  /* Background */
+  bg: { ...StyleSheet.absoluteFillObject, overflow: "hidden" },
+  blob1: {
+    position: "absolute",
+    width: 280,
+    height: 280,
+    borderRadius: 160,
+    backgroundColor: "#FCE7F3",
+    top: -110,
+    left: -110,
+    opacity: 0.95,
   },
+  blob2: {
+    position: "absolute",
+    width: 260,
+    height: 260,
+    borderRadius: 150,
+    backgroundColor: "#EDE9FE",
+    top: 10,
+    right: -130,
+    opacity: 0.85,
+  },
+  blob3: {
+    position: "absolute",
+    width: 300,
+    height: 300,
+    borderRadius: 170,
+    backgroundColor: "#E0F2FE",
+    bottom: -170,
+    left: -90,
+    opacity: 0.75,
+  },
+  sparkleA: { position: "absolute", top: 52, right: 28, opacity: 0.75 },
+  sparkleB: { position: "absolute", top: 120, left: 22, opacity: 0.65 },
+
   scrollContent: {
     flexGrow: 1,
     justifyContent: "center",
-    paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingHorizontal: 18,
+    paddingTop: 16,
   },
 
-  /* Icon Animation */
-  iconOuter: {
-    alignSelf: "center",
-    marginBottom: 24,
+  /* Icon */
+  iconOuter: { alignSelf: "center", marginBottom: 10 },
+  iconHalo: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    borderWidth: 1,
+    borderColor: "rgba(167,139,250,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#A78BFA",
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   iconCircle: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: SUCCESS_BG,
-    borderWidth: 2.5,
+    borderWidth: 2,
     borderColor: SUCCESS_BORDER,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: CHECK_GREEN,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
   },
+  miniTag: {
+    position: "absolute",
+    right: -6,
+    top: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "rgba(251,113,133,0.3)",
+    shadowColor: "#FB7185",
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  miniTagText: { fontSize: 10, fontWeight: "800", color: "#BE123C" },
 
   /* Typography */
   title: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: "800",
-    color: COLORS.text.primary,
+    color: "#111827",
     textAlign: "center",
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
   },
   subtitle: {
-    marginTop: 14,
-    fontSize: 16,
-    color: COLORS.text.secondary,
+    marginTop: 8,
+    fontSize: 13,
+    color: "#6B7280",
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: 19,
+    paddingHorizontal: 8,
   },
-  subtitleBold: {
-    fontWeight: "700",
-    color: COLORS.text.primary,
-  },
+  subtitleBold: { fontWeight: "800", color: "#374151" },
 
-  /* Recap Card */
+  /* Recap card */
   recapCard: {
-    marginTop: 32,
-    backgroundColor: COLORS.surface,
-    borderRadius: 18,
+    marginTop: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 20,
-    gap: 18,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
+    borderColor: "rgba(167,139,250,0.22)",
+    padding: 12,
+    gap: 10,
+    shadowColor: "#C4B5FD",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
     elevation: 3,
   },
-  recapRow: {
+  recapHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-  },
-  iconBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: `${COLORS.primary}15`,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  recapTextCol: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  recapLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: COLORS.text.tertiary,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  recapValue: {
-    marginTop: 5,
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text.primary,
-  },
-
-  /* Divider */
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: 4,
-  },
-
-  /* Status Row */
-  statusRow: {
     justifyContent: "space-between",
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    marginTop: 8,
+    gap: 8,
   },
-  badgePending: {
+  recapHeaderLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#FEF3C7",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    flex: 1,
+  },
+  recapHeaderBadge: {
+    width: 30,
+    height: 30,
     borderRadius: 10,
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1,
+    borderColor: "rgba(124,58,237,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  badgeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#B45309",
-  },
-  badgePendingText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#B45309",
-    letterSpacing: 0.3,
+  recapHeaderTitle: { fontSize: 12, fontWeight: "800", color: "#111827" },
+  recapHeaderSub: {
+    marginTop: 1,
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#9CA3AF",
   },
 
-  /* Info Box */
-  infoBox: {
-    marginTop: 28,
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#F59E0B",
+  },
+  statusText: { fontSize: 10, fontWeight: "800", color: "#9A3412" },
+
+  softDivider: {
+    height: 1,
+    backgroundColor: "rgba(167,139,250,0.15)",
+  },
+
+  recapRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    borderWidth: 1,
+    borderColor: "rgba(17,24,39,0.05)",
+  },
+  badgeLavender: { backgroundColor: "#EDE9FE" },
+  badgePink: { backgroundColor: "#FCE7F3" },
+  badgeSky: { backgroundColor: "#E0F2FE" },
+  badgeMint: { backgroundColor: "#ECFDF5" },
+
+  recapTextCol: { flex: 1, justifyContent: "center" },
+  recapLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#9CA3AF",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  recapValue: {
+    marginTop: 2,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111827",
+  },
+
+  nextCard: {
+    marginTop: 2,
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
-    backgroundColor: `${COLORS.primary}10`,
-    borderRadius: 14,
+    gap: 8,
+    backgroundColor: "#FAF5FF",
     borderWidth: 1,
-    borderColor: `${COLORS.primary}25`,
-    padding: 16,
+    borderColor: "rgba(167,139,250,0.2)",
+    padding: 10,
+    borderRadius: 14,
   },
-  infoText: {
+  nextText: {
     flex: 1,
-    fontSize: 14,
-    color: COLORS.text.secondary,
-    lineHeight: 21,
-    fontWeight: "500",
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6B7280",
+    lineHeight: 16,
   },
 
-  /* Buttons */
+  /* Buttons — compact & cute */
+  actionsWrap: {
+    marginTop: 14,
+    gap: 8,
+    alignSelf: "stretch",
+  },
   btnPrimary: {
-    marginTop: 28,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    backgroundColor: COLORS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "#8B5CF6",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 10,
-    shadowColor: COLORS.primary,
+    gap: 8,
+    shadowColor: "#7C3AED",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  btnPrimaryIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   btnPrimaryText: {
-    color: COLORS.white,
-    fontSize: 16,
+    flex: 1,
+    textAlign: "center",
+    color: "#fff",
+    fontSize: 13,
     fontWeight: "800",
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
+
   btnSecondary: {
-    marginTop: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.white,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(124,58,237,0.2)",
+    backgroundColor: "rgba(255,255,255,0.95)",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 10,
+    gap: 7,
   },
-  btnSecondaryText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.primary,
+  btnSecondaryText: { fontSize: 13, fontWeight: "800", color: "#7C3AED" },
+
+  footerHint: {
+    marginTop: 14,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    opacity: 0.9,
+  },
+  footerHintText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: COLORS.gray[500],
   },
 });

@@ -6,6 +6,28 @@ export function parseYmdLocal(ymd: string): Date {
   return new Date(y, m - 1, d);
 }
 
+export function formatComplaintTimestamp(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+export function formatComplaintReference(id: string): string {
+  const compact = id.replace(/-/g, "").toUpperCase();
+  return compact.length >= 8 ? compact.slice(0, 8) : compact;
+}
+
 export function formatBookingDateTime(
   scheduledDate: string,
   scheduledTime: string,

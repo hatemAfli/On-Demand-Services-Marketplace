@@ -117,16 +117,26 @@ export const ClientOverlayNavigator: React.FC = () => {
           title: t(
             `client.screenTitles.${route.name as keyof ClientStackParamList}`,
           ),
-          headerLeft: () => (
-            <TouchableOpacity
-              onPress={() => setIsSidebarOpen(true)}
-              style={styles.menuButton}
-              hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
-              accessibilityLabel={t("client.a11y.openMenu")}
-            >
-              <Ionicons name="menu" size={26} color={COLORS.text.primary} />
-            </TouchableOpacity>
-          ),
+          // Avoid native "arrow-back" flashing when screens use a custom chevron in headerLeft.
+          headerBackVisible: false,
+          ...(route.name === "ClientHome"
+            ? {
+                headerLeft: () => (
+                  <TouchableOpacity
+                    onPress={() => setIsSidebarOpen(true)}
+                    style={styles.menuButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                    accessibilityLabel={t("client.a11y.openMenu")}
+                  >
+                    <Ionicons
+                      name="menu"
+                      size={26}
+                      color={COLORS.text.primary}
+                    />
+                  </TouchableOpacity>
+                ),
+              }
+            : {}),
         })}
       >
         <Stack.Screen name="ClientHome" component={ClientHomeScreen} />

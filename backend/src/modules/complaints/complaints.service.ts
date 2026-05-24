@@ -35,6 +35,8 @@ const COMPLAINT_ALLOWED_STATUSES: AppointmentStatus[] = [
 const DEFAULT_GET_COMPLAINTS_TAKE = 20;
 const DEFAULT_GET_COMPLAINTS_SKIP = 0;
 
+const COMPLAINTS_PHOTOS_BUCKET = 'complaints_photos';
+
 const APPOINTMENT_ADMIN_LIST_SELECT = {
   id: true,
   scheduledDate: true,
@@ -46,6 +48,29 @@ const APPOINTMENT_ADMIN_LIST_SELECT = {
           translations: {
             where: { locale: Locale.EN },
             select: { name: true, locale: true },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.AppointmentSelect;
+
+/** Appointment fields returned on client complaint list/detail. */
+const CLIENT_COMPLAINT_APPOINTMENT_SELECT = {
+  id: true,
+  scheduledDate: true,
+  scheduledTime: true,
+  status: true,
+  notes: true,
+  givenService: {
+    select: {
+      service: {
+        select: {
+          translations: { select: { locale: true, name: true } },
+          category: {
+            select: {
+              translations: { select: { locale: true, name: true } },
+            },
           },
         },
       },
@@ -96,6 +121,29 @@ export class ComplaintsService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
+  /** Ensures evidence URLs point at this client's objects in `complaints_photos`. */
+  private assertEvidenceUrls(
+    urls: string[] | undefined,
+    appointmentId: string,
+    clientId: string,
+  ): string[] {
+    if (!urls?.length) return [];
+    const bucketMarker = `/${COMPLAINTS_PHOTOS_BUCKET}/`;
+    const requiredPrefix = `appointments/${appointmentId}/clients/${clientId}/evidence/`;
+    for (const url of urls) {
+      if (!url.startsWith('http') || !url.includes(bucketMarker)) {
+        throw new BadRequestException('Invalid evidence photo URL');
+      }
+      const afterBucket = url.split(bucketMarker)[1]?.split('?')[0] ?? '';
+      if (!afterBucket.startsWith(requiredPrefix)) {
+        throw new BadRequestException(
+          'Evidence photo does not belong to this appointment',
+        );
+      }
+    }
+    return urls;
+  }
+
   async createComplaint(
     clientUserId: string,
     dto: CreateComplaintDto,
@@ -144,6 +192,11 @@ export class ComplaintsService {
     }
 
     const targetIsEmployee = appointment.provider.type === ProviderType.EMPLOYEE;
+    const evidenceUrls = this.assertEvidenceUrls(
+      dto.evidenceUrls,
+      dto.appointmentId,
+      appointment.clientId,
+    );
 
     const complaint = await this.prisma.$transaction(async (tx) => {
       const created = await tx.complaint.create({
@@ -153,7 +206,7 @@ export class ComplaintsService {
           providerId: appointment.providerId,
           category: dto.category,
           description: dto.description.trim(),
-          evidenceUrls: dto.evidenceUrls ?? [],
+          evidenceUrls,
           status: ComplaintStatus.OPEN,
           targetIsEmployee,
         },
@@ -218,12 +271,7 @@ export class ComplaintsService {
     return this.prisma.complaint.findMany({
       where: { client: { user: { id: clientUserId } } },
       include: {
-        appointment: {
-          select: {
-            scheduledDate: true,
-            scheduledTime: true,
-          },
-        },
+        appointment: { select: CLIENT_COMPLAINT_APPOINTMENT_SELECT },
         provider: {
           select: {
             photoUrl: true,

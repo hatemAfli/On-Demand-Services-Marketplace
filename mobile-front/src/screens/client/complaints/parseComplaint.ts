@@ -1,9 +1,11 @@
 import type {
+  AppointmentStatus,
   ComplaintCategory,
   ComplaintDecision,
   ComplaintStatus,
   ClientComplaintRow,
 } from "../../../services/api";
+import i18n from "../../../i18n";
 
 const CATEGORIES = new Set<string>([
   "SERVICE_QUALITY",
@@ -34,6 +36,29 @@ const DECISIONS = new Set<string>([
   "FORWARDED_TO_COMPANY",
 ]);
 
+const APPOINTMENT_STATUSES = new Set<string>([
+  "PENDING",
+  "CONFIRMED",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "CANCELLED_CLIENT",
+  "CANCELLED_PROVIDER",
+  "REFUSED",
+  "DISPUTED",
+]);
+
+function pickLocaleName(
+  translations: { locale: string; name: string }[] | undefined,
+): string {
+  if (!translations?.length) return "";
+  const want = i18n.language?.startsWith("ar") ? "AR" : "EN";
+  return (
+    translations.find((t) => t.locale === want)?.name ??
+    translations[0]?.name ??
+    ""
+  );
+}
+
 function parseProvider(raw: unknown): ClientComplaintRow["provider"] | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
@@ -61,17 +86,72 @@ function parseProvider(raw: unknown): ClientComplaintRow["provider"] | null {
   return null;
 }
 
+function parseIsoDate(raw: unknown): string | null {
+  if (typeof raw === "string") return raw;
+  if (raw instanceof Date) return raw.toISOString();
+  if (typeof raw === "object" && raw !== null) return String(raw);
+  return null;
+}
+
 function parseAppointment(
   raw: unknown,
+  fallbackAppointmentId: string,
 ): ClientComplaintRow["appointment"] | null {
   if (!raw || typeof raw !== "object") return null;
   const a = raw as Record<string, unknown>;
   const scheduledDate =
-    typeof a.scheduledDate === "string" ? a.scheduledDate : null;
+    typeof a.scheduledDate === "string"
+      ? a.scheduledDate
+      : a.scheduledDate instanceof Date
+        ? a.scheduledDate.toISOString().slice(0, 10)
+        : null;
   const scheduledTime =
     typeof a.scheduledTime === "string" ? a.scheduledTime : null;
   if (!scheduledDate || !scheduledTime) return null;
-  return { scheduledDate, scheduledTime };
+
+  const id =
+    typeof a.id === "string" && a.id.length > 0
+      ? a.id
+      : fallbackAppointmentId;
+
+  const statusRaw = typeof a.status === "string" ? a.status : null;
+  const status =
+    statusRaw && APPOINTMENT_STATUSES.has(statusRaw)
+      ? (statusRaw as AppointmentStatus)
+      : undefined;
+
+  const notes =
+    typeof a.notes === "string"
+      ? a.notes
+      : a.notes === null
+        ? null
+        : undefined;
+
+  let serviceName: string | undefined;
+  let categoryName: string | undefined;
+  const gs = a.givenService as Record<string, unknown> | undefined;
+  const service = gs?.service as
+    | {
+        translations?: { locale: string; name: string }[];
+        category?: { translations?: { locale: string; name: string }[] };
+      }
+    | undefined;
+  if (service) {
+    const sn = pickLocaleName(service.translations);
+    if (sn) serviceName = sn;
+    const cn = pickLocaleName(service.category?.translations);
+    if (cn) categoryName = cn;
+  }
+
+  return {
+    id,
+    scheduledDate,
+    scheduledTime,
+    status,
+    serviceName,
+    categoryName,
+    notes,
+  };
 }
 
 function parseStringArray(raw: unknown): string[] {
@@ -85,6 +165,8 @@ export function parseClientComplaintRow(raw: unknown): ClientComplaintRow | null
   const r = raw as Record<string, unknown>;
   const id = typeof r.id === "string" ? r.id : null;
   if (!id) return null;
+  const appointmentId =
+    typeof r.appointmentId === "string" ? r.appointmentId : "";
   const cat = typeof r.category === "string" ? r.category : "";
   if (!CATEGORIES.has(cat)) return null;
   const st = typeof r.status === "string" ? r.status : "";
@@ -105,27 +187,17 @@ export function parseClientComplaintRow(raw: unknown): ClientComplaintRow | null
       : typeof decisionRaw === "string" && DECISIONS.has(decisionRaw)
         ? (decisionRaw as ComplaintDecision)
         : null;
-  const createdAt =
-    typeof r.createdAt === "string"
-      ? r.createdAt
-      : typeof r.createdAt === "object" && r.createdAt !== null
-        ? String(r.createdAt)
-        : "";
-  const resolvedAt =
-    typeof r.resolvedAt === "string"
-      ? r.resolvedAt
-      : r.resolvedAt === null
-        ? null
-        : typeof r.resolvedAt === "object" && r.resolvedAt !== null
-          ? String(r.resolvedAt)
-          : null;
+  const createdAt = parseIsoDate(r.createdAt) ?? "";
+  const reviewedAt = parseIsoDate(r.reviewedAt);
+  const resolvedAt = parseIsoDate(r.resolvedAt);
 
-  const appointment = parseAppointment(r.appointment);
+  const appointment = parseAppointment(r.appointment, appointmentId);
   const provider = parseProvider(r.provider);
   if (!appointment || !provider) return null;
 
   return {
     id,
+    appointmentId: appointment.id || appointmentId,
     category: cat as ComplaintCategory,
     status: st as ComplaintStatus,
     description,
@@ -133,6 +205,7 @@ export function parseClientComplaintRow(raw: unknown): ClientComplaintRow | null
     adminResponse,
     decision,
     createdAt,
+    reviewedAt,
     resolvedAt,
     appointment,
     provider,

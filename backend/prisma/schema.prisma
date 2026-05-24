@@ -681,6 +681,7 @@ model Appointment {
   refusalReason  String?   @map("refusal_reason") @db.Text
   rescheduleDate DateTime? @db.Date @map("reschedule_date")
   rescheduleTime String?   @map("reschedule_time")
+  confirmedAt    DateTime? @map("confirmed_at")
 
   // Execution tracking
   enRouteAt       DateTime? @map("en_route_at")

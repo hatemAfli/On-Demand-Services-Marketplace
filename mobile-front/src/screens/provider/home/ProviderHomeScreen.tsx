@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -22,13 +23,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { ProviderStackParamList } from "../../../navigation/types";
-import { useAuth } from "../../../context/AuthContext";
 import {
   api,
   mapProviderCalendarAppointmentRow,
   type AppointmentStatus,
   type ProviderCalendarAppointment,
 } from "../../../services/api";
+
+// ─── Pure logic (all unchanged) ───────────────────────────────────────────
 
 const JOB_EXCLUDED_FROM_DAY_COUNT: AppointmentStatus[] = [
   "CANCELLED_CLIENT",
@@ -60,17 +62,13 @@ function formatJobsVsYesterday(
   today: number,
   yesterday: number,
 ): { line: string; trend: "up" | "down" | "same" } {
-  if (yesterday === 0 && today === 0) {
+  if (yesterday === 0 && today === 0)
     return { line: "Same as yesterday", trend: "same" };
-  }
-  if (yesterday === 0) {
-    return { line: "↗ +100% vs yesterday", trend: "up" };
-  }
+  if (yesterday === 0) return { line: "↗ +100% vs yesterday", trend: "up" };
   const rawPct = ((today - yesterday) / yesterday) * 100;
   const rounded = Math.round(rawPct * 10) / 10;
-  if (Math.abs(rounded) < 0.05) {
+  if (Math.abs(rounded) < 0.05)
     return { line: "Same as yesterday", trend: "same" };
-  }
   const arrow = rawPct >= 0 ? "↗" : "↘";
   const sign = rawPct >= 0 ? "+" : "";
   return {
@@ -80,15 +78,9 @@ function formatJobsVsYesterday(
 }
 
 type HomeActiveJobsScreenProps = {
-  displayName: string;
-  locationShort: string;
-  photoUrl?: string | null;
-  avatarInitials: string;
-  unreadNotificationCount: number;
   activeJob: ProviderCalendarAppointment | null;
   activeJobLoading: boolean;
   timerTick: number;
-  onPressNotifications?: () => void;
   onCallClient: (appointmentId: string) => void;
   onPressChat?: () => void;
   onOpenAppointmentDetail: (appointmentId: string) => void;
@@ -151,9 +143,10 @@ function sortBySchedule(
   a: ProviderCalendarAppointment,
   b: ProviderCalendarAppointment,
 ): number {
-  const da = combineLocalDateTime(a.scheduledDate, a.scheduledTime).getTime();
-  const db = combineLocalDateTime(b.scheduledDate, b.scheduledTime).getTime();
-  return da - db;
+  return (
+    combineLocalDateTime(a.scheduledDate, a.scheduledTime).getTime() -
+    combineLocalDateTime(b.scheduledDate, b.scheduledTime).getTime()
+  );
 }
 
 function pickHighlightAppointment(
@@ -161,31 +154,23 @@ function pickHighlightAppointment(
   now: Date,
 ): ProviderCalendarAppointment | null {
   const sorted = [...rows].sort(sortBySchedule);
-
   const inProgress = sorted.filter((a) => a.status === "IN_PROGRESS");
   if (inProgress.length) return inProgress[0];
-
   const enRoute = sorted.filter((a) => a.status === "EN_ROUTE");
   const enRouteOk = enRoute.filter(
     (a) => now.getTime() <= slotEndDate(a).getTime(),
   );
   if (enRouteOk.length) return enRouteOk[0];
-
   const confirmed = sorted.filter((a) => a.status === "CONFIRMED");
   const windows = confirmed.map((a) => ({
     a,
     start: combineLocalDateTime(a.scheduledDate, a.scheduledTime),
     end: slotEndDate(a),
   }));
-
-  const inside = windows.find(
-    ({ start, end }) => now >= start && now < end,
-  );
+  const inside = windows.find(({ start, end }) => now >= start && now < end);
   if (inside) return inside.a;
-
   const upcoming = windows.find(({ start }) => start.getTime() > now.getTime());
   if (upcoming) return upcoming.a;
-
   return null;
 }
 
@@ -201,7 +186,6 @@ function isNextScheduleCandidate(a: ProviderCalendarAppointment): boolean {
   return !NEXT_SCHEDULE_EXCLUDED.includes(a.status);
 }
 
-/** Next booking after the active one (by schedule), or next upcoming after `now` if none active. */
 function pickNextScheduledAfterActive(
   rows: ProviderCalendarAppointment[],
   active: ProviderCalendarAppointment | null,
@@ -210,24 +194,19 @@ function pickNextScheduledAfterActive(
   const candidates = rows.filter(isNextScheduleCandidate);
   if (!candidates.length) return null;
   const sorted = [...candidates].sort(sortBySchedule);
-
   if (active) {
     const t0 = combineLocalDateTime(
       active.scheduledDate,
       active.scheduledTime,
     ).getTime();
     return (
-      sorted.find((a) => {
-        if (a.id === active.id) return false;
-        const t = combineLocalDateTime(
-          a.scheduledDate,
-          a.scheduledTime,
-        ).getTime();
-        return t > t0;
-      }) ?? null
+      sorted.find(
+        (a) =>
+          a.id !== active.id &&
+          combineLocalDateTime(a.scheduledDate, a.scheduledTime).getTime() > t0,
+      ) ?? null
     );
   }
-
   const nowMs = now.getTime();
   return (
     sorted.find(
@@ -243,9 +222,8 @@ function formatClockSeconds(totalSeconds: number): string {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  if (h > 0) {
+  if (h > 0)
     return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  }
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
@@ -263,7 +241,6 @@ function buildActiveJobTimer(
   const start = combineLocalDateTime(a.scheduledDate, a.scheduledTime);
   const durMs = slotDurationMinutes(a.durationMinutes) * 60 * 1000;
   const end = new Date(start.getTime() + durMs);
-
   if (a.status === "IN_PROGRESS") {
     const started = parseIsoDate(a.startedAt) ?? start;
     const elapsedSec = Math.max(
@@ -271,15 +248,13 @@ function buildActiveJobTimer(
       Math.floor((now.getTime() - started.getTime()) / 1000),
     );
     const totalSec = Math.max(60, Math.floor(durMs / 1000));
-    const progressPct = Math.min(100, (elapsedSec / totalSec) * 100);
     return {
       main: formatClockSeconds(elapsedSec),
       label: "TIME ELAPSED",
-      progressPct,
+      progressPct: Math.min(100, (elapsedSec / totalSec) * 100),
       footerStatus: "In progress",
     };
   }
-
   if (a.status === "EN_ROUTE") {
     if (now < start) {
       const remain = Math.max(
@@ -297,18 +272,16 @@ function buildActiveJobTimer(
       0,
       Math.floor((end.getTime() - now.getTime()) / 1000),
     );
-    const progressPct = Math.min(
-      100,
-      ((now.getTime() - start.getTime()) / durMs) * 100,
-    );
     return {
       main: formatClockSeconds(remain),
       label: "TIME REMAINING",
-      progressPct,
+      progressPct: Math.min(
+        100,
+        ((now.getTime() - start.getTime()) / durMs) * 100,
+      ),
       footerStatus: "En route",
     };
   }
-
   if (now < start) {
     const remain = Math.max(
       0,
@@ -326,24 +299,17 @@ function buildActiveJobTimer(
       0,
       Math.floor((end.getTime() - now.getTime()) / 1000),
     );
-    const progressPct = Math.min(
-      100,
-      ((now.getTime() - start.getTime()) / durMs) * 100,
-    );
     return {
       main: formatClockSeconds(remain),
       label: "TIME REMAINING",
-      progressPct,
+      progressPct: Math.min(
+        100,
+        ((now.getTime() - start.getTime()) / durMs) * 100,
+      ),
       footerStatus: "Confirmed",
     };
   }
-
-  return {
-    main: "—",
-    label: "",
-    progressPct: 0,
-    footerStatus: "Confirmed",
-  };
+  return { main: "—", label: "", progressPct: 0, footerStatus: "Confirmed" };
 }
 
 function formatClientLocationLine(a: ProviderCalendarAppointment): string {
@@ -365,16 +331,11 @@ function formatJobDateLabel(yyyyMmDd: string): string {
 
 function formatServiceDetailSub(a: ProviderCalendarAppointment): string {
   const bits: string[] = [];
-  if (a.durationMinutes && a.durationMinutes > 0) {
+  if (a.durationMinutes && a.durationMinutes > 0)
     bits.push(`~${a.durationMinutes} min`);
-  }
   const note = a.notes?.trim();
-  if (note) {
-    bits.push(note.length > 90 ? `${note.slice(0, 90)}…` : note);
-  }
-  if (bits.length === 0) {
-    bits.push(a.givenService.categoryName);
-  }
+  if (note) bits.push(note.length > 90 ? `${note.slice(0, 90)}…` : note);
+  if (bits.length === 0) bits.push(a.givenService.categoryName);
   return bits.join(" · ");
 }
 
@@ -393,96 +354,49 @@ function extractClientPhoneFromAppointment(raw: unknown): string | null {
   return typeof p === "string" && p.trim() ? p.trim() : null;
 }
 
-function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
-  const [headerElevated, setHeaderElevated] = useState(false);
+// ─── Design tokens ─────────────────────────────────────────────────────────
+const C = {
+  amber: "#E8A020",
+  amberDark: "#C4860E",
+  amberLight: "#FFF3DC",
+  amberBorder: "#F7D08A",
+  bg: "#F4F3FA",
+  surface: "#FFFFFF",
+  dark: "#1A1608",
+  text: "#1C1A0E",
+  sub: "#7A7260",
+  muted: "#B0A898",
+  border: "#EAE7DF",
+  borderLight: "#F2EFE8",
+  success: "#10B981",
+  error: "#EF4444",
+  blue: "#3B82F6",
+  purple: "#8B5CF6",
+};
 
+// ─── Presentation component ─────────────────────────────────────────────────
+function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
   const activeJobTimer = useMemo(() => {
     if (!props.activeJob) return null;
     return buildActiveJobTimer(props.activeJob, new Date());
   }, [props.activeJob, props.timerTick]);
 
-  const headerStyle = useMemo(
-    () => [styles.header, headerElevated && styles.headerElevated],
-    [headerElevated],
-  );
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
-
-      <View style={headerStyle}>
-        <View style={styles.headerInner}>
-          <View style={styles.headerRow}>
-            <View style={styles.profileBlock}>
-              <View style={styles.avatarOuter}>
-                <View style={styles.avatarWrap}>
-                  {props.photoUrl ? (
-                    <Image
-                      source={{ uri: props.photoUrl }}
-                      style={styles.avatar}
-                    />
-                  ) : (
-                    <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                      <Text style={styles.avatarInitials}>
-                        {props.avatarInitials}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-              <View style={styles.profileTextCol}>
-                <Text style={styles.nameText} numberOfLines={1}>
-                  {props.displayName}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                onPress={props.onPressNotifications}
-                activeOpacity={0.85}
-                style={styles.iconButton}
-              >
-                <Ionicons
-                  name="notifications-outline"
-                  size={22}
-                  color={colors.textMain}
-                />
-                {props.unreadNotificationCount > 0 ? (
-                  <View style={styles.notificationBadge}>
-                    <Text style={styles.notificationBadgeText} numberOfLines={1}>
-                      {props.unreadNotificationCount > 99
-                        ? "99+"
-                        : String(props.unreadNotificationCount)}
-                    </Text>
-                  </View>
-                ) : null}
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.statusRow}>
-            <Text style={styles.locationText} numberOfLines={1}>
-              📍 {props.locationShort}
-            </Text>
-          </View>
-        </View>
-      </View>
+    <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
+      <StatusBar barStyle="dark-content" />
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        onScroll={(e) => {
-          const y = e.nativeEvent.contentOffset.y;
-          setHeaderElevated(y > 10);
-        }}
-        scrollEventThrottle={16}
       >
-        {/* Active Job */}
+        {/* ── Active Job ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Active Job</Text>
+            <View style={styles.sectionHeaderLeft}>
+              <View style={styles.sectionDot} />
+              <Text style={styles.sectionTitle}>Active Job</Text>
+            </View>
             {props.activeJob && !props.activeJobLoading ? (
               <View style={styles.jobIdPill}>
                 <Text style={styles.jobIdText}>
@@ -494,11 +408,12 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
 
           {props.activeJobLoading ? (
             <View style={[styles.card, styles.activeJobLoadingCard]}>
-              <ActivityIndicator color={colors.primary} />
+              <ActivityIndicator color={C.amber} size="small" />
               <Text style={styles.activeJobLoadingText}>Loading booking…</Text>
             </View>
           ) : props.activeJob && activeJobTimer ? (
             <View style={styles.card}>
+              {/* Progress bar */}
               <View style={styles.progressTrack}>
                 <View
                   style={[
@@ -509,6 +424,7 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
               </View>
 
               <View style={styles.cardBody}>
+                {/* Client + timer row */}
                 <View style={styles.jobTopRow}>
                   <View style={styles.customerRow}>
                     <View style={styles.customerAvatarWrap}>
@@ -537,9 +453,8 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                         {`${props.activeJob.client.firstName} ${props.activeJob.client.lastName}`.trim() ||
                           "Client"}
                       </Text>
-                      <Text style={styles.customerSub} numberOfLines={2}>
+                      <Text style={styles.customerSub} numberOfLines={1}>
                         {props.activeJob.givenService.categoryName} ·{" "}
-                        {formatJobDateLabel(props.activeJob.scheduledDate)} ·{" "}
                         {props.activeJob.scheduledTime}
                       </Text>
                     </View>
@@ -548,19 +463,26 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                   <View style={styles.timerBlock}>
                     <Text style={styles.timerText}>{activeJobTimer.main}</Text>
                     {activeJobTimer.label ? (
-                      <Text style={styles.timerLabel}>{activeJobTimer.label}</Text>
+                      <Text style={styles.timerLabel}>
+                        {activeJobTimer.label}
+                      </Text>
                     ) : null}
                   </View>
                 </View>
 
+                {/* Details box */}
                 <View style={styles.detailsBox}>
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconCircle}>
-                      <Text style={styles.detailIconText}>🛠️</Text>
+                      <Ionicons
+                        name="construct-outline"
+                        size={15}
+                        color={C.amber}
+                      />
                     </View>
                     <View style={styles.detailTextBlock}>
                       <Text style={styles.detailLabel}>SERVICE TYPE</Text>
-                      <Text style={styles.detailTitle} numberOfLines={2}>
+                      <Text style={styles.detailTitle} numberOfLines={1}>
                         {props.activeJob.givenService.serviceName}
                       </Text>
                       <Text style={styles.detailSub} numberOfLines={2}>
@@ -568,12 +490,14 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                       </Text>
                     </View>
                   </View>
-
                   <View style={styles.detailsDivider} />
-
                   <View style={styles.detailRow}>
                     <View style={styles.detailIconCircle}>
-                      <Text style={styles.detailIconText}>📍</Text>
+                      <Ionicons
+                        name="location-outline"
+                        size={15}
+                        color={C.amber}
+                      />
                     </View>
                     <View style={styles.detailTextBlock}>
                       <Text style={styles.detailLabel}>LOCATION</Text>
@@ -584,13 +508,14 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                   </View>
                 </View>
 
+                {/* Action buttons */}
                 <View style={styles.actionsRow}>
                   <TouchableOpacity
                     onPress={() => props.onCallClient(props.activeJob!.id)}
                     activeOpacity={0.85}
                     style={styles.actionSmall}
                   >
-                    <Text style={styles.actionIcon}>📞</Text>
+                    <Ionicons name="call-outline" size={18} color={C.sub} />
                     <Text style={styles.actionLabel}>Call</Text>
                   </TouchableOpacity>
 
@@ -599,7 +524,11 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                     activeOpacity={0.85}
                     style={styles.actionSmall}
                   >
-                    <Text style={styles.actionIcon}>💬</Text>
+                    <Ionicons
+                      name="chatbubble-outline"
+                      size={18}
+                      color={C.sub}
+                    />
                     <Text style={styles.actionLabel}>Chat</Text>
                   </TouchableOpacity>
 
@@ -607,122 +536,161 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                     onPress={() =>
                       props.onOpenAppointmentDetail(props.activeJob!.id)
                     }
-                    activeOpacity={0.9}
+                    activeOpacity={0.88}
                     style={styles.actionPrimary}
                   >
-                    <Text style={styles.actionPrimaryIcon}>➔</Text>
+                    <Ionicons
+                      name="navigate-outline"
+                      size={16}
+                      color="#FFFFFF"
+                    />
                     <Text style={styles.actionPrimaryText}>Navigate</Text>
                   </TouchableOpacity>
                 </View>
               </View>
 
+              {/* Card footer */}
               <View style={styles.cardFooter}>
-                <Text style={styles.footerStatusText}>
-                  Status:{" "}
-                  <Text style={styles.footerStatusAccent}>
-                    {activeJobTimer.footerStatus}
+                <View style={styles.footerStatusRow}>
+                  <View
+                    style={[
+                      styles.footerStatusDot,
+                      { backgroundColor: C.amber },
+                    ]}
+                  />
+                  <Text style={styles.footerStatusText}>
+                    Status:{" "}
+                    <Text style={styles.footerStatusAccent}>
+                      {activeJobTimer.footerStatus}
+                    </Text>
                   </Text>
-                </Text>
+                </View>
                 <TouchableOpacity
                   onPress={() =>
                     props.onOpenAppointmentDetail(props.activeJob!.id)
                   }
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.updateStatusText}>View details ›</Text>
+                  <Text style={styles.updateStatusText}>View details →</Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <View style={[styles.card, styles.activeJobEmptyCard]}>
-              <Text style={styles.activeJobEmptyTitle}>No active booking</Text>
-              <Text style={styles.activeJobEmptySub}>
-                Jobs in progress and your next confirmed visit will show here.
-              </Text>
+              <View style={styles.activeJobEmptyIcon}>
+                <Ionicons name="calendar-outline" size={22} color={C.muted} />
+              </View>
+              <View style={styles.activeJobEmptyText}>
+                <Text style={styles.activeJobEmptyTitle}>
+                  No active booking
+                </Text>
+                <Text style={styles.activeJobEmptySub}>
+                  Jobs in progress and your next confirmed visit will show here.
+                </Text>
+              </View>
               <TouchableOpacity
                 onPress={props.onPressViewAllScheduled}
                 activeOpacity={0.85}
                 style={styles.activeJobEmptyBtn}
               >
                 <Text style={styles.activeJobEmptyBtnText}>Open schedule</Text>
+                <Ionicons name="arrow-forward" size={13} color={C.amber} />
               </TouchableOpacity>
             </View>
           )}
         </View>
 
-        {/* Today vs completed snapshot */}
+        {/* ── Stats row ── */}
         <View style={[styles.section, styles.sectionTight]}>
           <View style={styles.row2}>
+            {/* Today card */}
             <View style={styles.statCard}>
               <View style={styles.statHeaderRow}>
                 <View
-                  style={[styles.statIconCircle, styles.statIconCircleSuccess]}
+                  style={[
+                    styles.statIconCircle,
+                    { backgroundColor: C.amberLight },
+                  ]}
                 >
-                  <Text
-                    style={[styles.statIconText, styles.statIconTextSuccess]}
-                  >
-                    📅
-                  </Text>
+                  <Ionicons name="calendar-outline" size={15} color={C.amber} />
                 </View>
                 <Text style={styles.statKicker}>TODAY</Text>
               </View>
               <Text style={styles.statValue}>
                 {props.todayJobsCount}{" "}
-                {props.todayJobsCount === 1 ? "Job" : "Jobs"}
+                <Text style={styles.statValueUnit}>
+                  {props.todayJobsCount === 1 ? "Job" : "Jobs"}
+                </Text>
               </Text>
               <Text
                 style={[
                   styles.statDelta,
                   props.jobsVsYesterdayTrend === "down" && styles.statDeltaDown,
-                  props.jobsVsYesterdayTrend === "same" && styles.statDeltaNeutral,
+                  props.jobsVsYesterdayTrend === "same" &&
+                    styles.statDeltaNeutral,
                 ]}
               >
                 {props.jobsVsYesterdayLabel}
               </Text>
             </View>
 
+            <View style={styles.statCardGap} />
+
+            {/* Completed card */}
             <View style={styles.statCard}>
               <View style={styles.statHeaderRow}>
                 <View
-                  style={[styles.statIconCircle, styles.statIconCirclePrimary]}
+                  style={[
+                    styles.statIconCircle,
+                    { backgroundColor: "#D1FAE5" },
+                  ]}
                 >
-                  <Text
-                    style={[styles.statIconText, styles.statIconTextPrimary]}
-                  >
-                    ✅
-                  </Text>
+                  <Ionicons
+                    name="checkmark-circle-outline"
+                    size={15}
+                    color={C.success}
+                  />
                 </View>
-                <Text style={styles.statKicker}>COMPLETED</Text>
+                <Text style={styles.statKicker}>DONE</Text>
               </View>
               <Text style={styles.statValue}>
                 {props.completedTodayCount}{" "}
-                {props.completedTodayCount === 1 ? "Job" : "Jobs"}
+                <Text style={styles.statValueUnit}>
+                  {props.completedTodayCount === 1 ? "Job" : "Jobs"}
+                </Text>
               </Text>
               <Text style={styles.statHint}>
-                Rest : {props.restJobsCount}
+                Remaining: {props.restJobsCount}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Next Scheduled */}
+        {/* ── Next Scheduled ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Next Scheduled</Text>
+            <View style={styles.sectionHeaderLeft}>
+              <View style={[styles.sectionDot, { backgroundColor: C.blue }]} />
+              <Text style={styles.sectionTitle}>Next Scheduled</Text>
+            </View>
             <TouchableOpacity
               onPress={props.onPressViewAllScheduled}
               activeOpacity={0.85}
+              style={styles.viewAllBtn}
             >
               <Text style={styles.linkText}>View All</Text>
+              <Ionicons name="chevron-forward" size={13} color={C.amber} />
             </TouchableOpacity>
           </View>
 
           {props.nextScheduledAppointment ? (
             <TouchableOpacity
               onPress={() =>
-                props.onOpenAppointmentDetail(props.nextScheduledAppointment!.id)
+                props.onOpenAppointmentDetail(
+                  props.nextScheduledAppointment!.id,
+                )
               }
-              activeOpacity={0.85}
+              activeOpacity={0.88}
               style={styles.scheduledCard}
             >
               <View style={styles.scheduledTimeCol}>
@@ -751,7 +719,7 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
               </View>
 
               <View style={styles.scheduledArrow}>
-                <Text style={styles.scheduledArrowText}>›</Text>
+                <Ionicons name="chevron-forward" size={16} color={C.muted} />
               </View>
             </TouchableOpacity>
           ) : (
@@ -763,111 +731,120 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
           )}
         </View>
 
-        {/* Performance */}
+        {/* ── Performance ── */}
         <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderLeft}>
+              <View
+                style={[styles.sectionDot, { backgroundColor: "#FFFFFF" }]}
+              />
+              <Text style={[styles.sectionTitle]}>Performance</Text>
+            </View>
+          </View>
           <View style={styles.performanceCard}>
             <View style={styles.performanceHeaderRow}>
               <View>
-                <Text style={styles.performanceTitle}>Performance</Text>
-                <Text style={styles.performanceSub}>Weekly Summary</Text>
+                <Text style={styles.performanceTitle}>Weekly Summary</Text>
+                <Text style={styles.performanceSub}>
+                  Your key metrics this week
+                </Text>
               </View>
               <View style={styles.performanceBadge}>
-                <Text style={styles.performanceBadgeText}>▲ Excellent</Text>
+                <Ionicons
+                  name="trending-up-outline"
+                  size={13}
+                  color={C.success}
+                />
+                <Text style={styles.performanceBadgeText}>Excellent</Text>
               </View>
             </View>
 
             <View style={styles.performanceGrid}>
-              <View style={styles.performanceMetric}>
-                <View style={styles.metricTrack}>
-                  <View
-                    style={[
-                      styles.metricFill,
-                      { width: "98%", backgroundColor: colors.success },
-                    ]}
-                  />
+              {[
+                { value: "4.9", label: "RATING", pct: 98, color: C.success },
+                { value: "92%", label: "ACCEPT", pct: 92, color: C.amber },
+                { value: "100%", label: "COMPLETE", pct: 100, color: C.blue },
+              ].map((m) => (
+                <View key={m.label} style={styles.performanceMetric}>
+                  <Text style={styles.metricValue}>{m.value}</Text>
+                  <View style={styles.metricTrack}>
+                    <View
+                      style={[
+                        styles.metricFill,
+                        { width: `${m.pct}%`, backgroundColor: m.color },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.metricLabel}>{m.label}</Text>
                 </View>
-                <Text style={styles.metricValue}>4.9</Text>
-                <Text style={styles.metricLabel}>RATING</Text>
-              </View>
-
-              <View style={styles.performanceMetric}>
-                <View style={styles.metricTrack}>
-                  <View
-                    style={[
-                      styles.metricFill,
-                      { width: "92%", backgroundColor: colors.primary },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.metricValue}>92%</Text>
-                <Text style={styles.metricLabel}>ACCEPTANCE</Text>
-              </View>
-
-              <View style={styles.performanceMetric}>
-                <View style={styles.metricTrack}>
-                  <View
-                    style={[
-                      styles.metricFill,
-                      { width: "100%", backgroundColor: colors.warning },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.metricValue}>100%</Text>
-                <Text style={styles.metricLabel}>COMPLETION</Text>
-              </View>
+              ))}
             </View>
           </View>
         </View>
 
-        {/* Provider Tips */}
+        {/* ── Provider Tips ── */}
         <View style={[styles.section, styles.sectionTips]}>
-          <Text style={styles.sectionTitle}>Provider Tips</Text>
-
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderLeft}>
+              <View
+                style={[styles.sectionDot, { backgroundColor: C.purple }]}
+              />
+              <Text style={styles.sectionTitle}>Provider Tips</Text>
+            </View>
+          </View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tipsRow}
           >
-            <View style={styles.tipCard}>
-              <View style={[styles.tipIconCircle, styles.tipIconBlue]}>
-                <Text style={[styles.tipIconText, styles.tipIconTextBlue]}>
-                  📷
-                </Text>
+            {[
+              {
+                icon: "camera-outline",
+                title: "Take Photos",
+                sub: "Always take before & after photos to avoid disputes.",
+                iconBg: "#EFF6FF",
+                iconColor: C.blue,
+              },
+              {
+                icon: "shield-checkmark-outline",
+                title: "Safety First",
+                sub: "Wear your safety gear and ID badge at all times.",
+                iconBg: "#F5F3FF",
+                iconColor: C.purple,
+              },
+            ].map((tip) => (
+              <View key={tip.title} style={styles.tipCard}>
+                <View
+                  style={[
+                    styles.tipIconCircle,
+                    { backgroundColor: tip.iconBg },
+                  ]}
+                >
+                  <Ionicons
+                    name={tip.icon as any}
+                    size={18}
+                    color={tip.iconColor}
+                  />
+                </View>
+                <View style={styles.tipTextBlock}>
+                  <Text style={styles.tipTitle}>{tip.title}</Text>
+                  <Text style={styles.tipSub}>{tip.sub}</Text>
+                </View>
               </View>
-              <View style={styles.tipTextBlock}>
-                <Text style={styles.tipTitle}>Take Photos</Text>
-                <Text style={styles.tipSub}>
-                  Always take before & after photos to avoid disputes.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.tipCard}>
-              <View style={[styles.tipIconCircle, styles.tipIconPurple]}>
-                <Text style={[styles.tipIconText, styles.tipIconTextPurple]}>
-                  🥧
-                </Text>
-              </View>
-              <View style={styles.tipTextBlock}>
-                <Text style={styles.tipTitle}>Safety First</Text>
-                <Text style={styles.tipSub}>
-                  Wear your safety gear and ID badge at all times.
-                </Text>
-              </View>
-            </View>
+            ))}
           </ScrollView>
         </View>
 
-        {/* Bottom menu intentionally removed per request */}
+        <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+// ─── Container (logic owner) ───────────────────────────────────────────────
 export const ProviderHomeScreen: React.FC = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<ProviderStackParamList>>();
-  const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeJob, setActiveJob] =
     useState<ProviderCalendarAppointment | null>(null);
@@ -912,6 +889,28 @@ export const ProviderHomeScreen: React.FC = () => {
       };
     }, []),
   );
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          style={styles.notificationButton}
+          onPress={() => navigation.navigate("Notifications")}
+          activeOpacity={0.85}
+          accessibilityLabel="Notifications"
+        >
+          <Ionicons name="notifications-outline" size={20} color="#1A1A2E" />
+          {unreadCount > 0 ? (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText} numberOfLines={1}>
+                {unreadCount > 99 ? "99+" : String(unreadCount)}
+              </Text>
+            </View>
+          ) : null}
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, unreadCount]);
 
   useFocusEffect(
     useCallback(() => {
@@ -964,8 +963,7 @@ export const ProviderHomeScreen: React.FC = () => {
       const res = await api.getAppointmentById(appointmentId);
       const phone = extractClientPhoneFromAppointment(res.data);
       if (phone) {
-        const dial = phone.replace(/\s/g, "");
-        await Linking.openURL(`tel:${dial}`);
+        await Linking.openURL(`tel:${phone.replace(/\s/g, "")}`);
       } else {
         Alert.alert(
           "Call unavailable",
@@ -978,32 +976,10 @@ export const ProviderHomeScreen: React.FC = () => {
   }, []);
 
   const onOpenAppointmentDetail = useCallback(
-    (appointmentId: string) => {
-      navigation.navigate("ProviderAppointmentDetail", { appointmentId });
-    },
+    (appointmentId: string) =>
+      navigation.navigate("ProviderAppointmentDetail", { appointmentId }),
     [navigation],
   );
-
-  const { displayName, locationShort, photoUrl, avatarInitials } =
-    useMemo(() => {
-      const name =
-        [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
-        "Provider";
-      const city = user?.provider?.city?.trim();
-      const addr = user?.provider?.address?.trim();
-      let loc = "";
-      if (city && addr) loc = `${city}, ${addr}`;
-      else if (city) loc = city;
-      else if (addr) loc = addr;
-      else loc = "Add your location in profile";
-      const url = user?.provider?.photoUrl?.trim() || null;
-      return {
-        displayName: name,
-        locationShort: loc,
-        photoUrl: url,
-        avatarInitials: initialsFromName(name),
-      };
-    }, [user]);
 
   const jobsVsYesterday = useMemo(
     () =>
@@ -1015,14 +991,12 @@ export const ProviderHomeScreen: React.FC = () => {
   );
 
   const restJobsCount = useMemo(
-    () =>
-      Math.max(0, calendarStats.todayJobs - calendarStats.completedToday),
+    () => Math.max(0, calendarStats.todayJobs - calendarStats.completedToday),
     [calendarStats.todayJobs, calendarStats.completedToday],
   );
 
   const nextScheduledAppointment = useMemo(
-    () =>
-      pickNextScheduledAfterActive(calendarRows, activeJob, new Date()),
+    () => pickNextScheduledAfterActive(calendarRows, activeJob, new Date()),
     [calendarRows, activeJob, timerTick],
   );
 
@@ -1030,15 +1004,9 @@ export const ProviderHomeScreen: React.FC = () => {
 
   return (
     <HomeActiveJobsScreen
-      displayName={displayName}
-      locationShort={locationShort}
-      photoUrl={photoUrl}
-      avatarInitials={avatarInitials}
-      unreadNotificationCount={unreadCount}
       activeJob={activeJob}
       activeJobLoading={activeJobLoading}
       timerTick={timerTick}
-      onPressNotifications={() => navigation.navigate("Notifications")}
       onCallClient={onCallClient}
       onPressChat={() => navigation.navigate("ConversationList")}
       onOpenAppointmentDetail={onOpenAppointmentDetail}
@@ -1054,531 +1022,358 @@ export const ProviderHomeScreen: React.FC = () => {
   );
 };
 
-const colors = {
-  primary: "#F08E10",
-  primaryHover: "#D97D08",
-  success: "#10B981",
-  error: "#EF4444",
-  warning: "#F59E0B",
-  background: "#F8FAFC",
-  surface: "#FFFFFF",
-  textMain: "#111827",
-  textMuted: "#6B7280",
-  textLight: "#9CA3AF",
-  accent: "#F4F4F5",
-  input: "#F3F4F6",
-};
-
+// ─── Styles ────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#F3F4F6",
-  },
-  headerElevated: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  headerInner: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 14,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  profileBlock: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    minWidth: 0,
-    marginRight: 8,
-  },
-  profileTextCol: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: "center",
-  },
-  avatarOuter: {
-    position: "relative",
-    width: 48,
-    height: 48,
-    marginRight: 12,
-  },
-  avatarWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: colors.surface,
-  },
-  avatar: {
-    width: "100%",
-    height: "100%",
-  },
-  avatarPlaceholder: {
-    backgroundColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarInitials: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#4B5563",
-  },
-  nameText: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: colors.textMain,
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.accent,
+  safeArea: { flex: 1, backgroundColor: C.bg },
+
+  notificationButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#F4F3FA",
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
     alignItems: "center",
     justifyContent: "center",
     overflow: "visible",
+    marginRight: 4,
   },
   notificationBadge: {
     position: "absolute",
     top: 2,
     right: 2,
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 4,
-    borderRadius: 9,
-    backgroundColor: colors.error,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    backgroundColor: C.error,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: colors.surface,
+    borderColor: "#FFFFFF",
   },
-  notificationBadgeText: {
-    color: colors.surface,
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  statusRow: {
-    marginTop: 14,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  locationText: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.textMuted,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingTop: 130,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
-  section: {
-    marginBottom: 18,
-  },
-  sectionTight: {
-    marginBottom: 10,
-  },
-  sectionTips: {
-    marginBottom: 0,
-  },
+  notificationBadgeText: { color: "#FFFFFF", fontSize: 9, fontWeight: "800" },
+
+  /* Scroll */
+  scroll: { flex: 1, backgroundColor: C.bg },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 },
+
+  /* Section */
+  section: { marginBottom: 20 },
+  sectionTight: { marginBottom: 12 },
+  sectionTips: { marginBottom: 0 },
   sectionHeaderRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 4,
-    marginBottom: 10,
+    marginBottom: 12,
+  },
+  sectionHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.amber,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
-    color: colors.textMain,
+    color: C.text,
+    letterSpacing: -0.3,
   },
+  viewAllBtn: { flexDirection: "row", alignItems: "center", gap: 3 },
+  linkText: { fontSize: 12, fontWeight: "800", color: C.amber },
   jobIdPill: {
-    backgroundColor: "rgba(240,142,16,0.10)",
+    backgroundColor: C.amberLight,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: C.amberBorder,
   },
   jobIdText: {
-    color: colors.primary,
-    fontSize: 12,
+    color: C.amberDark,
+    fontSize: 11,
     fontWeight: "800",
+    letterSpacing: 0.5,
   },
+
+  /* Card */
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
+    backgroundColor: C.surface,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: "#F3F4F6",
+    borderColor: C.border,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
+    shadowColor: C.dark,
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.07,
-    shadowRadius: 20,
+    shadowRadius: 16,
     elevation: 3,
   },
-  progressTrack: {
-    height: 6,
-    backgroundColor: "#F3F4F6",
-  },
+  progressTrack: { height: 5, backgroundColor: C.borderLight },
   progressFill: {
-    height: 6,
-    backgroundColor: colors.primary,
+    height: 5,
+    backgroundColor: C.amber,
     borderTopRightRadius: 999,
     borderBottomRightRadius: 999,
   },
+
   activeJobLoadingCard: {
+    flexDirection: "row",
     paddingVertical: 28,
     alignItems: "center",
     justifyContent: "center",
+    gap: 10,
   },
-  activeJobLoadingText: {
-    marginTop: 10,
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.textMuted,
-  },
+  activeJobLoadingText: { fontSize: 13, fontWeight: "600", color: C.sub },
+
   activeJobEmptyCard: {
-    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
   },
-  activeJobEmptyTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: colors.textMain,
+  activeJobEmptyIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: C.borderLight,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+    flexShrink: 0,
   },
+  activeJobEmptyText: { flex: 1 },
+  activeJobEmptyTitle: { fontSize: 14, fontWeight: "700", color: C.text },
   activeJobEmptySub: {
-    marginTop: 6,
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.textMuted,
-    lineHeight: 18,
+    fontSize: 12,
+    fontWeight: "500",
+    color: C.sub,
+    marginTop: 2,
+    lineHeight: 17,
   },
   activeJobEmptyBtn: {
-    marginTop: 14,
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(240,142,16,0.12)",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: C.amberLight,
+    borderWidth: 1,
+    borderColor: C.amberBorder,
+    flexShrink: 0,
   },
-  activeJobEmptyBtnText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: colors.primary,
-  },
-  cardBody: {
-    padding: 18,
-  },
+  activeJobEmptyBtnText: { fontSize: 12, fontWeight: "800", color: C.amber },
+
+  cardBody: { padding: 16 },
   jobTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 16,
+    marginBottom: 14,
   },
   customerRow: {
     flex: 1,
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
   },
   customerAvatarWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 46,
+    height: 46,
+    borderRadius: 15,
     overflow: "hidden",
-    backgroundColor: "#F3F4F6",
-    marginRight: 12,
+    backgroundColor: C.borderLight,
+    flexShrink: 0,
   },
-  customerAvatar: {
-    width: "100%",
-    height: "100%",
-  },
-  customerTextCol: {
-    flex: 1,
-    minWidth: 0,
-  },
-  customerName: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: colors.textMain,
-  },
-  customerSub: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.textMuted,
-  },
+  customerAvatar: { width: "100%", height: "100%" },
   customerAvatarFallback: {
+    backgroundColor: C.amberLight,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E5E7EB",
   },
   customerAvatarFallbackText: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#4B5563",
+    color: C.amberDark,
   },
-  timerBlock: {
-    flexShrink: 0,
-    marginLeft: 12,
-    marginRight: 6,
-    alignItems: "flex-end",
+  customerTextCol: { flex: 1, minWidth: 0 },
+  customerName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: C.text,
+    letterSpacing: -0.2,
   },
+  customerSub: { marginTop: 3, fontSize: 12, fontWeight: "500", color: C.sub },
+
+  timerBlock: { flexShrink: 0, marginLeft: 10, alignItems: "flex-end" },
   timerText: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: "900",
-    color: colors.primary,
-    letterSpacing: -0.5,
+    color: C.amber,
+    letterSpacing: -1,
+    fontVariant: ["tabular-nums"],
   },
   timerLabel: {
     marginTop: 2,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "800",
-    color: colors.textMuted,
+    color: C.muted,
     letterSpacing: 1,
   },
-  timerDateLine: {
-    marginTop: 6,
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.textMuted,
-    textAlign: "right",
-  },
+
   detailsBox: {
-    backgroundColor: "rgba(244,244,245,0.50)",
-    borderRadius: 18,
+    backgroundColor: C.borderLight,
+    borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#F3F4F6",
-    marginBottom: 16,
+    borderColor: C.border,
+    marginBottom: 14,
   },
-  detailRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+  detailRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   detailIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surface,
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: C.amberLight,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: C.amberBorder,
+    flexShrink: 0,
   },
-  detailIconText: {
-    fontSize: 14,
-  },
-  detailTextBlock: {
-    flex: 1,
-  },
+  detailTextBlock: { flex: 1 },
   detailLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
-    color: colors.textMuted,
+    color: C.muted,
     letterSpacing: 0.8,
   },
-  detailTitle: {
-    marginTop: 2,
-    fontSize: 14,
-    fontWeight: "800",
-    color: colors.textMain,
-  },
-  detailSub: {
-    marginTop: 3,
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.textMuted,
-  },
-  detailsDivider: {
-    height: 1,
-    backgroundColor: "#E5E7EB",
-    marginVertical: 12,
-  },
-  actionsRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-  },
+  detailTitle: { marginTop: 2, fontSize: 13, fontWeight: "800", color: C.text },
+  detailSub: { marginTop: 2, fontSize: 12, fontWeight: "500", color: C.sub },
+  detailsDivider: { height: 1, backgroundColor: C.border, marginVertical: 10 },
+
+  actionsRow: { flexDirection: "row", alignItems: "stretch", gap: 10 },
   actionSmall: {
     flex: 1,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: "#F9FAFB",
+    height: 52,
+    borderRadius: 15,
+    backgroundColor: C.borderLight,
     borderWidth: 1,
-    borderColor: "#F3F4F6",
+    borderColor: C.border,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    gap: 3,
   },
-  actionIcon: {
-    fontSize: 18,
-    color: colors.textMain,
-    marginBottom: 4,
-  },
-  actionLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: colors.textMuted,
-  },
+  actionLabel: { fontSize: 10, fontWeight: "700", color: C.sub },
   actionPrimary: {
     flex: 2,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
+    height: 52,
+    borderRadius: 15,
+    backgroundColor: C.amber,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
+    gap: 7,
+    shadowColor: C.amber,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  actionPrimaryIcon: {
-    color: colors.surface,
-    fontSize: 16,
-    marginRight: 10,
-  },
-  actionPrimaryText: {
-    color: colors.surface,
-    fontSize: 14,
-    fontWeight: "800",
-  },
+  actionPrimaryText: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#F9FAFB",
-    paddingVertical: 12,
-    paddingHorizontal: 18,
+    backgroundColor: C.borderLight,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
+    borderTopColor: C.border,
   },
-  footerStatusText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.textMuted,
-  },
-  footerStatusAccent: {
-    color: colors.primary,
-    fontWeight: "800",
-  },
-  updateStatusText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: colors.primary,
-  },
-  row2: {
-    flexDirection: "row",
-    alignItems: "stretch",
-  },
+  footerStatusRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  footerStatusDot: { width: 7, height: 7, borderRadius: 4 },
+  footerStatusText: { fontSize: 12, fontWeight: "600", color: C.sub },
+  footerStatusAccent: { color: C.amber, fontWeight: "800" },
+  updateStatusText: { fontSize: 12, fontWeight: "800", color: C.amber },
+
+  /* Stats */
+  row2: { flexDirection: "row", alignItems: "stretch" },
+  statCardGap: { width: 12 },
   statCard: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 24,
+    backgroundColor: C.surface,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#F3F4F6",
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    borderColor: C.border,
+    padding: 14,
+    shadowColor: C.dark,
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 12,
+    shadowRadius: 8,
     elevation: 1,
   },
   statHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
     marginBottom: 10,
   },
   statIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 8,
-  },
-  statIconCircleSuccess: {
-    backgroundColor: "rgba(16,185,129,0.10)",
-  },
-  statIconCirclePrimary: {
-    backgroundColor: "rgba(240,142,16,0.10)",
-  },
-  statIconText: {
-    fontSize: 14,
-  },
-  statIconTextSuccess: {
-    color: colors.success,
-  },
-  statIconTextPrimary: {
-    color: colors.primary,
   },
   statKicker: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
-    color: colors.textMuted,
+    color: C.muted,
     letterSpacing: 0.8,
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "900",
-    color: colors.textMain,
+    color: C.text,
+    letterSpacing: -1,
+  },
+  statValueUnit: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: C.sub,
+    letterSpacing: 0,
   },
   statDelta: {
-    marginTop: 6,
-    fontSize: 11,
-    fontWeight: "800",
-    color: colors.success,
-  },
-  statDeltaDown: {
-    color: colors.error,
-  },
-  statDeltaNeutral: {
-    color: colors.textMuted,
-  },
-  statHint: {
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 11,
     fontWeight: "700",
-    color: colors.textMuted,
+    color: C.success,
   },
-  linkText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: colors.primary,
-  },
+  statDeltaDown: { color: C.error },
+  statDeltaNeutral: { color: C.muted },
+  statHint: { marginTop: 4, fontSize: 11, fontWeight: "600", color: C.muted },
+
+  /* Next scheduled */
   scheduledCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
+    backgroundColor: C.surface,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#F3F4F6",
-    padding: 10,
+    borderColor: C.border,
+    padding: 12,
     flexDirection: "row",
     alignItems: "center",
+    shadowColor: C.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
   },
   scheduledTimeCol: {
     alignItems: "center",
@@ -1586,47 +1381,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRightWidth: 1,
-    borderRightColor: "#F3F4F6",
-    marginRight: 12,
+    borderRightColor: C.border,
+    marginRight: 14,
+    minWidth: 60,
   },
   scheduledDay: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
-    color: colors.textMuted,
+    color: C.amber,
+    letterSpacing: 0.5,
   },
   scheduledTime: {
     marginTop: 2,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "900",
-    color: colors.textMain,
+    color: C.text,
+    fontVariant: ["tabular-nums"],
   },
-  scheduledContent: {
-    flex: 1,
-    minWidth: 0,
-  },
+  scheduledContent: { flex: 1, minWidth: 0, gap: 4 },
   scheduledTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
-    color: colors.textMain,
+    color: C.text,
+    letterSpacing: -0.1,
   },
-  scheduledSub: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.textMuted,
-  },
+  scheduledSub: { fontSize: 12, fontWeight: "500", color: C.sub },
   scheduledArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#F9FAFB",
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: C.borderLight,
     alignItems: "center",
     justifyContent: "center",
-  },
-  scheduledArrowText: {
-    fontSize: 18,
-    color: colors.textLight,
-    marginTop: -2,
   },
   scheduledCardEmpty: {
     flexDirection: "column",
@@ -1636,141 +1422,107 @@ const styles = StyleSheet.create({
   },
   scheduledEmptyText: {
     fontSize: 13,
-    fontWeight: "600",
-    color: colors.textMuted,
+    fontWeight: "500",
+    color: C.sub,
     textAlign: "center",
     lineHeight: 18,
   },
+
+  /* Performance */
   performanceCard: {
-    backgroundColor: "#111827",
-    borderRadius: 24,
-    padding: 16,
+    backgroundColor: "#131108",
+    borderRadius: 22,
+    padding: 18,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
     shadowRadius: 20,
-    elevation: 4,
+    elevation: 6,
   },
   performanceHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 14,
+    marginBottom: 18,
   },
   performanceTitle: {
-    color: colors.surface,
-    fontSize: 18,
+    color: "#FFFFFF",
+    fontSize: 17,
     fontWeight: "800",
+    letterSpacing: -0.3,
   },
   performanceSub: {
-    color: "#9CA3AF",
+    color: "#6B6348",
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "600",
     marginTop: 2,
   },
   performanceBadge: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(16,185,129,0.15)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(16,185,129,0.3)",
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
   },
-  performanceBadgeText: {
-    color: colors.success,
-    fontSize: 12,
-    fontWeight: "900",
-  },
+  performanceBadgeText: { color: C.success, fontSize: 11, fontWeight: "800" },
   performanceGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
+    gap: 12,
   },
-  performanceMetric: {
-    flex: 1,
-    alignItems: "center",
-    paddingHorizontal: 6,
+  performanceMetric: { flex: 1, alignItems: "center", gap: 6 },
+  metricValue: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: -0.5,
   },
   metricTrack: {
     width: "100%",
-    height: 6,
-    backgroundColor: "#374151",
+    height: 4,
+    backgroundColor: "#2A2610",
     borderRadius: 999,
     overflow: "hidden",
-    marginBottom: 10,
   },
-  metricFill: {
-    height: 6,
-    borderRadius: 999,
-  },
-  metricValue: {
-    color: colors.surface,
-    fontSize: 20,
-    fontWeight: "900",
-  },
+  metricFill: { height: 4, borderRadius: 999 },
   metricLabel: {
-    marginTop: 3,
-    color: "#9CA3AF",
-    fontSize: 10,
+    color: "#6B6348",
+    fontSize: 9,
     fontWeight: "900",
     letterSpacing: 1,
+    textAlign: "center",
   },
-  tipsRow: {
-    paddingTop: 12,
-    paddingBottom: 8,
-    paddingRight: 24,
-  },
+
+  /* Tips */
+  tipsRow: { gap: 12, paddingVertical: 4 },
   tipCard: {
-    width: 260,
-    backgroundColor: colors.surface,
-    borderRadius: 18,
+    width: 252,
+    backgroundColor: C.surface,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#F3F4F6",
+    borderColor: C.border,
     padding: 14,
     flexDirection: "row",
-    marginRight: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    gap: 12,
+    shadowColor: C.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     elevation: 1,
   },
   tipIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    flexShrink: 0,
   },
-  tipIconBlue: {
-    backgroundColor: "#EFF6FF",
-  },
-  tipIconPurple: {
-    backgroundColor: "#F5F3FF",
-  },
-  tipIconText: {
-    fontSize: 16,
-  },
-  tipIconTextBlue: {
-    color: "#3B82F6",
-  },
-  tipIconTextPurple: {
-    color: "#8B5CF6",
-  },
-  tipTextBlock: {
-    flex: 1,
-  },
-  tipTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: colors.textMain,
-    marginBottom: 6,
-  },
-  tipSub: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.textMuted,
-    lineHeight: 18,
-  },
-  rtlText: {},
+  tipTextBlock: { flex: 1 },
+  tipTitle: { fontSize: 13, fontWeight: "800", color: C.text, marginBottom: 5 },
+  tipSub: { fontSize: 12, fontWeight: "500", color: C.sub, lineHeight: 17 },
 });

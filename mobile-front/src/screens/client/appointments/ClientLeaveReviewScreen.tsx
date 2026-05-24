@@ -37,6 +37,8 @@ type Props = NativeStackScreenProps<ClientStackParamList, "ClientLeaveReview">;
 
 const STAR_GOLD = "#fbbf24";
 const STAR_EMPTY = "#e2e8f0";
+/** Client app accent — matches appointments / home. */
+const BRAND_ORANGE = "#EA580C";
 const MAX_FEEDBACK_LENGTH = 200;
 
 const TAGS_HIGH: string[] = [
@@ -61,9 +63,7 @@ function initialsFromName(name: string): string {
   return `${parts[0]![0] ?? ""}${parts[parts.length - 1]![0] ?? ""}`.toUpperCase();
 }
 
-function ratingLabelMeta(
-  r: number,
-): { text: string; color: string } | null {
+function ratingLabelMeta(r: number): { text: string; color: string } | null {
   switch (r) {
     case 1:
       return { text: "Very bad", color: "#DC2626" };
@@ -156,7 +156,9 @@ export const ClientLeaveReviewScreen: React.FC<Props> = ({
       const er = data.existingRating;
       setExistingRating(typeof er === "number" ? er : null);
       const ec = data.existingComment;
-      setExistingComment(typeof ec === "string" && ec.trim() ? ec.trim() : null);
+      setExistingComment(
+        typeof ec === "string" && ec.trim() ? ec.trim() : null,
+      );
     } catch {
       Alert.alert("Error", "Could not verify review eligibility.", [
         { text: "OK", onPress: () => navigation.goBack() },
@@ -244,8 +246,7 @@ export const ClientLeaveReviewScreen: React.FC<Props> = ({
 
   const labelMeta = ratingLabelMeta(rating);
   const existingLabelMeta = useMemo(
-    () =>
-      existingRating != null ? ratingLabelMeta(existingRating) : null,
+    () => (existingRating != null ? ratingLabelMeta(existingRating) : null),
     [existingRating],
   );
   const initials = useMemo(
@@ -269,7 +270,7 @@ export const ClientLeaveReviewScreen: React.FC<Props> = ({
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#2563eb" />
+          <ActivityIndicator size="large" color={BRAND_ORANGE} />
         </View>
       </SafeAreaView>
     );
@@ -287,13 +288,14 @@ export const ClientLeaveReviewScreen: React.FC<Props> = ({
       >
         <View style={styles.header}>
           <TouchableOpacity
-            style={styles.headerButton}
+            style={styles.headerIconBtn}
             onPress={() => navigation.goBack()}
             activeOpacity={0.8}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={t("common.back")}
           >
-            <Ionicons name="arrow-back" size={18} color="#0f172a" />
+            <Ionicons name="chevron-back" size={20} color="#0F172A" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
             {t("client.screenTitles.ClientLeaveReview")}
@@ -394,9 +396,7 @@ export const ClientLeaveReviewScreen: React.FC<Props> = ({
                       </Text>
                     ) : null}
                   </View>
-                  <Text style={styles.existingCommentLabel}>
-                    Your feedback
-                  </Text>
+                  <Text style={styles.existingCommentLabel}>Your feedback</Text>
                   <View style={styles.existingCommentBox}>
                     <Text style={styles.existingCommentText}>
                       {existingComment ?? "No written feedback."}
@@ -466,7 +466,9 @@ export const ClientLeaveReviewScreen: React.FC<Props> = ({
                   {suggestionTags.length > 0 ? (
                     <View style={styles.tagsSection}>
                       <Text style={styles.tagsTitle}>
-                        {rating >= 4 ? "What went well?" : "What could improve?"}
+                        {rating >= 4
+                          ? "What went well?"
+                          : "What could improve?"}
                       </Text>
                       <View style={styles.tagsRow}>
                         {suggestionTags.map((tag) => {
@@ -520,7 +522,11 @@ export const ClientLeaveReviewScreen: React.FC<Props> = ({
                 <View style={styles.cardCompact}>
                   <View style={styles.platformLeft}>
                     <View style={styles.platformIconWrap}>
-                      <Ionicons name="business" size={16} color="#4f46e5" />
+                      <Ionicons
+                        name="business"
+                        size={16}
+                        color={BRAND_ORANGE}
+                      />
                     </View>
                     <View>
                       <Text style={styles.platformTitle}>ServeMe Platform</Text>
@@ -572,7 +578,8 @@ export const ClientLeaveReviewScreen: React.FC<Props> = ({
                   <TouchableOpacity
                     style={[
                       styles.primaryButton,
-                      (rating === 0 || submitting) && styles.primaryButtonDisabled,
+                      (rating === 0 || submitting) &&
+                        styles.primaryButtonDisabled,
                     ]}
                     onPress={() => void onSubmit()}
                     disabled={rating === 0 || submitting}
@@ -598,7 +605,9 @@ export const ClientLeaveReviewScreen: React.FC<Props> = ({
                     activeOpacity={0.7}
                     disabled={submitting}
                   >
-                    <Text style={styles.secondaryButtonText}>Skip Feedback</Text>
+                    <Text style={styles.secondaryButtonText}>
+                      Skip Feedback
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
@@ -611,9 +620,9 @@ export const ClientLeaveReviewScreen: React.FC<Props> = ({
                     <Ionicons
                       name="alert-circle-outline"
                       size={14}
-                      color="#94a3b8"
+                      color={COLORS.error}
                     />
-                    <Text style={styles.footerText}>Report Issue</Text>
+                    <Text style={styles.footerTextDanger}>Report Issue</Text>
                   </TouchableOpacity>
                   <View style={styles.footerDivider} />
                   <TouchableOpacity
@@ -626,8 +635,12 @@ export const ClientLeaveReviewScreen: React.FC<Props> = ({
                       )
                     }
                   >
-                    <Ionicons name="ban-outline" size={14} color="#94a3b8" />
-                    <Text style={styles.footerText}>Block Provider</Text>
+                    <Ionicons
+                      name="ban-outline"
+                      size={14}
+                      color={COLORS.error}
+                    />
+                    <Text style={styles.footerTextDanger}>Block Provider</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -672,15 +685,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  headerButton: {
+  headerIconBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#E2E8F0",
   },
   headerTitle: {
     fontSize: 18,
@@ -697,7 +710,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   banner: {
-    backgroundColor: "#2563eb",
+    backgroundColor: BRAND_ORANGE,
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 48,
@@ -721,7 +734,7 @@ const styles = StyleSheet.create({
     left: -40,
     width: 130,
     height: 130,
-    backgroundColor: "rgba(37,99,235,0.25)",
+    backgroundColor: "rgba(234,88,12,0.28)",
     borderRadius: 65,
   },
   bannerContent: {
@@ -749,7 +762,7 @@ const styles = StyleSheet.create({
   },
   bannerSubTitle: {
     fontSize: 12,
-    color: "#dbeafe",
+    color: "#ffedd5",
     textAlign: "center",
   },
   contentWrap: {
@@ -983,7 +996,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#eef2ff",
+    backgroundColor: "#ffedd5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1009,15 +1022,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   primaryButton: {
-    backgroundColor: "#0f172a",
+    backgroundColor: BRAND_ORANGE,
     borderRadius: 18,
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 8,
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.2,
+    shadowColor: BRAND_ORANGE,
+    shadowOpacity: 0.25,
     shadowOffset: { width: 0, height: 10 },
     shadowRadius: 16,
     elevation: 4,
@@ -1052,6 +1065,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: "#94a3b8",
+  },
+  footerTextDanger: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: COLORS.error,
   },
   footerDivider: {
     width: 1,

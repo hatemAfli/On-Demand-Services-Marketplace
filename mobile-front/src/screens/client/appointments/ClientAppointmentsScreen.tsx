@@ -291,6 +291,7 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("client.screenTitles.ClientAppointments"),
+      headerBackVisible: false,
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.goBack()}

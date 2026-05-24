@@ -26,18 +26,18 @@ import type { ClientStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import i18n from "../../../i18n";
-import {
-  api,
-  type AppointmentStatus,
-} from "../../../services/api";
+import { api, type AppointmentStatus } from "../../../services/api";
 import {
   ServiceDiscoveryCard,
   type ServiceCardDisplay,
 } from "../category-services/ListOfServicesScreen";
-import { clientLocationLine } from "./clientLocationLine";
-import { styles } from "./styles";
 
-// —— Active order (highlight appointment) ——
+function clientLocationLine(
+  city?: string | null,
+  address?: string | null,
+): string {
+  return [city?.trim(), address?.trim()].filter(Boolean).join(" • ");
+}
 
 type ClientHomeHighlight = {
   id: string;
@@ -89,7 +89,6 @@ function normalizeClientHomeAppointment(
   const r = raw as Record<string, unknown>;
   const id = r.id;
   if (typeof id !== "string") return null;
-
   const gs = r.givenService as Record<string, unknown> | undefined;
   const service = gs?.service as
     | {
@@ -100,7 +99,6 @@ function normalizeClientHomeAppointment(
   const prov = r.provider as
     | { user?: { firstName?: string | null; lastName?: string | null } }
     | undefined;
-
   return {
     id,
     status: r.status as AppointmentStatus,
@@ -109,9 +107,7 @@ function normalizeClientHomeAppointment(
     durationMinutes:
       typeof r.durationMinutes === "number" ? r.durationMinutes : null,
     startedAt:
-      r.startedAt != null && r.startedAt !== ""
-        ? String(r.startedAt)
-        : null,
+      r.startedAt != null && r.startedAt !== "" ? String(r.startedAt) : null,
     givenService: {
       serviceName: pickLocaleName(service?.translations),
       categoryName: pickLocaleName(service?.category?.translations),
@@ -152,9 +148,10 @@ function sortByScheduleAsc(
   a: ClientHomeHighlight,
   b: ClientHomeHighlight,
 ): number {
-  const da = combineLocalDateTime(a.scheduledDate, a.scheduledTime).getTime();
-  const db = combineLocalDateTime(b.scheduledDate, b.scheduledTime).getTime();
-  return da - db;
+  return (
+    combineLocalDateTime(a.scheduledDate, a.scheduledTime).getTime() -
+    combineLocalDateTime(b.scheduledDate, b.scheduledTime).getTime()
+  );
 }
 
 const HIGHLIGHT_EXCLUDED: AppointmentStatus[] = [
@@ -176,27 +173,21 @@ function pickClientHomeHighlight(
   const candidates = rows.filter(isHighlightCandidate);
   if (!candidates.length) return null;
   const sorted = [...candidates].sort(sortByScheduleAsc);
-
   const inProgress = sorted.filter((a) => a.status === "IN_PROGRESS");
   if (inProgress.length) return inProgress[0];
-
   const enRoute = sorted.filter((a) => a.status === "EN_ROUTE");
   const enRouteOk = enRoute.filter(
     (a) => now.getTime() <= slotEndDate(a).getTime(),
   );
   if (enRouteOk.length) return enRouteOk[0];
-
   const confirmed = sorted.filter((a) => a.status === "CONFIRMED");
   const windows = confirmed.map((a) => ({
     a,
     start: combineLocalDateTime(a.scheduledDate, a.scheduledTime),
     end: slotEndDate(a),
   }));
-  const inside = windows.find(
-    ({ start, end }) => now >= start && now < end,
-  );
+  const inside = windows.find(({ start, end }) => now >= start && now < end);
   if (inside) return inside.a;
-
   const nowMs = now.getTime();
   const upcoming = sorted.filter((a) =>
     ["CONFIRMED", "PENDING", "RESCHEDULED", "EN_ROUTE"].includes(a.status),
@@ -206,7 +197,6 @@ function pickClientHomeHighlight(
       combineLocalDateTime(a.scheduledDate, a.scheduledTime).getTime() > nowMs,
   );
   if (next) return next;
-
   return null;
 }
 
@@ -214,43 +204,50 @@ function statusMeta(status: AppointmentStatus): {
   label: string;
   dot: string;
   sub: string;
+  icon: string;
 } {
   switch (status) {
     case "IN_PROGRESS":
       return {
         label: "In progress",
-        dot: "#4F46E5",
+        dot: "#7C5CFC",
         sub: "Service in progress",
+        icon: "play-circle-outline",
       };
     case "EN_ROUTE":
       return {
         label: "On the way",
         dot: "#9333EA",
         sub: "Provider is heading to you",
+        icon: "navigate-outline",
       };
     case "CONFIRMED":
       return {
         label: "Confirmed",
         dot: "#3B82F6",
         sub: "Upcoming visit",
+        icon: "checkmark-circle-outline",
       };
     case "PENDING":
       return {
         label: "Pending",
         dot: "#F59E0B",
         sub: "Awaiting provider response",
+        icon: "radio-button-on-outline",
       };
     case "RESCHEDULED":
       return {
         label: "Rescheduled",
         dot: "#EA580C",
         sub: "New time proposed",
+        icon: "time-outline",
       };
     default:
       return {
         label: "Booking",
-        dot: "#6B7280",
+        dot: "#9B9BB0",
         sub: "Your appointment",
+        icon: "calendar-outline",
       };
   }
 }
@@ -266,8 +263,6 @@ function formatShortDate(yyyyMmDd: string): string {
   });
 }
 
-// —— Service categories ——
-
 type CategoryApi = {
   id: string;
   name: string;
@@ -278,22 +273,19 @@ type CategoryApi = {
 };
 
 const FALLBACK_COLORS = [
-  "#3b82f6",
-  "#f97316",
-  "#10b981",
-  "#06b6d4",
-  "#ef4444",
-  "#64748b",
-  "#ec4899",
-  "#6b7280",
+  "#7C5CFC",
+  "#F59E0B",
+  "#10B981",
+  "#3B82F6",
+  "#EF4444",
+  "#9333EA",
+  "#EC4899",
+  "#6B7280",
 ] as const;
 
 const CATEGORY_ITEMS_PER_ROW = 4;
 const CATEGORY_COLLAPSED_ROWS = 2;
-const CATEGORY_COLLAPSED_MAX =
-  CATEGORY_ITEMS_PER_ROW * CATEGORY_COLLAPSED_ROWS;
-
-// —— Recommended ——
+const CATEGORY_COLLAPSED_MAX = CATEGORY_ITEMS_PER_ROW * CATEGORY_COLLAPSED_ROWS;
 
 type RecommendedSeed = {
   id: string;
@@ -424,15 +416,13 @@ function toCardDisplay(
   };
 }
 
-// —— Screen ——
-
 export const ClientHomeScreen: React.FC = () => {
   const { t, isRTL } = useAppTranslation();
   const { user } = useAuth();
   const navigation =
     useNavigation<NativeStackNavigationProp<ClientStackParamList>>();
   const { width } = useWindowDimensions();
-  const recommendedCardWidth = Math.min(320, width - 48);
+  const recommendedCardWidth = Math.min(300, width - 64);
 
   const [refreshing, setRefreshing] = useState(false);
   const [categoriesRefreshSignal, setCategoriesRefreshSignal] = useState(0);
@@ -497,7 +487,7 @@ export const ClientHomeScreen: React.FC = () => {
             style={styles.notificationButton}
             onPress={() => navigation.navigate("Notifications")}
           >
-            <Icon name="bell" size={20} color="#4b5563" solid />
+            <Ionicons name="notifications-outline" size={20} color="#1A1A2E" />
             {unreadCount > 0 ? (
               <View style={styles.notificationBadge}>
                 <Text style={styles.notificationBadgeText} numberOfLines={1}>
@@ -514,13 +504,15 @@ export const ClientHomeScreen: React.FC = () => {
             {avatarUri ? (
               <Image source={{ uri: avatarUri }} style={styles.avatar} />
             ) : (
-              <Ionicons name="person" size={20} color="#4F46E5" />
+              <Text style={styles.avatarInitialText}>
+                {(user?.firstName?.[0] ?? "?").toUpperCase()}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
       ),
     });
-  }, [navigation, unreadCount, avatarUri]);
+  }, [navigation, unreadCount, avatarUri, user?.firstName]);
 
   useFocusEffect(
     useCallback(() => {
@@ -541,9 +533,7 @@ export const ClientHomeScreen: React.FC = () => {
   );
 
   useEffect(() => {
-    if (categoriesRefreshSignal > 0) {
-      void loadActiveOrder();
-    }
+    if (categoriesRefreshSignal > 0) void loadActiveOrder();
   }, [categoriesRefreshSignal, loadActiveOrder]);
 
   useEffect(() => {
@@ -577,9 +567,7 @@ export const ClientHomeScreen: React.FC = () => {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setCategoriesRefreshSignal((prev) => prev + 1);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 900);
+    setTimeout(() => setRefreshing(false), 900);
   }, []);
 
   const showCategoryToggle = categories.length > CATEGORY_COLLAPSED_MAX;
@@ -589,21 +577,19 @@ export const ClientHomeScreen: React.FC = () => {
       : categories.slice(0, CATEGORY_COLLAPSED_MAX);
 
   const openAppointment = useCallback(
-    (appointmentId: string) => {
-      navigation.navigate("ClientAppointmentDetail", { appointmentId });
-    },
+    (appointmentId: string) =>
+      navigation.navigate("ClientAppointmentDetail", { appointmentId }),
     [navigation],
   );
 
+  /* ── Active order section ── */
   const renderActiveOrderSection = () => {
     if (activeOrderLoading) {
       return (
         <View style={styles.activeOrderContainer}>
-          <View style={[styles.activeOrderCard, homeLocalStyles.loadingCard]}>
-            <ActivityIndicator color="#4F46E5" />
-            <Text style={homeLocalStyles.loadingText}>
-              Loading your booking…
-            </Text>
+          <View style={[styles.activeOrderCard, styles.loadingCard]}>
+            <ActivityIndicator color="#7C5CFC" size="small" />
+            <Text style={styles.loadingText}>Loading your booking…</Text>
           </View>
         </View>
       );
@@ -612,11 +598,16 @@ export const ClientHomeScreen: React.FC = () => {
     if (!activeOrderHighlight) {
       return (
         <View style={styles.activeOrderContainer}>
-          <View style={[styles.activeOrderCard, homeLocalStyles.emptyCard]}>
-            <Text style={homeLocalStyles.emptyTitle}>No active booking</Text>
-            <Text style={homeLocalStyles.emptySub}>
-              Confirmed and in-progress visits will show here.
-            </Text>
+          <View style={[styles.activeOrderCard, styles.emptyCard]}>
+            <View style={styles.emptyCardIconWrap}>
+              <Ionicons name="calendar-outline" size={22} color="#9B9BB0" />
+            </View>
+            <View style={styles.emptyCardText}>
+              <Text style={styles.emptyTitle}>No active booking</Text>
+              <Text style={styles.emptySub}>
+                Confirmed and in-progress visits will show here.
+              </Text>
+            </View>
           </View>
         </View>
       );
@@ -639,17 +630,20 @@ export const ClientHomeScreen: React.FC = () => {
           onPress={() => openAppointment(activeOrderHighlight.id)}
           style={({ pressed }) => [
             styles.activeOrderCard,
-            pressed && homeLocalStyles.cardPressed,
+            pressed && styles.cardPressed,
           ]}
         >
+          {/* Decorative blob */}
           <View style={styles.cardPattern} />
+
           <View style={styles.cardContent}>
+            {/* Header */}
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
                 <View style={styles.orderIconContainer}>
-                  <Icon name="calendar-check" size={18} color="#fff" />
+                  <Ionicons name={meta.icon as any} size={20} color="#FFFFFF" />
                 </View>
-                <View style={homeLocalStyles.titleBlock}>
+                <View style={styles.titleBlock}>
                   <Text style={styles.orderId} numberOfLines={1}>
                     {serviceTitle}
                   </Text>
@@ -669,10 +663,12 @@ export const ClientHomeScreen: React.FC = () => {
                   </View>
                 </View>
               </View>
-              <View style={homeLocalStyles.chevronWrap}>
-                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              <View style={styles.chevronWrap}>
+                <Ionicons name="chevron-forward" size={16} color="#C4C4C4" />
               </View>
             </View>
+
+            {/* Progress bar */}
             <View style={styles.progressBarBackground}>
               <View
                 style={[
@@ -681,8 +677,10 @@ export const ClientHomeScreen: React.FC = () => {
                 ]}
               />
             </View>
+
+            {/* Footer details */}
             <View style={styles.orderDetails}>
-              <Text style={styles.orderItems} numberOfLines={2}>
+              <Text style={styles.orderItems} numberOfLines={1}>
                 {providerName} ·{" "}
                 {formatShortDate(activeOrderHighlight.scheduledDate)} · #
                 {shortId}
@@ -697,27 +695,29 @@ export const ClientHomeScreen: React.FC = () => {
     );
   };
 
+  /* ── Categories section ── */
   const renderCategoriesSection = () => (
     <View style={styles.categoriesContainer}>
       <View
         style={[
-          styles.categoriesHeader,
+          styles.sectionHeaderRow,
           isRTL && { flexDirection: "row-reverse" },
         ]}
       >
-        <Text style={[styles.categoriesTitle, isRTL && { textAlign: "right" }]}>
+        <Text style={[styles.sectionTitle, isRTL && { textAlign: "right" }]}>
           {t("client.home.categoriesTitle")}
         </Text>
       </View>
+
       {categoriesLoading ? (
-        <View style={homeLocalStyles.centeredPad}>
-          <ActivityIndicator color="#4f46e5" />
+        <View style={styles.centeredPad}>
+          <ActivityIndicator color="#7C5CFC" />
         </View>
       ) : categoriesError ? (
         <Text
           style={[
             styles.categoryName,
-            { textAlign: "center", color: "#b91c1c" },
+            { textAlign: "center", color: "#DC2626" },
           ]}
         >
           {categoriesError}
@@ -736,11 +736,12 @@ export const ClientHomeScreen: React.FC = () => {
             const color = FALLBACK_COLORS[globalIndex % FALLBACK_COLORS.length];
             const useUrl = Boolean(category.iconUrl?.trim());
             const glyph = (category.iconKey?.trim() || "circle") as never;
+            const bgHex = color + "18"; // ~10% opacity tint
             return (
               <TouchableOpacity
                 key={category.id}
                 style={styles.categoryItem}
-                activeOpacity={0.88}
+                activeOpacity={0.85}
                 onPress={() =>
                   navigation.navigate("ClientCategoryServices", {
                     categoryId: category.id,
@@ -751,17 +752,17 @@ export const ClientHomeScreen: React.FC = () => {
                 <View
                   style={[
                     styles.categoryIconContainer,
-                    { backgroundColor: "#fff" },
+                    { backgroundColor: bgHex, borderColor: color + "30" },
                   ]}
                 >
                   {useUrl ? (
                     <Image
                       source={{ uri: category.iconUrl!.trim() }}
-                      style={homeLocalStyles.categoryIconImage}
+                      style={styles.categoryIconImage}
                       resizeMode="cover"
                     />
                   ) : (
-                    <Icon name={glyph} size={24} color={color} />
+                    <Icon name={glyph} size={22} color={color} />
                   )}
                 </View>
                 <Text
@@ -778,6 +779,7 @@ export const ClientHomeScreen: React.FC = () => {
           })}
         </View>
       )}
+
       {!categoriesLoading &&
       !categoriesError &&
       categories.length > 0 &&
@@ -786,24 +788,30 @@ export const ClientHomeScreen: React.FC = () => {
           onPress={() => setCategoriesExpanded((v) => !v)}
           activeOpacity={0.7}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={homeLocalStyles.viewMoreButton}
+          style={styles.viewMoreButton}
         >
           <Text style={styles.viewAllButton}>
             {categoriesExpanded
               ? t("client.home.categoriesViewLess")
               : t("client.home.categoriesViewMore")}
           </Text>
+          <Ionicons
+            name={categoriesExpanded ? "chevron-up" : "chevron-down"}
+            size={13}
+            color="#7C5CFC"
+          />
         </TouchableOpacity>
       ) : null}
     </View>
   );
 
+  /* ── Recommended section ── */
   const renderRecommendedSection = () => (
     <View style={styles.recommendedContainer}>
       <View style={styles.recommendedHeader}>
         <View>
-          <Text style={styles.recommendedTitle}>Recommended for you</Text>
-          <Text style={styles.recommendedSubtitle}>
+          <Text style={styles.sectionTitle}>Recommended for you</Text>
+          <Text style={styles.sectionSubtitle}>
             Based on your recent activity
           </Text>
         </View>
@@ -812,17 +820,14 @@ export const ClientHomeScreen: React.FC = () => {
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.recommendedScrollView}
-        contentContainerStyle={homeLocalStyles.recommendedScrollContent}
+        contentContainerStyle={styles.recommendedScrollContent}
       >
         {recommendedItems.map((item) => {
           const card = toCardDisplay(item, t);
           return (
             <ServiceDiscoveryCard
               key={item.id}
-              style={{
-                width: recommendedCardWidth,
-                marginRight: 16,
-              }}
+              style={{ width: recommendedCardWidth, marginRight: 14 }}
               service={card}
               isFavorite={false}
               onToggleFavorite={() => {}}
@@ -838,73 +843,80 @@ export const ClientHomeScreen: React.FC = () => {
     </View>
   );
 
+  /* ── Popular section ── */
   const renderPopularSection = () => (
     <View style={styles.popularContainer}>
-      <Text style={styles.popularTitle}>{popularTitle}</Text>
+      <Text style={[styles.sectionTitle, { marginBottom: 14 }]}>
+        {popularTitle}
+      </Text>
       <View style={styles.popularList}>
-        <View style={styles.popularItem}>
-          <Image
-            source={{
-              uri: "https://storage.googleapis.com/uxpilot-auth.appspot.com/f48cad009e-4f349cc0d9a71f14d364.png",
-            }}
-            style={styles.popularItemImage}
-          />
-          <View style={styles.popularItemContent}>
-            <View style={styles.popularItemHeader}>
-              <Text style={styles.popularItemTitle}>Brew Crew Coffee</Text>
-              <Icon name="heart" size={12} color="#9ca3af" />
-            </View>
-            <View style={styles.popularItemInfo}>
-              <Icon name="star" size={10} color="#facc15" solid />
-              <Text style={styles.popularItemRating}>4.7</Text>
-              <Text style={styles.dot}>•</Text>
-              <Text style={styles.popularItemCategory}>Cafe</Text>
-              <Text style={styles.dot}>•</Text>
-              <Text style={styles.popularItemDistance}>1.2 km</Text>
-            </View>
-            <View style={styles.popularItemTags}>
-              <View style={[styles.tag, homeLocalStyles.tagIndigo]}>
-                <Text style={[styles.tagText, homeLocalStyles.tagIndigoText]}>
-                  Free Delivery
-                </Text>
+        {[
+          {
+            uri: "https://storage.googleapis.com/uxpilot-auth.appspot.com/f48cad009e-4f349cc0d9a71f14d364.png",
+            title: "Brew Crew Coffee",
+            rating: "4.7",
+            category: "Cafe",
+            distance: "1.2 km",
+            tags: [
+              { label: "Free Delivery", type: "indigo" as const },
+              { label: "Top Rated", type: "gray" as const },
+            ],
+          },
+          {
+            uri: "https://images.unsplash.com/photo-1632833239869-a37e3a5806d2?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80",
+            title: "QuickFix Plumbing",
+            rating: "4.9",
+            category: "Maintenance",
+            distance: "0.8 km",
+            tags: [{ label: "Available Now", type: "green" as const }],
+          },
+        ].map((item) => (
+          <View key={item.title} style={styles.popularItem}>
+            <Image source={{ uri: item.uri }} style={styles.popularItemImage} />
+            <View style={styles.popularItemContent}>
+              <View style={styles.popularItemHeader}>
+                <Text style={styles.popularItemTitle}>{item.title}</Text>
+                <TouchableOpacity
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="heart-outline" size={16} color="#C4C4C4" />
+                </TouchableOpacity>
               </View>
-              <View style={[styles.tag, homeLocalStyles.tagGray]}>
-                <Text style={[styles.tagText, homeLocalStyles.tagGrayText]}>
-                  Top Rated
-                </Text>
+              <View style={styles.popularItemInfo}>
+                <Ionicons name="star" size={11} color="#F59E0B" />
+                <Text style={styles.popularItemRating}>{item.rating}</Text>
+                <Text style={styles.dot}>·</Text>
+                <Text style={styles.popularItemCategory}>{item.category}</Text>
+                <Text style={styles.dot}>·</Text>
+                <Text style={styles.popularItemDistance}>{item.distance}</Text>
+              </View>
+              <View style={styles.popularItemTags}>
+                {item.tags.map((tag) => (
+                  <View
+                    key={tag.label}
+                    style={[
+                      styles.tag,
+                      tag.type === "indigo" && styles.tagIndigo,
+                      tag.type === "gray" && styles.tagGray,
+                      tag.type === "green" && styles.tagGreen,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.tagText,
+                        tag.type === "indigo" && styles.tagIndigoText,
+                        tag.type === "gray" && styles.tagGrayText,
+                        tag.type === "green" && styles.tagGreenText,
+                      ]}
+                    >
+                      {tag.label}
+                    </Text>
+                  </View>
+                ))}
               </View>
             </View>
           </View>
-        </View>
-        <View style={styles.popularItem}>
-          <Image
-            source={{
-              uri: "https://images.unsplash.com/photo-1632833239869-a37e3a5806d2?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80",
-            }}
-            style={styles.popularItemImage}
-          />
-          <View style={styles.popularItemContent}>
-            <View style={styles.popularItemHeader}>
-              <Text style={styles.popularItemTitle}>QuickFix Plumbing</Text>
-              <Icon name="heart" size={12} color="#9ca3af" />
-            </View>
-            <View style={styles.popularItemInfo}>
-              <Icon name="star" size={10} color="#facc15" solid />
-              <Text style={styles.popularItemRating}>4.9</Text>
-              <Text style={styles.dot}>•</Text>
-              <Text style={styles.popularItemCategory}>Maintenance</Text>
-              <Text style={styles.dot}>•</Text>
-              <Text style={styles.popularItemDistance}>0.8 km</Text>
-            </View>
-            <View style={styles.popularItemTags}>
-              <View style={[styles.tag, homeLocalStyles.tagGreen]}>
-                <Text style={[styles.tagText, homeLocalStyles.tagGreenText]}>
-                  Available Now
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
+        ))}
       </View>
     </View>
   );
@@ -913,6 +925,7 @@ export const ClientHomeScreen: React.FC = () => {
     <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.container}>
+        {/* Search bar */}
         <View style={styles.header}>
           <View style={styles.searchContainer}>
             <Pressable
@@ -924,81 +937,392 @@ export const ClientHomeScreen: React.FC = () => {
                 pressed && styles.homeSearchBarPressed,
               ]}
             >
-              <View style={styles.homeSearchIconBadge}>
-                <Ionicons name="search" size={20} color="#4F46E5" />
+              <View style={styles.searchIconWrap}>
+                <Ionicons name="search-outline" size={16} color="#7C5CFC" />
               </View>
-              <View style={styles.homeSearchTextBlock}>
-                <Text style={styles.homeSearchPlaceholder} numberOfLines={1}>
-                  {t("client.home.searchPlaceholder")}
-                </Text>
-                <Text style={styles.homeSearchHint} numberOfLines={1}>
-                  {t("client.home.searchHint")}
-                </Text>
-              </View>
-              <View style={styles.homeSearchChevron}>
-                <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+              <Text style={styles.homeSearchPlaceholder} numberOfLines={1}>
+                {t("client.home.searchPlaceholder")}
+              </Text>
+              <View style={styles.searchMicWrap}>
+                <Ionicons name="mic-outline" size={16} color="#C4C4C4" />
               </View>
             </Pressable>
           </View>
         </View>
+
         <ScrollView
           style={styles.mainContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#7C5CFC"
+              colors={["#7C5CFC"]}
+            />
           }
         >
           {renderActiveOrderSection()}
           {renderCategoriesSection()}
           {renderRecommendedSection()}
           {renderPopularSection()}
+          <View style={{ height: 24 }} />
         </ScrollView>
       </View>
     </SafeAreaView>
   );
 };
 
-const homeLocalStyles = StyleSheet.create({
-  loadingCard: {
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#FFFFFF" },
+  container: { flex: 1, backgroundColor: "#F4F3FA" },
+
+  /* ── Header ── */
+  header: {
+    paddingTop: 6,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#EBEBF5",
+  },
+  navHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 4,
+    gap: 8,
+  },
+  notificationButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#F4F3FA",
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 24,
+    overflow: "visible",
   },
-  loadingText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6B7280",
-    marginTop: 8,
+  notificationBadge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
-  emptyCard: {
-    paddingVertical: 20,
-    paddingHorizontal: 8,
+  notificationBadgeText: { color: "#FFFFFF", fontSize: 9, fontWeight: "800" },
+  avatarContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#EDE9FE",
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#C4B5FD",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#111827",
-    textAlign: "center",
+  avatar: { width: "100%", height: "100%" },
+  avatarInitialText: { fontSize: 14, fontWeight: "800", color: "#7C5CFC" },
+
+  /* Search bar */
+  searchContainer: { flexDirection: "row", alignItems: "center" },
+  homeSearchBar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#F4F3FA",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#EBEBF5",
+    paddingHorizontal: 12,
+    height: 46,
   },
-  emptySub: {
-    marginTop: 6,
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 18,
+  homeSearchBarPressed: { opacity: 0.88, backgroundColor: "#EEEDF8" },
+  searchIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    backgroundColor: "#EDE9FE",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  homeSearchPlaceholder: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#9B9BB0",
+    letterSpacing: -0.1,
+  },
+  searchMicWrap: { flexShrink: 0 },
+
+  mainContent: { flex: 1 },
+
+  /* ── Active order ── */
+  activeOrderContainer: { paddingHorizontal: 16, paddingTop: 18 },
+  activeOrderCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    shadowColor: "#7C5CFC",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 3,
+    position: "relative",
+    overflow: "hidden",
+  },
+  cardPattern: {
+    position: "absolute",
+    top: -20,
+    right: -20,
+    width: 90,
+    height: 90,
+    backgroundColor: "#EDE9FE",
+    borderRadius: 45,
+    opacity: 0.6,
+  },
+  cardContent: { zIndex: 1 },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  cardHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  orderIconContainer: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    backgroundColor: "#7C5CFC",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#7C5CFC",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
+    flexShrink: 0,
   },
   titleBlock: { flex: 1, minWidth: 0 },
-  chevronWrap: { paddingLeft: 8, paddingTop: 4 },
-  cardPressed: { opacity: 0.92 },
+  orderId: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1A1A2E",
+    letterSpacing: -0.2,
+  },
+  orderStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 3,
+    gap: 5,
+  },
+  statusIndicator: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 11, fontWeight: "600" },
+  chevronWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    backgroundColor: "#F4F3FA",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  progressBarBackground: {
+    width: "100%",
+    height: 5,
+    backgroundColor: "#F4F3FA",
+    borderRadius: 3,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#7C5CFC",
+    borderRadius: 3,
+  },
+  orderDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  orderItems: { fontSize: 12, color: "#9B9BB0", flex: 1, fontWeight: "500" },
+  orderPrice: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1A1A2E",
+    flexShrink: 0,
+  },
+
+  loadingCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 20,
+  },
+  loadingText: { fontSize: 13, fontWeight: "600", color: "#9B9BB0" },
+  emptyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+  },
+  emptyCardIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: "#F4F3FA",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    flexShrink: 0,
+  },
+  emptyCardText: { flex: 1 },
+  emptyTitle: { fontSize: 13, fontWeight: "700", color: "#1A1A2E" },
+  emptySub: { fontSize: 12, color: "#9B9BB0", marginTop: 2, lineHeight: 16 },
+  cardPressed: { opacity: 0.9 },
+
+  /* ── Section common ── */
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#1A1A2E",
+    letterSpacing: -0.4,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: "#9B9BB0",
+    marginTop: 2,
+    fontWeight: "500",
+  },
+
+  /* ── Categories ── */
+  categoriesContainer: { paddingHorizontal: 16, marginTop: 24 },
+  categoriesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  categoryItem: { width: "22%", alignItems: "center", marginBottom: 22 },
+  categoryIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    marginBottom: 7,
+  },
+  categoryIconImage: { width: 36, height: 36, borderRadius: 10 },
+  categoryName: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6B6B80",
+    textAlign: "center",
+    lineHeight: 15,
+  },
   centeredPad: { paddingVertical: 24, alignItems: "center" },
-  categoryIconImage: { width: 40, height: 40, borderRadius: 12 },
-  viewMoreButton: { alignSelf: "flex-end", marginTop: 8 },
-  recommendedScrollContent: { paddingRight: 24 },
-  tagIndigo: { backgroundColor: "#eef2ff" },
-  tagIndigoText: { color: "#4f46e5" },
-  tagGray: { backgroundColor: "#f3f4f6" },
-  tagGrayText: { color: "#4b5563" },
-  tagGreen: { backgroundColor: "#f0fdf4" },
-  tagGreenText: { color: "#16a34a" },
+  viewMoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "center",
+    marginTop: 4,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "#EDE9FE",
+    borderWidth: 1,
+    borderColor: "#C4B5FD",
+  },
+  viewAllButton: { fontSize: 12, fontWeight: "700", color: "#7C5CFC" },
+
+  /* ── Recommended ── */
+  recommendedContainer: { marginTop: 22 },
+  recommendedHeader: { paddingHorizontal: 16, marginBottom: 14 },
+  recommendedScrollView: { paddingLeft: 16 },
+  recommendedScrollContent: { paddingRight: 16 },
+
+  /* ── Popular ── */
+  popularContainer: { paddingHorizontal: 16, marginTop: 24, marginBottom: 8 },
+  popularList: { gap: 10 },
+  popularItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+    gap: 14,
+  },
+  popularItemImage: {
+    width: 76,
+    height: 76,
+    borderRadius: 14,
+    backgroundColor: "#F4F3FA",
+    flexShrink: 0,
+  },
+  popularItemContent: { flex: 1, gap: 4 },
+  popularItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  popularItemTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1A1A2E",
+    letterSpacing: -0.1,
+  },
+  popularItemInfo: { flexDirection: "row", alignItems: "center", gap: 4 },
+  popularItemRating: { fontSize: 12, fontWeight: "700", color: "#1A1A2E" },
+  dot: { color: "#D4D4E0", fontSize: 12 },
+  popularItemCategory: { fontSize: 12, color: "#9B9BB0" },
+  popularItemDistance: { fontSize: 12, color: "#9B9BB0" },
+  popularItemTags: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  tag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  tagText: { fontSize: 10, fontWeight: "700" },
+  tagIndigo: { backgroundColor: "#EDE9FE" },
+  tagIndigoText: { color: "#7C5CFC" },
+  tagGray: { backgroundColor: "#F4F3FA" },
+  tagGrayText: { color: "#6B6B80" },
+  tagGreen: { backgroundColor: "#ECFDF5" },
+  tagGreenText: { color: "#059669" },
 });
