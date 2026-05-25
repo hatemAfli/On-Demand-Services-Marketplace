@@ -20,6 +20,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { COLORS } from "../../../constants";
+import { useNotificationsRealtime } from "../../../context/NotificationsRealtimeContext";
 import type { ProviderStackParamList } from "../../../navigation/types";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import {
@@ -164,23 +165,12 @@ export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
   >(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount, refreshUnreadCount } = useNotificationsRealtime();
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      void (async () => {
-        try {
-          const res = await api.getUnreadCount();
-          if (!cancelled) setUnreadCount(res.data?.count ?? 0);
-        } catch {
-          if (!cancelled) setUnreadCount(0);
-        }
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }, []),
+      void refreshUnreadCount();
+    }, [refreshUnreadCount]),
   );
 
   const weekStartKey = useMemo(

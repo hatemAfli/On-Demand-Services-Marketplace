@@ -3,14 +3,12 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -34,25 +32,25 @@ const DATE_STRIP_DAYS = 22;
 
 // ─── Design tokens ─────────────────────────────────────────
 const C = {
-  bg: "#F7F8FC",
-  white: "#FFFFFF",
-  border: "#EAECF4",
-  borderLight: "#F0F2F8",
-  text: "#0F172A",
-  textSub: "#64748B",
-  textLight: "#94A3B8",
-  accent: "#4F46E5",
-  accentBg: "#EEF2FF",
-  accentBorder: "#C7D2FE",
-  accentLight: "rgba(79,70,229,0.08)",
+  bg: "#f9fafb",
+  white: "#ffffff",
+  border: "#e5e7eb",
+  borderLight: "#f3f4f6",
+  text: "#111827",
+  textSub: "#6b7280",
+  textLight: "#9ca3af",
+  accent: "#2563eb",
+  accentBg: "#eff6ff",
+  accentBorder: "#dbeafe",
+  accentLight: "rgba(37,99,235,0.08)",
   success: "#059669",
   successBg: "#ECFDF5",
   error: "#DC2626",
   errorBg: "#FFF1F1",
   warning: "#D97706",
   warningBg: "#FFFBEB",
-  shadow: "rgba(79,70,229,0.10)",
-  cardShadow: "rgba(0,0,0,0.06)",
+  shadow: "rgba(0,0,0,0.05)",
+  cardShadow: "rgba(0,0,0,0.05)",
 };
 
 // ─── Helpers (unchanged) ──────────────────────────────────
@@ -111,85 +109,24 @@ const MONTH_SHORT = [
 ];
 
 // ─── Section header ────────────────────────────────────────
-function SectionHeader({ label, sub }: { label: string; sub?: string }) {
+function SectionHeader({ label }: { label: string }) {
   return (
-    <View style={s.sectionHeader}>
-      <View style={s.sectionBar} />
-      <View style={{ flex: 1 }}>
-        <Text style={s.sectionLabel}>{label}</Text>
-        {sub ? <Text style={s.sectionSub}>{sub}</Text> : null}
-      </View>
-    </View>
-  );
-}
-
-// ─── Slot chip ─────────────────────────────────────────────
-function SlotChip({
-  time,
-  selected,
-  disabled,
-  onPress,
-}: {
-  time: string;
-  selected: boolean;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  const scale = React.useRef(new Animated.Value(1)).current;
-
-  const handlePress = () => {
-    if (disabled) return;
-    Animated.sequence([
-      Animated.spring(scale, {
-        toValue: 0.92,
-        useNativeDriver: true,
-        speed: 40,
-      }),
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20 }),
-    ]).start();
-    onPress();
-  };
-
-  return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <TouchableOpacity
-        style={[
-          s.slotChip,
-          disabled && s.slotChipDisabled,
-          selected && !disabled && s.slotChipSelected,
-        ]}
-        onPress={handlePress}
-        activeOpacity={disabled ? 1 : 0.85}
-        disabled={disabled}
-      >
-        {selected && !disabled && <View style={s.slotChipDot} />}
-        <Text
-          style={[
-            s.slotChipText,
-            disabled && s.slotChipTextDisabled,
-            selected && !disabled && s.slotChipTextSelected,
-          ]}
-        >
-          {time}
-        </Text>
-      </TouchableOpacity>
-    </Animated.View>
+    <Text style={s.sectionTitle}>{label}</Text>
   );
 }
 
 // ─── Photo thumb ───────────────────────────────────────────
 function PhotoThumb({ uri, onRemove }: { uri: string; onRemove: () => void }) {
   return (
-    <View style={s.thumbWrap}>
-      <Image source={{ uri }} style={s.thumb} resizeMode="cover" />
+    <View style={s.photoPreview}>
+      <Image source={{ uri }} style={s.photoImage} resizeMode="cover" />
       <TouchableOpacity
-        style={s.thumbRemove}
+        style={s.photoOverlay}
         onPress={onRemove}
         hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
       >
-        <Ionicons name="close" size={11} color={C.white} />
+        <Ionicons name="trash-outline" size={14} color={C.white} />
       </TouchableOpacity>
-      <View style={s.thumbOverlay} />
     </View>
   );
 }
@@ -427,35 +364,18 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
       <View style={s.root}>
         {/* ── Header ── */}
         <View style={s.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            style={s.headerBack}
-          >
-            <Ionicons name="chevron-back" size={20} color="#1A1A2E" />
-          </TouchableOpacity>
-          <Text style={s.headerTitle}>Book a slot</Text>
-          <View style={s.headerRightSpacer} />
-        </View>
-
-        {/* ── Provider recap bar ── */}
-        <View style={s.recapBar}>
-          <View style={s.recapAvatarWrap}>
-            <Text style={s.recapAvatarText}>
-              {providerName.trim().charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.recapName} numberOfLines={1}>
-              {providerName}
-            </Text>
-            <Text style={s.recapService} numberOfLines={1}>
-              {serviceName}
-            </Text>
-          </View>
-          <View style={s.durationBadge}>
-            <Ionicons name="time-outline" size={11} color={C.accent} />
-            <Text style={s.durationBadgeText}>~{duration} min</Text>
+          <View style={s.headerRow}>
+            <TouchableOpacity
+              style={s.headerIconBtn}
+              onPress={() => navigation.goBack()}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="arrow-back" size={16} color={C.textSub} />
+            </TouchableOpacity>
+            <Text style={s.headerTitle}>Confirm Booking</Text>
+            <View style={s.headerIconBtn}>
+              <Ionicons name="help-circle-outline" size={18} color={C.textSub} />
+            </View>
           </View>
         </View>
 
@@ -463,107 +383,110 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
           style={s.scroll}
           contentContainerStyle={[
             s.scrollContent,
-            { paddingBottom: insets.bottom + 110 },
+            { paddingBottom: insets.bottom + 100 },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Date strip ── */}
-          <View style={s.dateStripWrap}>
+          {/* ── Service card ── */}
+          <View style={s.serviceCard}>
+            <View style={s.serviceAvatar}>
+              <Text style={s.serviceAvatarText}>
+                {providerName.trim().charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={s.serviceInfo}>
+              <Text style={s.serviceTitle} numberOfLines={1}>
+                {serviceName}
+              </Text>
+              <View style={s.serviceTags}>
+                <View style={s.serviceTag}>
+                  <Text style={s.serviceTagText}>~{duration} min</Text>
+                </View>
+                <View style={s.serviceTag}>
+                  <Text style={s.serviceTagText}>{providerName}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* ── Location card ── */}
+          <View style={s.section}>
+            <View style={s.sectionHeaderRow}>
+              <Text style={s.sectionTitle}>Location</Text>
+              <TouchableOpacity activeOpacity={0.7}>
+                <Text style={s.sectionAction}>Change</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={s.locationCard}>
+              <View style={s.mapPreview}>
+                <View style={s.mapPlaceholder}>
+                  <Ionicons name="map-outline" size={28} color={C.textLight} />
+                </View>
+                <View style={s.mapPin}>
+                  <Ionicons name="location-sharp" size={14} color={C.white} />
+                </View>
+              </View>
+              <View style={s.locationDetails}>
+                <View style={s.locationIcon}>
+                  <Ionicons name="home-outline" size={14} color={C.accent} />
+                </View>
+                <View style={s.locationTextWrap}>
+                  <Text style={s.locationTitle}>Home</Text>
+                  <Text style={s.locationText}>
+                    Your saved address will appear here
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* ── Date & Time section ── */}
+          <View style={s.section}>
+            <SectionHeader label="Date & Time" />
+
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={s.dateStripContent}
+              contentContainerStyle={s.dateScroller}
+              style={s.dateScrollerWrap}
             >
               {dateStrip.map((ymd) => {
                 const d = parseYmd(ymd);
                 const isSelected = ymd === selectedDate;
                 const isToday = ymd === formatYmd(new Date());
-                const dow = WEEKDAY_SHORT[d.getDay()];
+                const dow = isToday ? "Today" : WEEKDAY_SHORT[d.getDay()];
                 const dom = d.getDate();
-                const hasNoSlots = datesWithNoSlots.has(ymd);
+                const mon = MONTH_SHORT[d.getMonth()];
 
                 return (
                   <TouchableOpacity
                     key={ymd}
-                    style={[
-                      s.dateCell,
-                      isToday && !isSelected && s.dateCellToday,
-                      isSelected && s.dateCellSelected,
-                    ]}
                     onPress={() => setSelectedDate(ymd)}
+                    style={[s.dateCard, isSelected && s.dateCardActive]}
                     activeOpacity={0.82}
                   >
                     <Text
-                      style={[
-                        s.dateDow,
-                        isSelected && s.dateDowSelected,
-                        isToday && !isSelected && s.dateDowToday,
-                      ]}
+                      style={[s.dateTop, isSelected && s.dateTopActive]}
                     >
                       {dow}
                     </Text>
                     <Text
-                      style={[
-                        s.dateDom,
-                        isSelected && s.dateDomSelected,
-                        isToday && !isSelected && s.dateDomToday,
-                      ]}
+                      style={[s.dateDay, isSelected && s.dateDayActive]}
                     >
                       {dom}
                     </Text>
-                    {hasNoSlots && !isSelected && <View style={s.emptyDot} />}
-                    {isSelected &&
-                      !hasNoSlots &&
-                      !slotsLoading &&
-                      bookableSlotCount > 0 && (
-                        <View style={s.slotsCountPill}>
-                          <Text style={s.slotsCountText}>{bookableSlotCount}</Text>
-                        </View>
-                      )}
-                    {isToday && !isSelected && <View style={s.todayDot} />}
+                    <Text
+                      style={[s.dateMonth, isSelected && s.dateMonthActive]}
+                    >
+                      {mon}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
-          </View>
 
-          {/* ── Date headline ── */}
-          <View style={s.dateHeadlineRow}>
-            <View>
-              <Text style={s.dateHeadlineDay}>
-                {WEEKDAY_SHORT[selectedDateObj.getDay()]}
-              </Text>
-              <Text style={s.dateHeadlineFull}>
-                {selectedDateObj.getDate()}{" "}
-                {MONTH_SHORT[selectedDateObj.getMonth()]}{" "}
-                {selectedDateObj.getFullYear()}
-              </Text>
-            </View>
-            {!slotsLoading && bookableSlotCount > 0 && (
-              <View style={s.availableCountBadge}>
-                <Ionicons name="checkmark-circle" size={12} color={C.success} />
-                <Text style={s.availableCountText}>
-                  {bookableSlotCount} available
-                </Text>
-              </View>
-            )}
-            {!slotsLoading && bookableSlotCount === 0 && slotsCount > 0 && (
-              <View style={s.unavailableBadge}>
-                <Ionicons name="time-outline" size={12} color={C.warning} />
-                <Text style={s.unavailableText}>Earlier times passed</Text>
-              </View>
-            )}
-            {!slotsLoading && slotsCount === 0 && (
-              <View style={s.unavailableBadge}>
-                <Ionicons name="close-circle" size={12} color={C.error} />
-                <Text style={s.unavailableText}>No slots</Text>
-              </View>
-            )}
-          </View>
-
-          {/* ── Slots card ── */}
-          <View style={s.slotsCard}>
+            {/* ── Time slots grid ── */}
             {slotsLoading ? (
               <View style={s.slotsLoading}>
                 <ActivityIndicator color={C.accent} size="small" />
@@ -580,8 +503,8 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                 </View>
                 <Text style={s.noSlotsTitle}>No availability</Text>
                 <Text style={s.noSlotsSub}>
-                  This provider has no open slots on this day.{"\n"}Try another
-                  date.
+                  This provider has no open slots on{" "}
+                  {formattedSectionDate}.{"\n"}Try another date.
                 </Text>
               </View>
             ) : bookableSlotCount === 0 ? (
@@ -591,80 +514,78 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                 </View>
                 <Text style={s.noSlotsTitle}>No times left today</Text>
                 <Text style={s.noSlotsSub}>
-                  All remaining slots for this day are in the past.{"\n"}Choose
-                  another date.
+                  All remaining slots are in the past.{"\n"}Choose another date.
                 </Text>
               </View>
             ) : (
-              <>
-                <Text style={s.slotGridLabel}>Select a time</Text>
-                <View style={s.slotGrid}>
-                  {slots.map((t) => {
-                    const past = isSlotStartInPast(selectedDate, t, nowForSlots);
-                    return (
-                      <SlotChip
-                        key={t}
-                        time={t}
-                        selected={t === selectedTime}
-                        disabled={past}
-                        onPress={() => setSelectedTime(t)}
-                      />
-                    );
-                  })}
-                </View>
-              </>
+              <View style={s.timeGrid}>
+                {slots.map((t) => {
+                  const past = isSlotStartInPast(selectedDate, t, nowForSlots);
+                  const sel = t === selectedTime;
+                  return (
+                    <TouchableOpacity
+                      key={t}
+                      style={[
+                        s.timeSlot,
+                        sel && s.timeSlotActive,
+                        past && s.timeSlotDisabled,
+                      ]}
+                      onPress={() => {
+                        if (!past) setSelectedTime(t);
+                      }}
+                      disabled={past}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[
+                          s.timeSlotText,
+                          sel && s.timeSlotTextActive,
+                          past && s.timeSlotTextDisabled,
+                        ]}
+                      >
+                        {t}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             )}
           </View>
 
           {/* ── Notes ── */}
-          <SectionHeader
-            label="Notes"
-            sub="Describe the problem or add any details"
-          />
-          <View style={s.notesCard}>
-            <TextInput
-              style={s.notesInput}
-              placeholder="E.g. The kitchen sink is leaking under the cabinet…"
-              placeholderTextColor={C.textLight}
-              multiline
-              value={notes}
-              onChangeText={(v) => setNotes(v.slice(0, NOTES_MAX))}
-              textAlignVertical="top"
-            />
-            <View style={s.notesFooter}>
-              <View style={s.notesHintRow}>
-                <Ionicons
-                  name="information-circle-outline"
-                  size={13}
-                  color={C.textLight}
-                />
-                <Text style={s.notesHint}>
-                  The more detail, the better your match
-                </Text>
-              </View>
-              <Text
-                style={[
-                  s.charCounter,
-                  notes.length > NOTES_MAX * 0.9 && { color: C.warning },
-                ]}
-              >
-                {notes.length}/{NOTES_MAX}
-              </Text>
-            </View>
-          </View>
-
-          {/* ── Photos ── */}
-          <SectionHeader
-            label="Attach photos"
-            sub="Help the provider understand the issue"
-          />
-          <View style={s.photosCard}>
-            {photoUris.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.thumbRow}
-              >
+          <View style={s.section}>
+            <SectionHeader label="Add Details" />
+            <View style={s.notesCard}>
+              <TextInput
+                style={s.notesInput}
+                placeholder="Add notes for the provider (e.g. bring ladder, key under mat)..."
+                placeholderTextColor={C.textLight}
+                multiline
+                value={notes}
+                onChangeText={(v) => setNotes(v.slice(0, NOTES_MAX))}
+                textAlignVertical="top"
+              />
+              <View style={s.photoRow}>
+                <TouchableOpacity
+                  style={[
+                    s.addPhotoBtn,
+                    photoUris.length >= MAX_PHOTOS && s.addPhotoBtnDisabled,
+                  ]}
+                  onPress={onAddPhotos}
+                  disabled={photoUris.length >= MAX_PHOTOS}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name="camera-outline"
+                    size={16}
+                    color={photoUris.length >= MAX_PHOTOS ? C.textLight : C.textSub}
+                  />
+                  <Text style={s.addPhotoText}>
+                    {photoUris.length >= MAX_PHOTOS
+                      ? `${MAX_PHOTOS}/${MAX_PHOTOS}`
+                      : "Add Photo"}
+                  </Text>
+                </TouchableOpacity>
                 {photoUris.map((uri) => (
                   <PhotoThumb
                     key={uri}
@@ -672,92 +593,37 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                     onRemove={() => onRemovePhoto(uri)}
                   />
                 ))}
-              </ScrollView>
-            )}
-            <TouchableOpacity
-              style={[
-                s.addPhotosBtn,
-                photoUris.length >= MAX_PHOTOS && s.addPhotosBtnDisabled,
-              ]}
-              onPress={onAddPhotos}
-              activeOpacity={0.85}
-              disabled={photoUris.length >= MAX_PHOTOS}
-            >
-              <View
-                style={[
-                  s.addPhotosIconBox,
-                  photoUris.length >= MAX_PHOTOS && s.addPhotosIconBoxDisabled,
-                ]}
-              >
-                <Ionicons
-                  name="camera-outline"
-                  size={17}
-                  color={
-                    photoUris.length >= MAX_PHOTOS ? C.textLight : C.accent
-                  }
-                />
               </View>
-              <Text
-                style={[
-                  s.addPhotosText,
-                  photoUris.length >= MAX_PHOTOS && { color: C.textLight },
-                ]}
-              >
-                {photoUris.length >= MAX_PHOTOS
-                  ? "Maximum photos reached"
-                  : `Add photos  ·  ${photoUris.length}/${MAX_PHOTOS}`}
-              </Text>
-              {photoUris.length < MAX_PHOTOS && (
-                <Ionicons
-                  name="chevron-forward"
-                  size={14}
-                  color={C.textLight}
-                />
-              )}
-            </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
 
         {/* ── Bottom sticky bar ── */}
-        <View
-          style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}
-        >
-          <View style={s.bottomRecap}>
-            {selectedTime ? (
-              <>
-                <Text style={s.bottomRecapLabel}>Your selection</Text>
-                <Text style={s.bottomRecapValue} numberOfLines={1}>
-                  {recapDateTime}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={s.bottomRecapLabel}>No slot selected</Text>
-                <Text style={s.bottomRecapPlaceholder}>Pick a time above</Text>
-              </>
-            )}
+        <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <View style={s.bottomBarContent}>
+            <TouchableOpacity
+              style={[
+                s.confirmButton,
+                (!selectedTime || submitting) && s.confirmButtonDisabled,
+              ]}
+              onPress={onSubmit}
+              disabled={!selectedTime || submitting}
+              activeOpacity={0.9}
+            >
+              {submitting ? (
+                <ActivityIndicator color={C.white} size="small" />
+              ) : (
+                <>
+                  <Text style={s.confirmButtonText}>
+                    {selectedTime
+                      ? `Confirm Booking · ${recapDateTime}`
+                      : "Select a time slot"}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={14} color={C.white} />
+                </>
+              )}
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            style={[
-              s.sendBtn,
-              (!selectedTime || submitting) && s.sendBtnDisabled,
-            ]}
-            onPress={onSubmit}
-            disabled={!selectedTime || submitting}
-            activeOpacity={0.88}
-          >
-            {submitting ? (
-              <ActivityIndicator color={C.white} size="small" />
-            ) : (
-              <>
-                <Text style={s.sendBtnText}>Send Request</Text>
-                <View style={s.sendBtnArrow}>
-                  <Ionicons name="arrow-forward" size={14} color={C.accent} />
-                </View>
-              </>
-            )}
-          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
@@ -766,509 +632,387 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
 
 // ─── Styles ────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#FAFAF9" },
-  root: { flex: 1, backgroundColor: "#F4F3FA" },
+  safe: { flex: 1, backgroundColor: C.white },
+  root: { flex: 1, backgroundColor: C.bg },
 
   // ── Header ──────────────────────────────────────────────
   header: {
+    backgroundColor: C.white,
+    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.borderLight,
+  },
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#FAFAF9",
   },
-  headerBack: {
+  headerIconBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: C.bg,
     borderWidth: 1,
-    borderColor: "#EBEBF5",
-    shadowColor: "#1A1A2E",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    borderColor: C.borderLight,
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#1A1A2E",
-    letterSpacing: -0.4,
-  },
-  headerRightSpacer: { width: 40 },
-
-  // ── Provider recap bar ───────────────────────────────────
-  recapBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EBEBF5",
-    shadowColor: "#1A1A2E",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  recapAvatarWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#EDE9FE",
-    borderWidth: 2,
-    borderColor: "#C4B5FD",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    shadowColor: "#7C5CFC",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  recapAvatarText: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#7C5CFC",
-  },
-  recapName: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: "700",
-    color: "#1A1A2E",
-    letterSpacing: -0.2,
-  },
-  recapService: {
-    fontSize: 12,
-    color: "#9B9BB0",
-    marginTop: 1,
-    fontWeight: "500",
-  },
-  durationBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "#EDE9FE",
-    borderWidth: 1,
-    borderColor: "#C4B5FD",
-    flexShrink: 0,
-  },
-  durationBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#7C5CFC",
+    color: C.text,
   },
 
   // ── Scroll ───────────────────────────────────────────────
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 16, gap: 4 },
+  scroll: { flex: 1, backgroundColor: C.bg },
+  scrollContent: { paddingBottom: 160 },
 
-  // ── Section header ───────────────────────────────────────
-  sectionHeader: {
+  // ── Service card ─────────────────────────────────────────
+  serviceCard: {
+    marginTop: 20,
+    marginHorizontal: 20,
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.borderLight,
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    marginTop: 22,
-    marginBottom: 10,
+    alignItems: "center",
+    gap: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
-  sectionBar: {
-    width: 3,
-    height: 36,
-    borderRadius: 2,
-    backgroundColor: "#7C5CFC",
-    marginTop: 1,
+  serviceAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: C.accentBg,
+    borderWidth: 1.5,
+    borderColor: C.accentBorder,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  sectionLabel: {
-    fontSize: 14,
+  serviceAvatarText: {
+    fontSize: 22,
     fontWeight: "800",
-    color: "#1A1A2E",
-    letterSpacing: -0.2,
+    color: C.accent,
   },
-  sectionSub: {
+  serviceInfo: { flex: 1 },
+  serviceTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: C.text,
+  },
+  serviceTags: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  serviceTag: {
+    backgroundColor: C.borderLight,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  serviceTagText: {
     fontSize: 12,
-    color: "#9B9BB0",
-    marginTop: 2,
+    color: C.textSub,
     fontWeight: "500",
   },
 
-  // ── Date strip ───────────────────────────────────────────
-  dateStripWrap: {
-    backgroundColor: "#FFFFFF",
+  // ── Section ──────────────────────────────────────────────
+  section: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: C.text,
+    marginBottom: 14,
+  },
+  sectionAction: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: C.accent,
+    marginBottom: 14,
+  },
+
+  // ── Location card ────────────────────────────────────────
+  locationCard: {
+    backgroundColor: C.white,
     borderRadius: 20,
+    padding: 4,
     borderWidth: 1,
-    borderColor: "#EBEBF5",
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    shadowColor: "#1A1A2E",
-    shadowOffset: { width: 0, height: 2 },
+    borderColor: C.borderLight,
+    shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowRadius: 10,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  dateStripContent: { gap: 6, paddingHorizontal: 8 },
-  dateCell: {
-    width: 52,
-    paddingVertical: 11,
+  mapPreview: {
+    height: 112,
     borderRadius: 16,
-    backgroundColor: "#F9F8FF",
+    overflow: "hidden",
+    backgroundColor: "#e8ecf4",
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
-    borderWidth: 1,
-    borderColor: "#EBEBF5",
-    minHeight: 72,
   },
-  dateCellToday: {
-    borderColor: "#C4B5FD",
-    backgroundColor: "#F5F3FF",
-    borderWidth: 1.5,
-  },
-  dateCellSelected: {
-    backgroundColor: "#7C5CFC",
-    borderColor: "#7C5CFC",
-    shadowColor: "#7C5CFC",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  dateDow: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#C4C4C4",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  dateDowToday: { color: "#7C5CFC" },
-  dateDowSelected: { color: "rgba(255,255,255,0.7)" },
-  dateDom: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1A1A2E",
-    fontVariant: ["tabular-nums"],
-  },
-  dateDomToday: { color: "#7C5CFC" },
-  dateDomSelected: { color: "#FFFFFF" },
-  todayDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#7C5CFC",
-  },
-  emptyDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: "#F43F5E",
-  },
-  slotsCountPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    minWidth: 20,
+  mapPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: "center",
+    justifyContent: "center",
+    opacity: 0.35,
   },
-  slotsCountText: {
-    fontSize: 9,
-    fontWeight: "800",
-    color: "#FFFFFF",
+  mapPin: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: C.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-
-  // ── Date headline ────────────────────────────────────────
-  dateHeadlineRow: {
+  locationDetails: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    marginTop: 16,
-    marginBottom: 10,
-    paddingHorizontal: 2,
+    padding: 14,
+    gap: 12,
   },
-  dateHeadlineDay: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#9B9BB0",
-    textTransform: "uppercase",
-    letterSpacing: 0.7,
-  },
-  dateHeadlineFull: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#1A1A2E",
-    letterSpacing: -0.5,
+  locationIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: C.accentBg,
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 2,
   },
-  availableCountBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: "#ECFDF5",
-    borderWidth: 1,
-    borderColor: "#6EE7B7",
-  },
-  availableCountText: {
-    fontSize: 11,
+  locationTextWrap: { flex: 1 },
+  locationTitle: {
+    fontSize: 14,
     fontWeight: "700",
-    color: "#059669",
+    color: C.text,
   },
-  unavailableBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-  },
-  unavailableText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#DC2626",
+  locationText: {
+    fontSize: 12,
+    color: C.textSub,
+    marginTop: 3,
+    lineHeight: 17,
   },
 
-  // ── Slots card ───────────────────────────────────────────
-  slotsCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+  // ── Date cards ───────────────────────────────────────────
+  dateScrollerWrap: {
+    marginHorizontal: -20,
+  },
+  dateScroller: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 10,
+  },
+  dateCard: {
+    width: 72,
+    height: 88,
+    borderRadius: 18,
+    backgroundColor: C.white,
     borderWidth: 1,
-    borderColor: "#EBEBF5",
-    padding: 16,
-    minHeight: 100,
-    shadowColor: "#1A1A2E",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    borderColor: C.borderLight,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  slotGridLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#9B9BB0",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 12,
+  dateCardActive: {
+    backgroundColor: C.accent,
+    borderColor: C.accent,
+    shadowColor: C.accent,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
   },
+  dateTop: {
+    fontSize: 10,
+    color: C.textLight,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  dateTopActive: { color: C.white },
+  dateDay: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: C.text,
+  },
+  dateDayActive: { color: C.white },
+  dateMonth: {
+    fontSize: 10,
+    color: C.textLight,
+    fontWeight: "500",
+    marginTop: 4,
+  },
+  dateMonthActive: { color: C.white },
+
+  // ── Time slots grid ──────────────────────────────────────
+  timeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  timeSlot: {
+    width: "30%" as unknown as number,
+    minWidth: 92,
+    paddingVertical: 13,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timeSlotActive: {
+    backgroundColor: C.accentBg,
+    borderColor: C.accent,
+    borderWidth: 1.5,
+  },
+  timeSlotDisabled: {
+    backgroundColor: C.bg,
+    borderColor: "transparent",
+    opacity: 0.55,
+  },
+  timeSlotText: {
+    fontSize: 13,
+    color: C.textSub,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
+  timeSlotTextActive: {
+    color: C.accent,
+    fontWeight: "700",
+  },
+  timeSlotTextDisabled: {
+    color: C.textLight,
+    fontWeight: "500",
+  },
+
+  // ── Slots loading / empty ────────────────────────────────
   slotsLoading: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 24,
+    paddingVertical: 32,
     gap: 10,
   },
   slotsLoadingText: {
     fontSize: 13,
-    color: "#9B9BB0",
+    color: C.textSub,
     fontWeight: "500",
   },
   noSlotsWrap: {
     alignItems: "center",
-    paddingVertical: 24,
+    paddingVertical: 28,
     gap: 8,
   },
   noSlotsIconBox: {
     width: 52,
     height: 52,
     borderRadius: 16,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: C.borderLight,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#EBEBF5",
     marginBottom: 4,
   },
   noSlotsTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#1A1A2E",
+    color: C.text,
   },
   noSlotsSub: {
     fontSize: 12,
-    color: "#9B9BB0",
+    color: C.textSub,
     textAlign: "center",
     lineHeight: 18,
     fontWeight: "500",
   },
-  slotGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  slotChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: "#F5F3FF",
-    borderWidth: 1.5,
-    borderColor: "#C4B5FD",
-  },
-  slotChipSelected: {
-    backgroundColor: "#7C5CFC",
-    borderColor: "#7C5CFC",
-    shadowColor: "#7C5CFC",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  slotChipDisabled: {
-    opacity: 0.5,
-    backgroundColor: "#F1F5F9",
-    borderColor: "#E2E8F0",
-  },
-  slotChipDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: "rgba(255,255,255,0.7)",
-  },
-  slotChipText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#7C5CFC",
-    fontVariant: ["tabular-nums"],
-  },
-  slotChipTextDisabled: {
-    color: "#94A3B8",
-  },
-  slotChipTextSelected: { color: "#FFFFFF" },
 
   // ── Notes card ───────────────────────────────────────────
   notesCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    backgroundColor: C.white,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#EBEBF5",
+    borderColor: C.border,
     overflow: "hidden",
-    shadowColor: "#1A1A2E",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
   },
   notesInput: {
-    minHeight: 112,
+    minHeight: 100,
     padding: 16,
     fontSize: 14,
-    color: "#1A1A2E",
-    lineHeight: 22,
-    fontWeight: "400",
+    color: C.textSub,
+    textAlignVertical: "top",
   },
-  notesFooter: {
+  photoRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#F4F3FA",
-    backgroundColor: "#FAFAF9",
-  },
-  notesHintRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  notesHint: {
-    fontSize: 11,
-    color: "#C4C4C4",
-    fontWeight: "500",
-  },
-  charCounter: {
-    fontSize: 11,
-    color: "#C4C4C4",
-    fontWeight: "600",
-    fontVariant: ["tabular-nums"],
-  },
-
-  // ── Photos card ──────────────────────────────────────────
-  photosCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#EBEBF5",
-    overflow: "hidden",
-    shadowColor: "#1A1A2E",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  thumbRow: {
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 4,
     gap: 10,
-  },
-  thumbWrap: { position: "relative" },
-  thumb: {
-    width: 80,
-    height: 80,
-    borderRadius: 14,
-    backgroundColor: "#F4F3FA",
-  },
-  thumbOverlay: {
-    position: "absolute",
-    inset: 0,
-    borderRadius: 14,
-    backgroundColor: "transparent",
-  },
-  thumbRemove: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#1A1A2E",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  addPhotosBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
+    backgroundColor: C.bg,
+    borderTopWidth: 1,
+    borderTopColor: C.borderLight,
+    flexWrap: "wrap",
   },
-  addPhotosBtnDisabled: { opacity: 0.45 },
-  addPhotosIconBox: {
-    width: 36,
-    height: 36,
+  addPhotoBtn: {
+    width: 64,
+    height: 64,
     borderRadius: 12,
-    backgroundColor: "#EDE9FE",
-    borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderWidth: 2,
+    borderColor: C.border,
+    borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
   },
-  addPhotosIconBoxDisabled: {
-    backgroundColor: "#F4F4F8",
-    borderColor: "#E8E8F0",
-  },
-  addPhotosText: {
-    flex: 1,
-    fontSize: 14,
+  addPhotoBtnDisabled: { opacity: 0.4 },
+  addPhotoText: {
+    fontSize: 9,
+    color: C.textSub,
     fontWeight: "600",
-    color: "#7C5CFC",
+    marginTop: 4,
+  },
+  photoPreview: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  photoImage: {
+    width: "100%",
+    height: "100%",
+  },
+  photoOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
   },
 
   // ── Bottom bar ───────────────────────────────────────────
@@ -1277,74 +1021,42 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: C.white,
     borderTopWidth: 1,
-    borderTopColor: "#EBEBF5",
-    shadowColor: "#1A1A2E",
+    borderTopColor: C.borderLight,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  bottomRecap: { flex: 1 },
-  bottomRecapLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#C4C4C4",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  bottomRecapValue: {
-    marginTop: 3,
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#1A1A2E",
-    letterSpacing: -0.2,
-  },
-  bottomRecapPlaceholder: {
-    marginTop: 3,
-    fontSize: 13,
-    color: "#C4C4C4",
-    fontWeight: "500",
-  },
-  sendBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 999,
-    backgroundColor: "#7C5CFC",
-    minWidth: 152,
-    justifyContent: "center",
-    shadowColor: "#7C5CFC",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
     elevation: 6,
   },
-  sendBtnDisabled: {
-    backgroundColor: "#E8E8F0",
+  bottomBarContent: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  confirmButton: {
+    backgroundColor: C.accent,
+    borderRadius: 16,
+    paddingVertical: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: C.accent,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  confirmButtonDisabled: {
+    backgroundColor: C.border,
     shadowOpacity: 0,
     elevation: 0,
   },
-  sendBtnText: {
-    color: "#FFFFFF",
-    fontSize: 14,
+  confirmButtonText: {
+    color: C.white,
     fontWeight: "700",
-    letterSpacing: 0.1,
-  },
-  sendBtnArrow: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.22)",
-    alignItems: "center",
-    justifyContent: "center",
+    fontSize: 14,
   },
 });

@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { COLORS } from "../../../constants";
 import { ConfirmModal } from "../../../components/common";
+import { useAppointmentRealtime } from "../../../hooks/useAppointmentRealtime";
 import { api, type AppointmentStatus } from "../../../services/api";
 import i18n from "../../../i18n";
 import {
@@ -1098,7 +1099,6 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
   const [confirmModal, setConfirmModal] =
     useState<ClientAppointmentConfirmModal | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [canReview, setCanReview] = useState(false);
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
   const [checkingReview, setCheckingReview] = useState(false);
@@ -1130,6 +1130,14 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
     void loadAppointment();
   }, [loadAppointment]);
 
+  useAppointmentRealtime(
+    appointmentId,
+    useCallback((raw) => {
+      const parsed = normalizeDetail(unwrapAppointmentApiPayload(raw));
+      if (parsed) setAppointment(parsed);
+    }, []),
+  );
+
   const hasClientStart = appointment
     ? hasConf(appointment, "CLIENT", "START")
     : false;
@@ -1146,9 +1154,6 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
     !hasProviderEnd &&
     appointment.startedAt;
 
-  const runPolling =
-    appointment?.status === "IN_PROGRESS" && hasClientStart && !hasProviderEnd;
-
   useEffect(() => {
     if (!runElapsedTimer || !appointment?.startedAt) {
       setElapsedSeconds(0);
@@ -1162,25 +1167,6 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [runElapsedTimer, appointment?.startedAt]);
-
-  useEffect(() => {
-    if (!runPolling) {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-      return;
-    }
-    pollRef.current = setInterval(() => {
-      void loadAppointment({ silent: true });
-    }, 15000);
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-  }, [runPolling, loadAppointment]);
 
   useEffect(() => {
     if (appointment?.status !== "COMPLETED") {

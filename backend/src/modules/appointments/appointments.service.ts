@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../../config/prisma.config';
 import { AvailabilityService } from '../availability/availability.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SupabaseRealtimeService } from '../supabase/supabase-realtime.service';
 import { ClientRespondRescheduleDto, ClientRescheduleAction } from './dto/client-respond-reschedule.dto';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { ExecutionAction, ExecutionActionDto } from './dto/execution-action.dto';
@@ -20,10 +21,31 @@ import { ProviderRespondAction, RespondAppointmentDto } from './dto/respond-appo
 
 @Injectable()
 export class AppointmentsService {
+  private readonly appointmentDetailInclude = {
+    givenService: {
+      include: {
+        service: {
+          include: {
+            translations: true,
+            category: { include: { translations: true } },
+          },
+        },
+      },
+    },
+    client: { include: { user: true } },
+    provider: { include: { user: true } },
+    confirmations: true,
+    complaints: {
+      select: { id: true },
+      take: 1,
+    },
+  } as const;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly availabilityService: AvailabilityService,
     private readonly notificationsService: NotificationsService,
+    private readonly realtime: SupabaseRealtimeService,
   ) {}
 
   async createAppointment(clientId: string, dto: CreateAppointmentDto) {
@@ -125,6 +147,7 @@ export class AppointmentsService {
       data: { appointmentId: appointment.id, screen: 'ProviderAppointmentDetail' },
     });
 
+    this.emitAppointmentUpdated(appointment.id);
     return appointment;
   }
 
@@ -178,25 +201,7 @@ export class AppointmentsService {
   async getAppointmentById(id: string, requesterId: string) {
     const appointment = await this.prisma.appointment.findUnique({
       where: { id },
-      include: {
-        givenService: {
-          include: {
-            service: {
-              include: {
-                translations: true,
-                category: { include: { translations: true } },
-              },
-            },
-          },
-        },
-        client: { include: { user: true } },
-        provider: { include: { user: true } },
-        confirmations: true,
-        complaints: {
-          select: { id: true },
-          take: 1,
-        },
-      },
+      include: this.appointmentDetailInclude,
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
     if (appointment.clientId !== requesterId && appointment.providerId !== requesterId) {
@@ -262,6 +267,7 @@ export class AppointmentsService {
         body: `${providerName} confirmed your booking for ${formattedDate} at ${appointment.scheduledTime}`,
         data: { appointmentId, screen: 'ClientAppointmentDetail' },
       });
+      this.emitAppointmentUpdated(appointmentId);
       return updated;
     }
 
@@ -289,6 +295,7 @@ export class AppointmentsService {
         body: `${providerName} could not accept your request. Reason: ${dto.refusalReason?.trim() || 'Not specified'}`,
         data: { appointmentId, screen: 'ClientAppointmentDetail' },
       });
+      this.emitAppointmentUpdated(appointmentId);
       return updated;
     }
 
@@ -322,6 +329,7 @@ export class AppointmentsService {
       body: `${providerName} proposed a new time: ${formattedRescheduleDate} at ${dto.rescheduleTime}`,
       data: { appointmentId, screen: 'ClientAppointmentDetail' },
     });
+    this.emitAppointmentUpdated(appointmentId);
     return updated;
   }
 
@@ -377,6 +385,7 @@ export class AppointmentsService {
         body: `${clientName} accepted the new time: ${formattedDate} at ${appointment.rescheduleTime}`,
         data: { appointmentId, screen: 'ProviderAppointmentDetail' },
       });
+      this.emitAppointmentUpdated(appointmentId);
       return updated;
     }
 
@@ -400,6 +409,7 @@ export class AppointmentsService {
       body: `${clientName} declined the proposed time and cancelled the request`,
       data: { appointmentId, screen: 'ProviderAppointmentDetail' },
     });
+    this.emitAppointmentUpdated(appointmentId);
     return updated;
   }
 
@@ -482,6 +492,7 @@ export class AppointmentsService {
         data: { appointmentId, screen: 'ClientAppointmentDetail' },
       });
     }
+    this.emitAppointmentUpdated(appointmentId);
     return updated;
   }
 
@@ -532,6 +543,7 @@ export class AppointmentsService {
         body: `${providerName} is heading to you now`,
         data: { appointmentId, screen: 'ClientAppointmentDetail' },
       });
+      this.emitAppointmentUpdated(appointmentId);
       return updated;
     }
 
@@ -589,6 +601,7 @@ export class AppointmentsService {
           action: 'CONFIRM_START',
         },
       });
+      this.emitAppointmentUpdated(appointmentId);
       return updated;
     }
 
@@ -656,6 +669,7 @@ export class AppointmentsService {
         },
       });
     }
+    this.emitAppointmentUpdated(appointmentId);
     return updated;
   }
 
@@ -706,15 +720,21 @@ export class AppointmentsService {
         },
       });
       if (providerStart) {
-        return this.prisma.appointment.update({
+        const updated = await this.prisma.appointment.update({
           where: { id: appointmentId },
           data: {
             status: AppointmentStatus.IN_PROGRESS,
             startedAt: new Date(),
           },
         });
+        this.emitAppointmentUpdated(appointmentId);
+        return updated;
       }
-      return this.prisma.appointment.findUnique({ where: { id: appointmentId } });
+      const current = await this.prisma.appointment.findUnique({
+        where: { id: appointmentId },
+      });
+      this.emitAppointmentUpdated(appointmentId);
+      return current;
     }
 
     const providerEnd = await this.prisma.appointmentConfirmation.findUnique({
@@ -734,7 +754,7 @@ export class AppointmentsService {
         0,
         Math.round((now.getTime() - startedAt.getTime()) / 60000),
       );
-      return this.prisma.$transaction(async (tx) => {
+      const updated = await this.prisma.$transaction(async (tx) => {
         const updatedAppointment = await tx.appointment.update({
           where: { id: appointmentId },
           data: {
@@ -842,9 +862,15 @@ export class AppointmentsService {
 
         return updatedAppointment;
       });
+      this.emitAppointmentUpdated(appointmentId);
+      return updated;
     }
 
-    return this.prisma.appointment.findUnique({ where: { id: appointmentId } });
+    const current = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+    });
+    this.emitAppointmentUpdated(appointmentId);
+    return current;
   }
 
   async getProviderCalendar(providerId: string, from: string, to: string) {
@@ -871,6 +897,22 @@ export class AppointmentsService {
       },
       orderBy: [{ scheduledDate: 'asc' }, { scheduledTime: 'asc' }],
     });
+  }
+
+  private emitAppointmentUpdated(appointmentId: string): void {
+    void this.fetchAndBroadcastAppointment(appointmentId);
+  }
+
+  private async fetchAndBroadcastAppointment(appointmentId: string): Promise<void> {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: this.appointmentDetailInclude,
+    });
+    if (!appointment) return;
+    void this.realtime.broadcastAppointmentUpdated(
+      appointmentId,
+      JSON.parse(JSON.stringify(appointment)) as Record<string, unknown>,
+    );
   }
 
   private formatDateForNotification(dateStr: string): string {

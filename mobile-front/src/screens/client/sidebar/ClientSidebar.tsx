@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -20,7 +20,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import { useMessagingUnreadTotal } from "../../../hooks/useMessagingUnreadTotal";
-import { api } from "../../../services/api";
+import { useNotificationsRealtime } from "../../../context/NotificationsRealtimeContext";
 
 const SIDEBAR_BADGE_CAP = 10;
 
@@ -93,21 +93,13 @@ export const ClientSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
 
   const { total: messagingUnread, refresh: refreshMessagingUnread } =
     useMessagingUnreadTotal(isOpen);
-  const [notificationUnread, setNotificationUnread] = useState(0);
-
-  const refreshNotificationUnread = async () => {
-    try {
-      const res = await api.getUnreadCount();
-      setNotificationUnread(res.data?.count ?? 0);
-    } catch {
-      setNotificationUnread(0);
-    }
-  };
+  const { unreadCount: notificationUnread, refreshUnreadCount } =
+    useNotificationsRealtime();
 
   useEffect(() => {
     if (!isOpen) return;
-    void refreshNotificationUnread();
-  }, [isOpen]);
+    void refreshUnreadCount();
+  }, [isOpen, refreshUnreadCount]);
 
   const handleLogout = async () => {
     onClose();
@@ -200,7 +192,7 @@ export const ClientSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
                     void refreshMessagingUnread();
                   }
                   if (item.key === "Notifications") {
-                    void refreshNotificationUnread();
+                    void refreshUnreadCount();
                   }
                   onClose();
                 }}

@@ -23,6 +23,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { ProviderStackParamList } from "../../../navigation/types";
+import { useNotificationsRealtime } from "../../../context/NotificationsRealtimeContext";
 import {
   api,
   mapProviderCalendarAppointmentRow,
@@ -845,7 +846,7 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
 export const ProviderHomeScreen: React.FC = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<ProviderStackParamList>>();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount, refreshUnreadCount } = useNotificationsRealtime();
   const [activeJob, setActiveJob] =
     useState<ProviderCalendarAppointment | null>(null);
   const [activeJobLoading, setActiveJobLoading] = useState(true);
@@ -875,19 +876,8 @@ export const ProviderHomeScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      void (async () => {
-        try {
-          const res = await api.getUnreadCount();
-          if (!cancelled) setUnreadCount(res.data?.count ?? 0);
-        } catch {
-          if (!cancelled) setUnreadCount(0);
-        }
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }, []),
+      void refreshUnreadCount();
+    }, [refreshUnreadCount]),
   );
 
   useLayoutEffect(() => {

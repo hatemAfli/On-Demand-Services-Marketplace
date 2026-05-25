@@ -33,7 +33,43 @@ export class SupabaseRealtimeService {
     conversationId: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    const channelName = `conversation:${conversationId}`;
+    await this.broadcast(
+      `conversation:${conversationId}`,
+      'new_message',
+      payload,
+    );
+  }
+
+  /**
+   * Broadcast on `notifications:{userId}` so the recipient's app updates in real time.
+   */
+  async broadcastNotification(
+    userId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    await this.broadcast(`notifications:${userId}`, 'new_notification', payload);
+  }
+
+  /**
+   * Broadcast on `appointment:{appointmentId}` so client and provider detail screens
+   * update status and timer without polling.
+   */
+  async broadcastAppointmentUpdated(
+    appointmentId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    await this.broadcast(
+      `appointment:${appointmentId}`,
+      'appointment_updated',
+      payload,
+    );
+  }
+
+  private async broadcast(
+    channelName: string,
+    event: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
     const channel = this.client.channel(channelName);
 
     await new Promise<void>((resolve) => {
@@ -69,7 +105,7 @@ export class SupabaseRealtimeService {
           void channel
             .send({
               type: 'broadcast',
-              event: 'new_message',
+              event,
               payload,
             })
             .then(() => {

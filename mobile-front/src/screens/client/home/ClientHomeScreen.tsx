@@ -24,6 +24,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { FontAwesome5 as Icon, Ionicons } from "@expo/vector-icons";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
+import { useNotificationsRealtime } from "../../../context/NotificationsRealtimeContext";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import i18n from "../../../i18n";
 import { api, type AppointmentStatus } from "../../../services/api";
@@ -426,7 +427,7 @@ export const ClientHomeScreen: React.FC = () => {
 
   const [refreshing, setRefreshing] = useState(false);
   const [categoriesRefreshSignal, setCategoriesRefreshSignal] = useState(0);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount, refreshUnreadCount } = useNotificationsRealtime();
 
   const [activeOrderLoading, setActiveOrderLoading] = useState(true);
   const [activeOrderHighlight, setActiveOrderHighlight] =
@@ -516,20 +517,9 @@ export const ClientHomeScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      void (async () => {
-        try {
-          const res = await api.getUnreadCount();
-          if (!cancelled) setUnreadCount(res.data?.count ?? 0);
-        } catch {
-          if (!cancelled) setUnreadCount(0);
-        }
-      })();
+      void refreshUnreadCount();
       void loadActiveOrder();
-      return () => {
-        cancelled = true;
-      };
-    }, [loadActiveOrder]),
+    }, [loadActiveOrder, refreshUnreadCount]),
   );
 
   useEffect(() => {

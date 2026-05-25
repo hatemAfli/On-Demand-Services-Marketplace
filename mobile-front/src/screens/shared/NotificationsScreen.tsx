@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants";
+import { useNotificationsRealtime } from "../../context/NotificationsRealtimeContext";
 import { api, type AppNotification, type NotificationType } from "../../services/api";
 
 type NotificationIconConfig = {
@@ -127,32 +128,45 @@ function formatRelativeTime(createdAt: string): string {
 export const NotificationsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const {
+    unreadCount,
+    refreshUnreadCount,
+    adjustUnreadCount,
+    addNewNotificationListener,
+  } = useNotificationsRealtime();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [listRes, unreadRes] = await Promise.all([
+      const [listRes] = await Promise.all([
         api.getMyNotifications(0, 30),
-        api.getUnreadCount(),
+        refreshUnreadCount(),
       ]);
       setNotifications(Array.isArray(listRes.data) ? listRes.data : []);
-      setUnreadCount(unreadRes.data?.count ?? 0);
     } finally {
       if (isRefresh) setRefreshing(false);
       else setLoading(false);
     }
-  }, []);
+  }, [refreshUnreadCount]);
 
   useFocusEffect(
     useCallback(() => {
       void load(false);
     }, [load]),
   );
+
+  useEffect(() => {
+    return addNewNotificationListener((notification) => {
+      setNotifications((prev) => {
+        if (prev.some((row) => row.id === notification.id)) return prev;
+        return [notification, ...prev];
+      });
+    });
+  }, [addNewNotificationListener]);
 
   const hasUnread = useMemo(
     () => unreadCount > 0 || notifications.some((n) => !n.isRead),
@@ -166,8 +180,8 @@ export const NotificationsScreen: React.FC = () => {
   const onMarkAllRead = useCallback(async () => {
     await api.markAllAsRead();
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    setUnreadCount(0);
-  }, []);
+    void refreshUnreadCount();
+  }, [refreshUnreadCount]);
 
   const handleNotificationPress = useCallback(
     async (item: AppNotification) => {
@@ -176,7 +190,7 @@ export const NotificationsScreen: React.FC = () => {
         setNotifications((prev) =>
           prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)),
         );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
+        adjustUnreadCount(-1);
       }
 
       if (item.type === "DOCUMENT_ACCEPTED" || item.type === "ACCOUNT_VERIFIED") {
@@ -224,7 +238,7 @@ export const NotificationsScreen: React.FC = () => {
       }
       navigation.navigate(screen, appointmentId ? { appointmentId } : undefined);
     },
-    [navigation],
+    [navigation, adjustUnreadCount],
   );
 
   const renderRow = useCallback(

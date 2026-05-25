@@ -3,6 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { Prisma, type Notification, type NotificationType } from '@prisma/client';
 import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../../config/prisma.config';
+import { SupabaseRealtimeService } from '../supabase/supabase-realtime.service';
 import { MarkNotificationsReadDto } from './dto/mark-read.dto';
 import { RegisterPushTokenDto } from './dto/register-push-token.dto';
 
@@ -21,6 +22,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly httpService: HttpService,
+    private readonly realtime: SupabaseRealtimeService,
   ) {}
 
   async registerPushToken(userId: string, dto: RegisterPushTokenDto): Promise<void> {
@@ -95,7 +97,7 @@ export class NotificationsService {
   }
 
   async send(payload: SendNotificationPayload): Promise<void> {
-    await this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: {
         userId: payload.userId,
         type: payload.type,
@@ -106,6 +108,19 @@ export class NotificationsService {
           : Prisma.JsonNull,
         isRead: false,
       },
+    });
+
+    void this.realtime.broadcastNotification(payload.userId, {
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      body: notification.body,
+      data:
+        notification.data && typeof notification.data === 'object'
+          ? (notification.data as Record<string, unknown>)
+          : null,
+      isRead: notification.isRead,
+      createdAt: notification.createdAt.toISOString(),
     });
 
     const tokens = await this.getUserTokens(payload.userId);

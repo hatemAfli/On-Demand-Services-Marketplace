@@ -30,6 +30,7 @@ import {
 } from "../../../components/common";
 import type { ProviderStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
+import { useAppointmentRealtime } from "../../../hooks/useAppointmentRealtime";
 import { api, type AppointmentStatus } from "../../../services/api";
 import {
   uploadAppointmentInterventionPhotos,
@@ -844,6 +845,14 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     void loadAppointment();
   }, [loadAppointment]);
 
+  useAppointmentRealtime(
+    appointmentId,
+    useCallback((raw) => {
+      const parsed = parseAppointment(raw);
+      if (parsed) setAppointment(parsed);
+    }, []),
+  );
+
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
@@ -1201,7 +1210,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
             {appointment.status === "PENDING" ? (
               <View style={styles.actionBlock}>
                 <View style={styles.infoCard}>
-                  <Ionicons name="hourglass" size={22} color="#D97706" />
+                  <Ionicons name="hourglass" size={18} color="#D97706" />
                   <Text style={styles.infoCardText}>
                     New booking request from {clientName}. Accept, refuse, or
                     propose a new time.
@@ -1221,9 +1230,9 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
                     <>
-                      <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                      <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
                       <Text style={styles.btnPrimaryGreenText}>
-                        Accept appointment
+                        Accept Appointment
                       </Text>
                     </>
                   )}
@@ -1239,6 +1248,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                     onPress={() => setRefuseMode(true)}
                     activeOpacity={0.88}
                   >
+                    <Ionicons name="close-circle-outline" size={16} color="#DC2626" />
                     <Text style={styles.btnOutlineRedText}>Refuse</Text>
                   </TouchableOpacity>
                 ) : (
@@ -1304,7 +1314,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
             {appointment.status === "CONFIRMED" ? (
               <View style={styles.actionBlock}>
                 <View style={styles.successCard}>
-                  <Ionicons name="checkmark-circle" size={22} color="#059669" />
+                  <Ionicons name="checkmark-circle" size={18} color="#059669" />
                   <Text style={styles.successCardText}>
                     Confirmed for {formatLongDate(appointment.scheduledDate)}.
                   </Text>
@@ -1322,7 +1332,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
                     <>
-                      <Ionicons name="car" size={18} color="#FFFFFF" />
+                      <Ionicons name="car" size={16} color="#FFFFFF" />
                       <Text style={styles.btnPrimaryText}>Mark as En Route</Text>
                     </>
                   )}
@@ -1398,7 +1408,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
                     <>
-                      <Ionicons name="play" size={18} color="#FFFFFF" />
+                      <Ionicons name="play" size={16} color="#FFFFFF" />
                       <Text style={styles.btnPrimaryText}>Start Service</Text>
                     </>
                   )}
@@ -1479,7 +1489,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                     <>
                       <Ionicons
                         name="checkmark-done"
-                        size={20}
+                        size={16}
                         color="#FFFFFF"
                       />
                       <Text style={styles.btnPrimaryGreenText}>End Service</Text>
@@ -1694,14 +1704,32 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
           <View
             style={[
               sheetStyles.sheetCard,
-              { paddingBottom: Math.max(insets.bottom, 20) },
+              { paddingBottom: Math.max(insets.bottom, 24) },
             ]}
           >
             <View style={sheetStyles.sheetHandleRow}>
               <View style={sheetStyles.sheetHandle} />
             </View>
 
-            <Text style={sheetStyles.sheetTitle}>Propose new time</Text>
+            <View style={sheetStyles.sheetHeaderRow}>
+              <View style={sheetStyles.sheetHeaderIcon}>
+                <Ionicons name="calendar-outline" size={20} color="#6366F1" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={sheetStyles.sheetTitle}>Propose New Time</Text>
+                <Text style={sheetStyles.sheetDesc}>
+                  Pick a date and time that works better for this appointment.
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() =>
+                  !actionLoading && setRescheduleSheetVisible(false)
+                }
+                hitSlop={12}
+              >
+                <Ionicons name="close" size={22} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
 
             <Text style={sheetStyles.sheetSub}>Choose a date</Text>
             <ScrollView
@@ -1714,8 +1742,12 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                 return (
                   <TouchableOpacity
                     key={chip.key}
-                    style={[sheetStyles.dateChip, sel && sheetStyles.dateChipSelected]}
+                    style={[
+                      sheetStyles.dateChip,
+                      sel && sheetStyles.dateChipSelected,
+                    ]}
                     onPress={() => setRescheduleDateKey(chip.key)}
+                    activeOpacity={0.8}
                   >
                     <Text
                       style={[
@@ -1738,83 +1770,91 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                   style={sheetStyles.timeCol}
                   showsVerticalScrollIndicator={false}
                 >
-                  {RESCHEDULE_HOURS.map((h) => (
-                    <TouchableOpacity
-                      key={h}
-                      style={[
-                        sheetStyles.timeChip,
-                        rescheduleHour === h && sheetStyles.timeChipSelected,
-                      ]}
-                      onPress={() => setRescheduleHour(h)}
-                    >
-                      <Text
+                  {RESCHEDULE_HOURS.map((h) => {
+                    const sel = rescheduleHour === h;
+                    return (
+                      <TouchableOpacity
+                        key={h}
                         style={[
-                          sheetStyles.timeChipText,
-                          rescheduleHour === h && sheetStyles.timeChipTextSelected,
+                          sheetStyles.timeChip,
+                          sel && sheetStyles.timeChipSelected,
                         ]}
+                        onPress={() => setRescheduleHour(h)}
+                        activeOpacity={0.8}
                       >
-                        {h}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text
+                          style={[
+                            sheetStyles.timeChipText,
+                            sel && sheetStyles.timeChipTextSelected,
+                          ]}
+                        >
+                          {h}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
               </View>
               <Text style={sheetStyles.timeColon}>:</Text>
               <View style={sheetStyles.timeColWrap}>
-                <Text style={sheetStyles.timeColLabel}>Min</Text>
+                <Text style={sheetStyles.timeColLabel}>Minute</Text>
                 <ScrollView
                   style={sheetStyles.timeCol}
                   showsVerticalScrollIndicator={false}
                 >
-                  {RESCHEDULE_MINUTES.map((m) => (
-                    <TouchableOpacity
-                      key={m}
-                      style={[
-                        sheetStyles.timeChip,
-                        rescheduleMinute === m && sheetStyles.timeChipSelected,
-                      ]}
-                      onPress={() => setRescheduleMinute(m)}
-                    >
-                      <Text
+                  {RESCHEDULE_MINUTES.map((m) => {
+                    const sel = rescheduleMinute === m;
+                    return (
+                      <TouchableOpacity
+                        key={m}
                         style={[
-                          sheetStyles.timeChipText,
-                          rescheduleMinute === m &&
-                            sheetStyles.timeChipTextSelected,
+                          sheetStyles.timeChip,
+                          sel && sheetStyles.timeChipSelected,
                         ]}
+                        onPress={() => setRescheduleMinute(m)}
+                        activeOpacity={0.8}
                       >
-                        {m}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text
+                          style={[
+                            sheetStyles.timeChipText,
+                            sel && sheetStyles.timeChipTextSelected,
+                          ]}
+                        >
+                          {m}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
               </View>
             </View>
 
             <View style={sheetStyles.timePreview}>
-              <Ionicons name="time-outline" size={14} color="#6366F1" />
-              <Text style={sheetStyles.timePreviewText}>
-                {rescheduleDayChips.find((c) => c.key === rescheduleDateKey)
-                  ?.label ?? rescheduleDateKey}{" "}
-                · {rescheduleHour}:{rescheduleMinute}
-              </Text>
+              <View style={sheetStyles.timePreviewBadge}>
+                <Ionicons name="time-outline" size={14} color="#6366F1" />
+                <Text style={sheetStyles.timePreviewText}>
+                  {rescheduleDayChips.find((c) => c.key === rescheduleDateKey)
+                    ?.label ?? rescheduleDateKey}{" "}
+                  at {rescheduleHour}:{rescheduleMinute}
+                </Text>
+              </View>
             </View>
 
             <TouchableOpacity
               style={[
-                styles.btnPrimary,
-                { marginTop: 16 },
+                sheetStyles.sendBtn,
                 actionLoading && styles.btnDisabled,
               ]}
               onPress={onProposeReschedule}
               disabled={actionLoading}
-              activeOpacity={0.88}
+              activeOpacity={0.85}
             >
               {actionLoading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="send-outline" size={16} color="#FFFFFF" />
-                  <Text style={styles.btnPrimaryText}>Send proposal</Text>
+                  <Ionicons name="paper-plane" size={15} color="#FFFFFF" />
+                  <Text style={sheetStyles.sendBtnText}>Send Proposal</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -2126,86 +2166,93 @@ const styles = StyleSheet.create({
   infoCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     backgroundColor: "#FFFBEB",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
     marginBottom: 12,
   },
   infoCardText: {
-    fontSize: 15,
+    fontSize: 13,
     color: "#92400E",
     fontWeight: "600",
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 19,
   },
   successCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     backgroundColor: "#ECFDF5",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
     marginBottom: 12,
   },
   successCardText: {
-    fontSize: 15,
+    fontSize: 13,
     color: "#065F46",
     fontWeight: "600",
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 19,
   },
   btnPrimary: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
     backgroundColor: "#6366F1",
-    borderRadius: 16,
-    minHeight: 52,
+    borderRadius: 14,
+    paddingVertical: 11,
     shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
     elevation: 4,
   },
   btnPrimaryText: {
     color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 16,
+    fontWeight: "600",
+    fontSize: 14,
+    letterSpacing: 0.2,
   },
   btnOutlineRed: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
     borderWidth: 1.5,
     borderColor: "#FECACA",
     backgroundColor: "#FEF2F2",
-    borderRadius: 16,
-    minHeight: 54,
+    borderRadius: 14,
+    paddingVertical: 10,
     marginTop: 10,
   },
   btnOutlineRedText: {
     color: "#DC2626",
-    fontWeight: "700",
-    fontSize: 16,
+    fontWeight: "600",
+    fontSize: 14,
   },
   btnPrimaryGreen: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    backgroundColor: COLORS.secondary || "#10B981",
-    borderRadius: 16,
-    minHeight: 54,
+    gap: 6,
+    backgroundColor: "#10B981",
+    borderRadius: 14,
+    paddingVertical: 11,
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   btnPrimaryGreenText: {
     color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 16,
+    fontWeight: "600",
+    fontSize: 14,
+    letterSpacing: 0.2,
   },
   btnDisabled: {
     opacity: 0.65,
@@ -2244,17 +2291,17 @@ const styles = StyleSheet.create({
   },
   cancelLinkWrap: {
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   linkDanger: {
     color: "#DC2626",
-    fontWeight: "700",
-    fontSize: 15,
+    fontWeight: "600",
+    fontSize: 13,
   },
   linkMuted: {
     color: "#64748B",
-    fontWeight: "700",
-    fontSize: 15,
+    fontWeight: "600",
+    fontSize: 13,
   },
   enRouteCard: {
     alignItems: "center",
@@ -2309,11 +2356,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   awaitingText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "600",
     color: "#5B21B6",
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 19,
   },
   timerCard: {
     alignItems: "center",
@@ -2505,8 +2552,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   proposeLinkText: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "600",
     color: "#6366F1",
   },
   photoRowWrap: {
@@ -2553,7 +2600,7 @@ const sheetStyles = StyleSheet.create({
   modalRoot: { flex: 1, justifyContent: "flex-end" },
   sheetBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(15,23,42,0.5)",
+    backgroundColor: "rgba(15,23,42,0.45)",
   },
   sheetCard: {
     backgroundColor: "#FFFFFF",
@@ -2561,31 +2608,50 @@ const sheetStyles = StyleSheet.create({
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 8,
-    maxHeight: "90%",
+    maxHeight: "92%",
     borderTopWidth: 1,
     borderColor: "#EAECF4",
   },
-  sheetHandleRow: { alignItems: "center", paddingBottom: 16 },
+  sheetHandleRow: { alignItems: "center", paddingBottom: 12 },
   sheetHandle: {
-    width: 36,
+    width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#EAECF4",
+    backgroundColor: "#E2E8F0",
   },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0F172A",
-    letterSpacing: -0.3,
+  sheetHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
     marginBottom: 4,
   },
-  sheetSub: {
-    fontSize: 12,
+  sheetHeaderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetTitle: {
+    fontSize: 17,
     fontWeight: "700",
+    color: "#0F172A",
+    letterSpacing: -0.2,
+  },
+  sheetDesc: {
+    fontSize: 12,
     color: "#64748B",
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  sheetSub: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94A3B8",
     textTransform: "uppercase",
-    letterSpacing: 0.7,
-    marginTop: 14,
+    letterSpacing: 0.8,
+    marginTop: 18,
     marginBottom: 10,
   },
   dateChipsRow: { gap: 8, paddingVertical: 4 },
@@ -2593,21 +2659,33 @@ const sheetStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: "#F7F8FC",
-    borderWidth: 1,
-    borderColor: "#EAECF4",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
   },
-  dateChipSelected: { backgroundColor: "#6366F1", borderColor: "#6366F1" },
-  dateChipText: { fontSize: 13, fontWeight: "700", color: "#0F172A" },
-  dateChipTextSelected: { color: "#FFFFFF" },
+  dateChipSelected: {
+    backgroundColor: "#6366F1",
+    borderColor: "#6366F1",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  dateChipText: { fontSize: 13, fontWeight: "600", color: "#334155" },
+  dateChipTextSelected: { color: "#FFFFFF", fontWeight: "700" },
   timePickRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    maxHeight: 180,
+    gap: 6,
+    height: 220,
     marginBottom: 4,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
-  timeColWrap: { flex: 1, gap: 4 },
+  timeColWrap: { flex: 1, gap: 6 },
   timeColLabel: {
     fontSize: 11,
     fontWeight: "700",
@@ -2618,31 +2696,65 @@ const sheetStyles = StyleSheet.create({
   },
   timeCol: { flex: 1 },
   timeColon: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "800",
-    color: "#64748B",
+    color: "#CBD5E1",
     paddingBottom: 20,
   },
   timeChip: {
-    paddingVertical: 10,
+    height: 44,
     alignItems: "center",
+    justifyContent: "center",
     borderRadius: 10,
     marginVertical: 2,
+    marginHorizontal: 4,
   },
   timeChipSelected: {
-    backgroundColor: "#EEF2FF",
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#A5B4FC",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  timeChipText: { fontSize: 16, fontWeight: "600", color: "#64748B" },
+  timeChipText: { fontSize: 18, fontWeight: "600", color: "#94A3B8" },
   timeChipTextSelected: { color: "#6366F1", fontWeight: "800" },
   timePreview: {
+    alignItems: "center",
+    paddingTop: 14,
+    paddingBottom: 6,
+  },
+  timePreviewBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    justifyContent: "center",
-    paddingTop: 10,
-    paddingBottom: 4,
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
-  timePreviewText: { fontSize: 14, fontWeight: "700", color: "#6366F1" },
+  timePreviewText: { fontSize: 13, fontWeight: "700", color: "#6366F1" },
+  sendBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#6366F1",
+    borderRadius: 14,
+    paddingVertical: 13,
+    marginTop: 16,
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  sendBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 15,
+    letterSpacing: 0.3,
+  },
 });

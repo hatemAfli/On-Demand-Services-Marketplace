@@ -5,6 +5,7 @@ import { View, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/context/AuthContext";
+import { NotificationsRealtimeProvider } from "./src/context/NotificationsRealtimeContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { AppLaunchOverlay } from "./src/components/common/AppLaunchOverlay";
 import { navigationRef } from "./src/navigation/rootNavigationRef";
@@ -33,10 +34,12 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <View style={styles.root}>
-          <AppNavigator />
-          {showSplash && <AppLaunchOverlay />}
-        </View>
+        <NotificationsRealtimeProvider>
+          <View style={styles.root}>
+            <AppNavigator />
+            {showSplash && <AppLaunchOverlay />}
+          </View>
+        </NotificationsRealtimeProvider>
         <StatusBar style="auto" />
       </AuthProvider>
     </SafeAreaProvider>
