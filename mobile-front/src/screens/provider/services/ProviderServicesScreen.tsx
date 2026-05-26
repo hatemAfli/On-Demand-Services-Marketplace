@@ -74,13 +74,9 @@ const COLORS = {
   borderLight: "#F1F5F9",
   surface: "#F8FAFC",
   surface2: "#F1F5F9",
-
-  // Brand
   primary: "#7C3AED",
   primaryLight: "#EDE9FE",
   primaryMid: "#8B5CF6",
-
-  // Status
   success: "#059669",
   successBg: "#ECFDF5",
   successBorder: "#A7F3D0",
@@ -93,17 +89,13 @@ const COLORS = {
   info: "#2563EB",
   infoBg: "#EFF6FF",
   infoBorder: "#BFDBFE",
-
-  // Tones
   blue: "#2563EB",
   pink: "#DB2777",
   gray: "#475569",
-
-  // Overlay
   overlay: "rgba(124,58,237,0.06)",
 };
 
-// ─── Status config helper ──────────────────────────────────
+// ─── Status config helper (unchanged) ─────────────────────
 const requestStatusConfig = (status: string) => {
   switch (status) {
     case "APPROVED":
@@ -161,7 +153,7 @@ function ServiceCardView({
         ]}
       >
         <View style={styles.addNewIconWrap}>
-          <Ionicons name="add" size={22} color={COLORS.primary} />
+          <Ionicons name="add" size={24} color={COLORS.primary} />
         </View>
         <Text style={styles.addNewTitle}>Request a New Service</Text>
         <Text style={styles.addNewSubtitle}>
@@ -200,19 +192,14 @@ function ServiceCardView({
           <View style={styles.cardMediaPlaceholder}>
             <Ionicons
               name="construct-outline"
-              size={28}
+              size={32}
               color={COLORS.textMuted2}
             />
           </View>
         )}
 
-        {/* Category pill */}
-        <View style={[styles.categoryPill, { borderColor: toneColor + "30" }]}>
-          <View style={[styles.categoryDot, { backgroundColor: toneColor }]} />
-          <Text style={[styles.categoryPillText, { color: toneColor }]}>
-            {item.category}
-          </Text>
-        </View>
+        {/* Gradient overlay for readability */}
+        <View style={styles.cardMediaGradient} />
 
         {/* Active / inactive badge */}
         <View
@@ -238,6 +225,14 @@ function ServiceCardView({
             {item.isActive ? "Active" : "Inactive"}
           </Text>
         </View>
+
+        {/* Category pill — bottom left */}
+        <View style={[styles.categoryPill, { borderColor: toneColor + "40" }]}>
+          <View style={[styles.categoryDot, { backgroundColor: toneColor }]} />
+          <Text style={[styles.categoryPillText, { color: toneColor }]}>
+            {item.category}
+          </Text>
+        </View>
       </View>
 
       {/* Card body */}
@@ -258,7 +253,7 @@ function ServiceCardView({
           </Text>
         ) : null}
 
-        {/* Footer row */}
+        {/* Footer */}
         <View style={styles.cardFooter}>
           <View style={styles.cardFooterItem}>
             <Ionicons
@@ -268,6 +263,7 @@ function ServiceCardView({
             />
             <Text style={styles.cardFooterText}>Gallery</Text>
           </View>
+          <View style={styles.cardFooterDot} />
           <View style={styles.cardFooterItem}>
             <Ionicons
               name="pricetag-outline"
@@ -277,11 +273,9 @@ function ServiceCardView({
             <Text style={styles.cardFooterText}>Pricing</Text>
           </View>
           <View style={styles.cardFooterDivider} />
-          <Ionicons
-            name="chevron-forward"
-            size={14}
-            color={COLORS.textMuted2}
-          />
+          <View style={styles.cardChevronWrap}>
+            <Ionicons name="chevron-forward" size={13} color={COLORS.primary} />
+          </View>
         </View>
       </View>
     </Pressable>
@@ -304,8 +298,13 @@ function RequestRow({
       onPress={onPress}
     >
       <View style={styles.requestRowLeft}>
-        <View style={[styles.requestIconBox, { backgroundColor: cfg.bg }]}>
-          <Ionicons name={cfg.icon} size={16} color={cfg.text} />
+        <View
+          style={[
+            styles.requestIconBox,
+            { backgroundColor: cfg.bg, borderColor: cfg.border },
+          ]}
+        >
+          <Ionicons name={cfg.icon} size={15} color={cfg.text} />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.requestRowName} numberOfLines={1}>
@@ -321,17 +320,16 @@ function RequestRow({
       <View
         style={[
           styles.requestStatusPill,
-          {
-            backgroundColor: cfg.bg,
-            borderColor: cfg.border,
-          },
+          { backgroundColor: cfg.bg, borderColor: cfg.border },
         ]}
       >
         <Text style={[styles.requestStatusText, { color: cfg.text }]}>
           {cfg.label}
         </Text>
       </View>
-      <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted2} />
+      <View style={styles.rowChevronWrap}>
+        <Ionicons name="chevron-forward" size={13} color={COLORS.textMuted2} />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -356,6 +354,7 @@ export const ProviderServicesScreen: React.FC = () => {
       ),
     });
   }, [navigation, t]);
+
   const [providedServices, setProvidedServices] = useState<ServiceCard[]>([]);
   const [requestedServices, setRequestedServices] = useState<
     VerificationRequestRow[]
@@ -422,34 +421,17 @@ export const ProviderServicesScreen: React.FC = () => {
     () => [...providedServices],
     [providedServices],
   );
-
   const cardWidth = width - 32;
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <View style={styles.headerIconWrap}>
-            <Ionicons
-              name="briefcase-outline"
-              size={18}
-              color={COLORS.primary}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>My Services</Text>
-            <Text style={styles.headerSubtitle}>
-              Manage pricing, gallery and availability
-            </Text>
-          </View>
-        </View>
-
-        {/* ── Content ── */}
         {loadingServices ? (
           <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Loading your services…</Text>
+            <View style={styles.loadingCard}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={styles.loadingText}>Loading your services…</Text>
+            </View>
           </View>
         ) : (
           <ScrollView
@@ -458,9 +440,17 @@ export const ProviderServicesScreen: React.FC = () => {
           >
             {/* ── Active services ── */}
             {services.length > 0 && (
-              <View style={{ gap: 4 }}>
-                <Text style={styles.sectionLabel}>Active services</Text>
-                <View style={{ gap: 12 }}>
+              <View style={styles.servicesSection}>
+                <View style={styles.sectionHeaderRow}>
+                  <View style={styles.sectionDot} />
+                  <Text style={styles.sectionLabel}>Active services</Text>
+                  <View style={styles.sectionCount}>
+                    <Text style={styles.sectionCountText}>
+                      {services.length}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ gap: 14 }}>
                   {services.map((s) => (
                     <View key={s.id} style={{ width: cardWidth }}>
                       <ServiceCardView
@@ -496,7 +486,7 @@ export const ProviderServicesScreen: React.FC = () => {
                 <View style={styles.emptyIconWrap}>
                   <Ionicons
                     name="construct-outline"
-                    size={28}
+                    size={30}
                     color={COLORS.primary}
                   />
                 </View>
@@ -511,6 +501,7 @@ export const ProviderServicesScreen: React.FC = () => {
             {requestedServices.length > 0 && (
               <View style={styles.requestsSection}>
                 <View style={styles.requestsHeader}>
+                  <View style={styles.sectionDot} />
                   <Text style={styles.sectionLabel}>Verification requests</Text>
                   <View style={styles.requestsCountBadge}>
                     <Text style={styles.requestsCountText}>
@@ -539,40 +530,43 @@ export const ProviderServicesScreen: React.FC = () => {
               </View>
             )}
 
-            {/* ── Request new service button ── */}
-            <TouchableOpacity
-              style={[styles.requestNewBtn, styles.requestNewBtnDisabled]}
-              disabled
-              activeOpacity={1}
-            >
-              <View style={styles.requestNewBtnIcon}>
-                <Ionicons name="add" size={18} color={COLORS.primary} />
-              </View>
-              <Text style={styles.requestNewBtnText}>
-                Request a new service
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={16}
-                color={COLORS.primary}
-              />
-            </TouchableOpacity>
-            <View style={styles.requestPreviewCard}>
-              <View style={styles.requestPreviewIconWrap}>
+            {/* ── Request new service (disabled / locked) ── */}
+            <View style={styles.upgradeSection}>
+              <TouchableOpacity
+                style={[styles.requestNewBtn, styles.requestNewBtnDisabled]}
+                disabled
+                activeOpacity={1}
+              >
+                <View style={styles.requestNewBtnIcon}>
+                  <Ionicons name="add" size={16} color={COLORS.primary} />
+                </View>
+                <Text style={styles.requestNewBtnText}>
+                  Request a new service
+                </Text>
                 <Ionicons
-                  name="sparkles-outline"
-                  size={16}
+                  name="lock-closed-outline"
+                  size={14}
                   color={COLORS.primary}
                 />
-              </View>
-              <View style={styles.requestPreviewContent}>
-                <Text style={styles.requestPreviewTitle}>
-                  Get Premium feature{" "}
-                </Text>
-                <Text style={styles.requestPreviewText}>
-                  Need more services? Upgrade to Premium to unlock this feature.
-                  Premium access is coming soon.
-                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.requestPreviewCard}>
+                <View style={styles.requestPreviewIconWrap}>
+                  <Ionicons
+                    name="sparkles-outline"
+                    size={15}
+                    color={COLORS.primary}
+                  />
+                </View>
+                <View style={styles.requestPreviewContent}>
+                  <Text style={styles.requestPreviewTitle}>
+                    Premium feature
+                  </Text>
+                  <Text style={styles.requestPreviewText}>
+                    Need more services? Upgrade to Premium to unlock this
+                    feature. Premium access is coming soon.
+                  </Text>
+                </View>
               </View>
             </View>
           </ScrollView>
@@ -584,91 +578,95 @@ export const ProviderServicesScreen: React.FC = () => {
 
 // ─── Styles ────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.bg },
-  container: { flex: 1, backgroundColor: COLORS.bg },
+  safe: { flex: 1, backgroundColor: "#F4F3FA" },
+  container: { flex: 1, backgroundColor: "#F4F3FA" },
 
-  // Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.white,
-  },
-  headerIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: COLORS.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: COLORS.text,
-    letterSpacing: -0.3,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginTop: 1,
-  },
-
-  // Loading
+  /* ── Loading ── */
   loadingWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
+    padding: 24,
   },
-  loadingText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
+  loadingCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: "center",
+    gap: 14,
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 3,
   },
+  loadingText: { fontSize: 14, color: "#9B9BB0", fontWeight: "600" },
 
-  // Scroll
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-    gap: 20,
-  },
+  /* ── Scroll ── */
+  scrollContent: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 48, gap: 16 },
 
-  // Section label
+  /* ── Section header ── */
+  servicesSection: { gap: 12 },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 2,
+  },
+  sectionDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.primary,
+  },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.textMuted,
+    flex: 1,
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.primary,
     textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 8,
+    letterSpacing: 1,
   },
+  sectionCount: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: COLORS.primaryLight,
+    borderWidth: 1,
+    borderColor: COLORS.primary + "25",
+  },
+  sectionCountText: { fontSize: 10, fontWeight: "800", color: COLORS.primary },
 
-  // Service card
+  /* ── Service card ── */
   serviceCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#EBEBF5",
     overflow: "hidden",
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
   },
   cardMedia: {
-    height: 170,
-    backgroundColor: COLORS.surface2,
+    height: 180,
+    backgroundColor: "#F0EEF8",
     position: "relative",
   },
-  serviceImageCover: {
-    width: "100%",
-    height: "100%",
-  },
+  serviceImageCover: { width: "100%", height: "100%" },
   cardMediaPlaceholder: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.surface2,
+    backgroundColor: "#EDE9FE",
+  },
+  cardMediaGradient: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(15,10,35,0.12)",
   },
   categoryPill: {
     position: "absolute",
@@ -679,20 +677,17 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 20,
+    borderRadius: 999,
     borderWidth: 1,
     backgroundColor: "rgba(255,255,255,0.95)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  categoryDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  categoryPillText: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
+  categoryDot: { width: 6, height: 6, borderRadius: 3 },
+  categoryPillText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.2 },
   activeBadge: {
     position: "absolute",
     top: 12,
@@ -702,8 +697,13 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    borderRadius: 20,
+    borderRadius: 999,
     borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
   },
   activeBadgeOn: {
     backgroundColor: COLORS.successBg,
@@ -713,20 +713,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.dangerBg,
     borderColor: COLORS.dangerBorder,
   },
-  activeDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-  },
-  activeBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  cardBody: {
-    padding: 14,
-    gap: 8,
-  },
+  activeDot: { width: 5, height: 5, borderRadius: 2.5 },
+  activeBadgeText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.2 },
+
+  cardBody: { padding: 14, gap: 8 },
   cardTitleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -737,155 +727,164 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: "800",
-    color: COLORS.text,
-    letterSpacing: -0.2,
+    color: "#1A1A2E",
+    letterSpacing: -0.3,
   },
   editChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
     backgroundColor: COLORS.primaryLight,
     borderWidth: 1,
-    borderColor: COLORS.primary + "20",
+    borderColor: COLORS.primary + "25",
   },
-  editChipText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: COLORS.primary,
-  },
+  editChipText: { fontSize: 11, fontWeight: "700", color: COLORS.primary },
   serviceDescription: {
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: "#9B9BB0",
     lineHeight: 18,
+    fontWeight: "400",
   },
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingTop: 8,
+    gap: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
+    borderTopColor: "#F4F3FA",
   },
-  cardFooterItem: {
-    flexDirection: "row",
+  cardFooterItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  cardFooterText: { fontSize: 12, color: COLORS.textMuted, fontWeight: "600" },
+  cardFooterDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#D1D1E0",
+  },
+  cardFooterDivider: { flex: 1 },
+  cardChevronWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: COLORS.primaryLight,
     alignItems: "center",
-    gap: 4,
-  },
-  cardFooterText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    fontWeight: "600",
-  },
-  cardFooterDivider: {
-    flex: 1,
+    justifyContent: "center",
   },
 
-  // Add new card
+  /* ── Add new card ── */
   addNewCard: {
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1.5,
     borderStyle: "dashed",
     borderColor: COLORS.primary + "40",
     backgroundColor: COLORS.overlay,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 28,
+    paddingVertical: 32,
     paddingHorizontal: 20,
     gap: 8,
   },
   addNewIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 18,
     backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.primary + "25",
     marginBottom: 4,
   },
   addNewTitle: {
     fontSize: 15,
     fontWeight: "800",
-    color: COLORS.text,
+    color: "#1A1A2E",
     letterSpacing: -0.2,
   },
   addNewSubtitle: {
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: "#9B9BB0",
     textAlign: "center",
+    fontWeight: "500",
   },
 
-  // Empty state
+  /* ── Empty state ── */
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 40,
+    paddingVertical: 48,
     gap: 10,
   },
   emptyIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+    width: 72,
+    height: 72,
+    borderRadius: 24,
     backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary + "25",
   },
   emptyTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.text,
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#1A1A2E",
+    letterSpacing: -0.3,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: "#9B9BB0",
     textAlign: "center",
     maxWidth: 260,
-    lineHeight: 18,
+    lineHeight: 19,
   },
 
-  // Verification requests section
+  /* ── Verification requests ── */
   requestsSection: {
     backgroundColor: COLORS.white,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#EBEBF5",
     overflow: "hidden",
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+    gap: 0,
   },
   requestsHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
+    borderBottomColor: "#F4F3FA",
   },
   requestsCountBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: COLORS.primary + "25",
   },
-  requestsCountText: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: COLORS.primary,
-  },
-  requestsList: {
-    paddingVertical: 4,
-  },
+  requestsCountText: { fontSize: 11, fontWeight: "800", color: COLORS.primary },
+  requestsList: { paddingVertical: 4 },
   requestRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
-    paddingHorizontal: 16,
+    gap: 10,
+    paddingHorizontal: 14,
     paddingVertical: 12,
   },
   requestRowLeft: {
@@ -897,40 +896,40 @@ const styles = StyleSheet.create({
   requestIconBox: {
     width: 34,
     height: 34,
-    borderRadius: 10,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    flexShrink: 0,
+  },
+  requestRowName: { fontSize: 13, fontWeight: "700", color: "#1A1A2E" },
+  requestRowComment: {
+    fontSize: 11,
+    color: COLORS.danger,
+    lineHeight: 16,
+    fontWeight: "500",
+  },
+  requestStatusPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexShrink: 0,
+  },
+  requestStatusText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.2 },
+  rowChevronWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: "#F4F3FA",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
-  requestRowName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.text,
-  },
-  requestRowComment: {
-    fontSize: 12,
-    color: COLORS.danger,
-    lineHeight: 17,
-  },
-  requestStatusPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    flexShrink: 0,
-  },
-  requestStatusText: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.1,
-  },
-  rowDivider: {
-    height: 1,
-    backgroundColor: COLORS.borderLight,
-    marginHorizontal: 16,
-  },
+  rowDivider: { height: 1, backgroundColor: "#F4F3FA", marginHorizontal: 14 },
 
-  // Request new button
+  /* ── Upgrade / locked section ── */
+  upgradeSection: { gap: 10 },
   requestNewBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -959,41 +958,46 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     letterSpacing: -0.1,
   },
-  requestNewBtnDisabled: {
-    opacity: 0.55,
-  },
+  requestNewBtnDisabled: { opacity: 0.5 },
   requestPreviewCard: {
-    marginTop: 10,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.primary + "22",
     backgroundColor: COLORS.white,
-    padding: 12,
+    padding: 14,
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
+    gap: 12,
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
   requestPreviewIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     backgroundColor: COLORS.primaryLight,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: COLORS.primary + "20",
     marginTop: 1,
+    flexShrink: 0,
   },
-  requestPreviewContent: {
-    flex: 1,
-  },
+  requestPreviewContent: { flex: 1 },
   requestPreviewTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.text,
-    marginBottom: 2,
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#1A1A2E",
+    marginBottom: 4,
+    letterSpacing: -0.1,
   },
   requestPreviewText: {
     fontSize: 12,
     lineHeight: 18,
-    color: COLORS.textMuted,
+    color: "#9B9BB0",
+    fontWeight: "400",
   },
 });

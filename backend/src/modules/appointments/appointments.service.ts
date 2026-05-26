@@ -106,6 +106,8 @@ export class AppointmentsService {
         scheduledTime: dto.scheduledTime,
         notes: dto.notes?.trim() || null,
         photoUrls,
+        latitude: dto.latitude ?? null,
+        longitude: dto.longitude ?? null,
       },
     });
 

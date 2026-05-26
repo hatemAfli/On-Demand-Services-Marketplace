@@ -75,6 +75,8 @@ type ProviderAppointmentDetailModel = {
   beforePhotoUrls: string[];
   afterPhotoUrls: string[];
   cancellationReason: string | null;
+  latitude: number | null;
+  longitude: number | null;
   givenService: {
     serviceName: string;
     categoryName: string;
@@ -190,6 +192,8 @@ function parseAppointment(raw: unknown): ProviderAppointmentDetailModel | null {
     afterPhotoUrls: pickApiStringArray(r, "afterPhotoUrls", "after_photo_urls"),
     cancellationReason:
       typeof r.cancellationReason === "string" ? r.cancellationReason : null,
+    latitude: typeof r.latitude === "number" ? r.latitude : null,
+    longitude: typeof r.longitude === "number" ? r.longitude : null,
     givenService: {
       serviceName: serviceName || "Service",
       categoryName: categoryName || "Category",
@@ -1385,6 +1389,23 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                   </Text>
                 </View>
 
+                {appointment.latitude != null && appointment.longitude != null && (
+                  <TouchableOpacity
+                    style={styles.itineraryBtn}
+                    activeOpacity={0.85}
+                    onPress={() =>
+                      navigation.navigate("ProviderItinerary", {
+                        clientLat: appointment.latitude!,
+                        clientLng: appointment.longitude!,
+                        clientName: `${appointment.client.firstName} ${appointment.client.lastName}`.trim(),
+                      })
+                    }
+                  >
+                    <Ionicons name="navigate" size={16} color="#FFFFFF" />
+                    <Text style={styles.itineraryBtnText}>View Itinerary</Text>
+                  </TouchableOpacity>
+                )}
+
                 <PhotoRow
                   uris={beforeLocalUris}
                   label="Before photos (optional)"
@@ -2072,9 +2093,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   notesAmberText: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#92400E",
-    lineHeight: 21,
+    lineHeight: 18,
   },
   summaryRowTotal: {
     borderBottomWidth: 0,
@@ -2084,12 +2105,12 @@ const styles = StyleSheet.create({
     borderTopColor: "#F1F5F9",
   },
   summaryTotalLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "800",
     color: "#1E293B",
   },
   summaryTotalValue: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "900",
     color: "#059669",
   },
@@ -2117,7 +2138,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   avatarInitials: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "700",
     color: "#6B7280",
   },
@@ -2126,13 +2147,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   clientNameText: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     color: "#111827",
   },
   clientSub: {
     marginTop: 4,
-    fontSize: 14,
+    fontSize: 12,
     color: "#6B7280",
   },
   serviceHeader: {
@@ -2145,7 +2166,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   serviceTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     color: "#111827",
   },
@@ -2156,7 +2177,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   priceTag: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "800",
     color: COLORS.primary || "#4F46E5",
   },
@@ -2279,15 +2300,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   rescheduleTitle: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "800",
     color: "#9A3412",
   },
   rescheduleTime: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "600",
     color: "#78350F",
-    lineHeight: 22,
+    lineHeight: 18,
   },
   cancelLinkWrap: {
     alignItems: "center",
@@ -2323,14 +2344,34 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   enRouteText: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     color: "#0369A1",
     textAlign: "center",
   },
+  itineraryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0284C7",
+    borderRadius: 14,
+    paddingVertical: 12,
+    gap: 8,
+    marginBottom: 12,
+    shadowColor: "#0284C7",
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  itineraryBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 14,
+  },
   enRouteSub: {
     marginTop: 8,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "500",
     color: "#075985",
     textAlign: "center",
@@ -2391,7 +2432,7 @@ const styles = StyleSheet.create({
     marginVertical: 16,
   },
   timerSub: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "500",
     color: "#6366F1",
   },
@@ -2418,7 +2459,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   completedTitle: {
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: "800",
     color: "#065F46",
   },
@@ -2431,12 +2472,12 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   summaryLabel: {
-    fontSize: 15,
+    fontSize: 12,
     color: "#6B7280",
     fontWeight: "600",
   },
   summaryValue: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "700",
     color: "#111827",
   },
@@ -2466,17 +2507,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   errorTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     color: "#DC2626",
   },
   errorMessage: {
     marginTop: 8,
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "500",
     color: "#991B1B",
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: 18,
   },
   cancelledCard: {
     alignItems: "center",
@@ -2498,13 +2539,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   cancelledTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     color: "#111827",
   },
   cancelledSubtitle: {
     marginTop: 4,
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "600",
     color: "#4B5563",
   },
@@ -2517,11 +2558,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelledReason: {
-    fontSize: 14,
+    fontSize: 12,
     fontStyle: "italic",
     color: "#6B7280",
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 18,
   },
   refuseBox: {
     gap: 8,
@@ -2534,7 +2575,7 @@ const styles = StyleSheet.create({
     padding: 14,
     minHeight: 88,
     textAlignVertical: "top",
-    fontSize: 14,
+    fontSize: 12,
     color: "#0F172A",
     backgroundColor: "#FFFFFF",
   },

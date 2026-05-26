@@ -1,8 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +19,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
+import { WebView } from "react-native-webview";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
   SafeAreaView,
@@ -88,7 +97,15 @@ function isSlotStartInPast(ymd: string, slotHHmm: string, now: Date): boolean {
   const hh = Number(parts[0]);
   const mm = Number(parts[1]);
   if (!Number.isFinite(hh) || !Number.isFinite(mm)) return false;
-  const slotStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
+  const slotStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    hh,
+    mm,
+    0,
+    0,
+  );
   return slotStart.getTime() < now.getTime();
 }
 
@@ -108,11 +125,51 @@ const MONTH_SHORT = [
   "Dec",
 ];
 
+// ─── OSM map HTML builders ─────────────────────────────────
+function buildMiniMapHtml(lat: number, lng: number): string {
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>html,body,#map{margin:0;padding:0;height:100%;width:100%;background:#e8ecf4;}
+.leaflet-control-zoom,.leaflet-control-attribution{display:none!important;}</style>
+</head><body>
+<div id="map"></div>
+<script>
+var map=L.map('map',{zoomControl:false,attributionControl:false,dragging:false,
+scrollWheelZoom:false,doubleClickZoom:false,touchZoom:false,boxZoom:false,keyboard:false})
+.setView([${lat},${lng}],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+L.marker([${lat},${lng}]).addTo(map);
+</script></body></html>`;
+}
+
+function buildPickerMapHtml(lat: number, lng: number): string {
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>html,body,#map{margin:0;padding:0;height:100%;width:100%;background:#e8ecf4;}</style>
+</head><body>
+<div id="map"></div>
+<script>
+var map=L.map('map',{zoomControl:true}).setView([${lat},${lng}],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
+var marker=L.marker([${lat},${lng}],{draggable:true}).addTo(map);
+function send(la,ln){if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(JSON.stringify({lat:la,lng:ln}));}
+map.on('click',function(e){marker.setLatLng(e.latlng);send(e.latlng.lat,e.latlng.lng);});
+marker.on('dragend',function(e){var p=e.target.getLatLng();send(p.lat,p.lng);});
+</script></body></html>`;
+}
+
 // ─── Section header ────────────────────────────────────────
 function SectionHeader({ label }: { label: string }) {
-  return (
-    <Text style={s.sectionTitle}>{label}</Text>
-  );
+  return <Text style={s.sectionTitle}>{label}</Text>;
 }
 
 // ─── Photo thumb ───────────────────────────────────────────
@@ -162,6 +219,76 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
   const [datesWithNoSlots, setDatesWithNoSlots] = useState<Set<string>>(
     () => new Set(),
   );
+
+  // ── Location state ──────────────────────────────────────────
+  const [clientLat, setClientLat] = useState<number | null>(null);
+  const [clientLng, setClientLng] = useState<number | null>(null);
+  const [locationLabel, setLocationLabel] = useState("Current location");
+  const [locationAddress, setLocationAddress] = useState(
+    "Loading your location…",
+  );
+  const [locationPickerVisible, setLocationPickerVisible] = useState(false);
+  const [pickerLat, setPickerLat] = useState<number>(36.75);
+  const [pickerLng, setPickerLng] = useState<number>(3.06);
+  const pickerWebRef = useRef<WebView>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setLocationAddress("Location permission not granted");
+          return;
+        }
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setClientLat(pos.coords.latitude);
+        setClientLng(pos.coords.longitude);
+        const [geo] = await Location.reverseGeocodeAsync({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+        if (geo) {
+          const parts = [geo.street, geo.city, geo.region].filter(Boolean);
+          setLocationAddress(parts.join(", ") || "Location set");
+          setLocationLabel(geo.name || "Current location");
+        } else {
+          setLocationAddress("Location set");
+        }
+      } catch {
+        setLocationAddress("Could not get location");
+      }
+    })();
+  }, []);
+
+  const openLocationPicker = useCallback(() => {
+    setPickerLat(clientLat ?? 36.75);
+    setPickerLng(clientLng ?? 3.06);
+    setLocationPickerVisible(true);
+  }, [clientLat, clientLng]);
+
+  const confirmPickerLocation = useCallback(async () => {
+    setClientLat(pickerLat);
+    setClientLng(pickerLng);
+    setLocationPickerVisible(false);
+    try {
+      const [geo] = await Location.reverseGeocodeAsync({
+        latitude: pickerLat,
+        longitude: pickerLng,
+      });
+      if (geo) {
+        const parts = [geo.street, geo.city, geo.region].filter(Boolean);
+        setLocationAddress(parts.join(", ") || "Location set");
+        setLocationLabel(geo.name || "Selected location");
+      } else {
+        setLocationAddress("Location set");
+        setLocationLabel("Selected location");
+      }
+    } catch {
+      setLocationAddress("Location set");
+    }
+  }, [pickerLat, pickerLng]);
 
   // ── Date strip (unchanged) ────────────────────────────────
   const dateStrip = useMemo(() => {
@@ -297,7 +424,10 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
       if (photoUris.length) {
         const clientId = user?.id;
         if (!clientId) {
-          Alert.alert("Sign in required", "Log in to attach photos to your request.");
+          Alert.alert(
+            "Sign in required",
+            "Log in to attach photos to your request.",
+          );
           return;
         }
         const batchId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -315,6 +445,8 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
         scheduledTime: selectedTime,
         notes: notes.trim() || undefined,
         photoUrls: photoUrls?.length ? photoUrls : undefined,
+        latitude: clientLat ?? undefined,
+        longitude: clientLng ?? undefined,
       });
       const appointmentId = res.data?.id;
       if (!appointmentId) throw new Error("Missing appointment id");
@@ -354,7 +486,8 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
   const nowForSlots = useMemo(() => new Date(nowCoarse), [nowCoarse]);
   const bookableSlotCount = useMemo(
     () =>
-      slots.filter((t) => !isSlotStartInPast(selectedDate, t, nowForSlots)).length,
+      slots.filter((t) => !isSlotStartInPast(selectedDate, t, nowForSlots))
+        .length,
     [slots, selectedDate, nowForSlots],
   );
   const slotsCount = slots.length;
@@ -374,7 +507,11 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
             </TouchableOpacity>
             <Text style={s.headerTitle}>Confirm Booking</Text>
             <View style={s.headerIconBtn}>
-              <Ionicons name="help-circle-outline" size={18} color={C.textSub} />
+              <Ionicons
+                name="help-circle-outline"
+                size={18}
+                color={C.textSub}
+              />
             </View>
           </View>
         </View>
@@ -414,17 +551,23 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
           <View style={s.section}>
             <View style={s.sectionHeaderRow}>
               <Text style={s.sectionTitle}>Location</Text>
-              <TouchableOpacity activeOpacity={0.7}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={openLocationPicker}
+              >
                 <Text style={s.sectionAction}>Change</Text>
               </TouchableOpacity>
             </View>
             <View style={s.locationCard}>
               <View style={s.mapPreview}>
-                <View style={s.mapPlaceholder}>
-                  <Ionicons name="map-outline" size={28} color={C.textLight} />
-                </View>
+                <Image
+                  source={{
+                    uri: "https://storage.googleapis.com/uxpilot-auth.appspot.com/ae3b8bf38d-93fbbc8105d0201daa9a.png",
+                  }}
+                  style={s.mapImage}
+                />
                 <View style={s.mapPin}>
-                  <Ionicons name="location-sharp" size={14} color={C.white} />
+                  <Ionicons name="location-sharp" size={12} color={C.white} />
                 </View>
               </View>
               <View style={s.locationDetails}>
@@ -432,10 +575,8 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                   <Ionicons name="home-outline" size={14} color={C.accent} />
                 </View>
                 <View style={s.locationTextWrap}>
-                  <Text style={s.locationTitle}>Home</Text>
-                  <Text style={s.locationText}>
-                    Your saved address will appear here
-                  </Text>
+                  <Text style={s.locationTitle}>{locationLabel}</Text>
+                  <Text style={s.locationText}>{locationAddress}</Text>
                 </View>
               </View>
             </View>
@@ -466,14 +607,10 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                     style={[s.dateCard, isSelected && s.dateCardActive]}
                     activeOpacity={0.82}
                   >
-                    <Text
-                      style={[s.dateTop, isSelected && s.dateTopActive]}
-                    >
+                    <Text style={[s.dateTop, isSelected && s.dateTopActive]}>
                       {dow}
                     </Text>
-                    <Text
-                      style={[s.dateDay, isSelected && s.dateDayActive]}
-                    >
+                    <Text style={[s.dateDay, isSelected && s.dateDayActive]}>
                       {dom}
                     </Text>
                     <Text
@@ -503,8 +640,8 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                 </View>
                 <Text style={s.noSlotsTitle}>No availability</Text>
                 <Text style={s.noSlotsSub}>
-                  This provider has no open slots on{" "}
-                  {formattedSectionDate}.{"\n"}Try another date.
+                  This provider has no open slots on {formattedSectionDate}.
+                  {"\n"}Try another date.
                 </Text>
               </View>
             ) : bookableSlotCount === 0 ? (
@@ -578,7 +715,9 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                   <Ionicons
                     name="camera-outline"
                     size={16}
-                    color={photoUris.length >= MAX_PHOTOS ? C.textLight : C.textSub}
+                    color={
+                      photoUris.length >= MAX_PHOTOS ? C.textLight : C.textSub
+                    }
                   />
                   <Text style={s.addPhotoText}>
                     {photoUris.length >= MAX_PHOTOS
@@ -599,7 +738,9 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
         </ScrollView>
 
         {/* ── Bottom sticky bar ── */}
-        <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View
+          style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}
+        >
           <View style={s.bottomBarContent}>
             <TouchableOpacity
               style={[
@@ -626,6 +767,67 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
           </View>
         </View>
       </View>
+
+      {/* ── Location picker modal ── */}
+      <Modal
+        visible={locationPickerVisible}
+        animationType="slide"
+        onRequestClose={() => setLocationPickerVisible(false)}
+      >
+        <SafeAreaView style={s.pickerSafe} edges={["top", "bottom"]}>
+          <View style={s.pickerHeader}>
+            <TouchableOpacity
+              onPress={() => setLocationPickerVisible(false)}
+              style={s.pickerBack}
+            >
+              <Ionicons name="close" size={22} color={C.text} />
+            </TouchableOpacity>
+            <Text style={s.pickerTitle}>Pick your location</Text>
+            <View style={{ width: 38 }} />
+          </View>
+
+          <View style={{ flex: 1 }}>
+            <WebView
+              ref={pickerWebRef}
+              style={{ flex: 1 }}
+              originWhitelist={["*"]}
+              source={{
+                html: buildPickerMapHtml(pickerLat, pickerLng),
+                baseUrl: "https://localhost",
+              }}
+              onMessage={(e) => {
+                try {
+                  const d = JSON.parse(e.nativeEvent.data) as {
+                    lat?: number;
+                    lng?: number;
+                  };
+                  if (typeof d.lat === "number" && typeof d.lng === "number") {
+                    setPickerLat(d.lat);
+                    setPickerLng(d.lng);
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }}
+              javaScriptEnabled
+              domStorageEnabled
+              mixedContentMode="always"
+              setSupportMultipleWindows={false}
+            />
+          </View>
+
+          <View style={s.pickerBottom}>
+            <TouchableOpacity
+              style={s.pickerConfirmBtn}
+              activeOpacity={0.85}
+              onPress={confirmPickerLocation}
+            >
+              <Ionicons name="checkmark-circle" size={18} color={C.white} />
+              <Text style={s.pickerConfirmText}>Confirm location</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -770,17 +972,16 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  mapPlaceholder: {
+  mapImage: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    opacity: 0.35,
-  },
+    width: "100%",
+    height: "100%",
+  } as const,
   mapPin: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: C.accent,
+    backgroundColor: "#F97316",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -1058,5 +1259,61 @@ const s = StyleSheet.create({
     color: C.white,
     fontWeight: "700",
     fontSize: 14,
+  },
+
+  // ── Location picker modal ────────────────────────────────
+  pickerSafe: { flex: 1, backgroundColor: C.white },
+  pickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  pickerBack: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: C.bg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickerTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: C.text,
+  },
+  pickerPinWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  } as const,
+  pickerBottom: {
+    padding: 20,
+    backgroundColor: C.white,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    gap: 14,
+  },
+  pickerHint: {
+    fontSize: 13,
+    color: C.textSub,
+    textAlign: "center",
+  },
+  pickerConfirmBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F97316",
+    borderRadius: 16,
+    paddingVertical: 14,
+    gap: 8,
+  },
+  pickerConfirmText: {
+    color: C.white,
+    fontWeight: "700",
+    fontSize: 15,
   },
 });

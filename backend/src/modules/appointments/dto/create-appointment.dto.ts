@@ -2,6 +2,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsDateString,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -31,4 +32,12 @@ export class CreateAppointmentDto {
   @ArrayMaxSize(5)
   @IsString({ each: true })
   photoUrls?: string[];
+
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
 }

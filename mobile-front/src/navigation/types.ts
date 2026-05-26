@@ -173,6 +173,11 @@ export type ProviderStackParamList = {
   ProviderDaysOff: undefined;
   ProviderCalendar: undefined;
   ProviderAppointmentDetail: { appointmentId: string };
+  ProviderItinerary: {
+    clientLat: number;
+    clientLng: number;
+    clientName: string;
+  };
   ProviderSubscriptionPlan: undefined;
   ProviderRatings: undefined;
   /** Paginated public reviews for the signed-in provider (own id from profile). */

@@ -2192,16 +2192,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   disputedStatusTitle: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "800",
     color: "#991B1B",
     marginBottom: 4,
   },
   disputedStatusSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "500",
     color: "#B91C1C",
-    lineHeight: 20,
+    lineHeight: 18,
     marginBottom: 10,
   },
   disputedViewComplaintBtn: {
@@ -2210,7 +2210,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   disputedViewComplaintLink: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "700",
     color: COLORS.error || "#EF4444",
   },
@@ -2222,7 +2222,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   reportProblemLinkText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     color: COLORS.error || "#EF4444",
   },
@@ -2277,9 +2277,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   notesAmberText: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#92400E",
-    lineHeight: 21,
+    lineHeight: 18,
   },
   btnCancelFull: {
     marginBottom: 8,
@@ -2291,7 +2291,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   btnCancelFullText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "800",
     color: "#EF4444",
   },
@@ -2303,12 +2303,12 @@ const styles = StyleSheet.create({
     borderTopColor: "#F1F5F9",
   },
   summaryTotalLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "800",
     color: "#1E293B",
   },
   summaryTotalValue: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "900",
     color: "#059669",
   },
@@ -2327,7 +2327,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "800",
     color: "#374151",
     letterSpacing: 0.3,
@@ -2356,7 +2356,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   avatarInitials: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "700",
     color: "#6B7280",
   },
@@ -2365,13 +2365,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   providerName: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     color: "#111827",
   },
   tagline: {
     marginTop: 4,
-    fontSize: 14,
+    fontSize: 12,
     color: "#6B7280",
   },
   cityRow: {
@@ -2395,13 +2395,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   serviceTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     color: "#111827",
   },
   category: {
     marginTop: 4,
-    fontSize: 14,
+    fontSize: 12,
     color: "#6B7280",
     fontWeight: "500",
   },
@@ -2412,7 +2412,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   priceTag: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "800",
     color: COLORS.primary || "#4F46E5",
   },
@@ -2438,7 +2438,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   detailText: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "600",
     color: "#374151",
   },
@@ -2460,9 +2460,9 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   notes: {
-    fontSize: 15,
+    fontSize: 12,
     color: "#374151",
-    lineHeight: 22,
+    lineHeight: 18,
   },
   photosSection: {
     marginTop: 20,
@@ -2497,11 +2497,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   infoCardText: {
-    fontSize: 15,
+    fontSize: 12,
     color: "#92400E",
     fontWeight: "600",
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 18,
   },
   successCard: {
     flexDirection: "row",
@@ -2514,11 +2514,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   successCardText: {
-    fontSize: 15,
+    fontSize: 12,
     color: "#065F46",
     fontWeight: "600",
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 18,
   },
   btnPrimary: {
     flexDirection: "row",
@@ -2537,7 +2537,7 @@ const styles = StyleSheet.create({
   btnPrimaryText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 16,
+    fontSize: 13,
   },
   btnOutlineRed: {
     flexDirection: "row",
@@ -2553,7 +2553,7 @@ const styles = StyleSheet.create({
   btnOutlineRedText: {
     color: "#DC2626",
     fontWeight: "700",
-    fontSize: 16,
+    fontSize: 13,
   },
   btnPrimaryGreen: {
     flexDirection: "row",
@@ -2567,7 +2567,7 @@ const styles = StyleSheet.create({
   btnPrimaryGreenText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 16,
+    fontSize: 13,
   },
   btnDisabled: {
     opacity: 0.65,
@@ -2597,16 +2597,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   rescheduleTitle: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "800",
     color: "#9A3412",
   },
   rescheduleTime: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "600",
     color: "#78350F",
     marginBottom: 20,
-    lineHeight: 22,
+    lineHeight: 18,
   },
   rescheduleButtonRow: {
     flexDirection: "row",
@@ -2619,7 +2619,7 @@ const styles = StyleSheet.create({
   linkDanger: {
     color: "#DC2626",
     fontWeight: "700",
-    fontSize: 15,
+    fontSize: 12,
   },
   enRouteCard: {
     alignItems: "center",
@@ -2640,14 +2640,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   enRouteText: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     color: "#0369A1",
     textAlign: "center",
   },
   enRouteSub: {
     marginTop: 8,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "500",
     color: "#075985",
   },
@@ -2672,11 +2672,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   awaitingText: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "600",
     color: "#5B21B6",
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 18,
   },
   timerCard: {
     alignItems: "center",
@@ -2707,7 +2707,7 @@ const styles = StyleSheet.create({
     marginVertical: 16,
   },
   timerSub: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "500",
     color: "#6366F1",
   },
@@ -2734,7 +2734,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   completedTitle: {
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: "800",
     color: "#065F46",
   },
@@ -2747,12 +2747,12 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   summaryLabel: {
-    fontSize: 15,
+    fontSize: 12,
     color: "#6B7280",
     fontWeight: "600",
   },
   summaryValue: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "700",
     color: "#111827",
   },
@@ -2789,16 +2789,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   reviewPromoTitle: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "800",
     color: "#92400E",
   },
   reviewPromoSub: {
     marginTop: 4,
-    fontSize: 14,
+    fontSize: 12,
     color: "#B45309",
     fontWeight: "500",
-    lineHeight: 20,
+    lineHeight: 18,
   },
   reviewPromoBtn: {
     flexDirection: "row",
@@ -2812,7 +2812,7 @@ const styles = StyleSheet.create({
   reviewPromoBtnText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 15,
+    fontSize: 13,
   },
   reviewedChip: {
     flexDirection: "row",
@@ -2828,7 +2828,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(5, 150, 105, 0.25)",
   },
   reviewedChipText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "700",
     color: "#047857",
   },
@@ -2858,17 +2858,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   errorTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     color: "#DC2626",
   },
   errorMessage: {
     marginTop: 8,
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "500",
     color: "#991B1B",
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: 18,
   },
   cancelledCard: {
     alignItems: "center",
@@ -2890,13 +2890,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   cancelledTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     color: "#111827",
   },
   cancelledSubtitle: {
     marginTop: 4,
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "600",
     color: "#4B5563",
   },
@@ -2909,10 +2909,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelledReason: {
-    fontSize: 14,
+    fontSize: 12,
     fontStyle: "italic",
     color: "#6B7280",
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 18,
   },
 });

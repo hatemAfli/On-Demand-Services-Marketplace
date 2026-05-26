@@ -692,6 +692,8 @@ export const api = {
     scheduledTime: string;
     notes?: string;
     photoUrls?: string[];
+    latitude?: number;
+    longitude?: number;
   }) =>
     apiClient.post<{ id: string }>("/appointments", payload),
 

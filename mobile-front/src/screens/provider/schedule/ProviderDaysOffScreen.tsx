@@ -203,6 +203,10 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleDayCellPress = (dayNum: number) => {
     const key = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+    const cellDate = new Date(year, monthIndex, dayNum);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    if (cellDate.getTime() < todayStart.getTime()) return;
     const blocked = blockedByDate.get(key);
     if (blocked) {
       Alert.alert(
@@ -358,6 +362,13 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
                       cell,
                     );
                     const isWeekend = ci === 0 || ci === 6;
+                    const cellDate = new Date(year, monthIndex, cell);
+                    const todayStart = new Date(
+                      todayDate.getFullYear(),
+                      todayDate.getMonth(),
+                      todayDate.getDate(),
+                    );
+                    const isPast = cellDate.getTime() < todayStart.getTime();
 
                     return (
                       <TouchableOpacity
@@ -365,11 +376,16 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
                         style={[
                           styles.dayCell,
                           { width: cellSize, height: cellSize },
-                          isWeekend && !blocked && styles.dayCellWeekend,
+                          isWeekend &&
+                            !blocked &&
+                            !isPast &&
+                            styles.dayCellWeekend,
                           isToday && !blocked && styles.dayCellToday,
-                          blocked && styles.dayCellBlocked,
+                          blocked && !isPast && styles.dayCellBlocked,
+                          isPast && styles.dayCellPast,
                         ]}
                         onPress={() => {
+                          if (isPast) return;
                           if (blocked) {
                             Alert.alert(
                               "Day off",
@@ -381,7 +397,8 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
                           }
                           handleDayCellPress(cell);
                         }}
-                        activeOpacity={0.8}
+                        activeOpacity={isPast ? 1 : 0.8}
+                        disabled={isPast}
                       >
                         <Text
                           style={[
@@ -389,14 +406,18 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
                             isWeekend &&
                               !blocked &&
                               !isToday &&
+                              !isPast &&
                               styles.dayCellNumWeekend,
                             isToday && !blocked && styles.dayCellNumToday,
-                            blocked && styles.dayCellNumBlocked,
+                            blocked && !isPast && styles.dayCellNumBlocked,
+                            isPast && styles.dayCellNumPast,
                           ]}
                         >
                           {cell}
                         </Text>
-                        {blocked && <View style={styles.dayCellDot} />}
+                        {blocked && !isPast && (
+                          <View style={styles.dayCellDot} />
+                        )}
                       </TouchableOpacity>
                     );
                   })}
@@ -765,6 +786,10 @@ const styles = StyleSheet.create({
     position: "relative",
     gap: 2,
   },
+  dayCellPast: {
+    backgroundColor: "#F3F4F6",
+    opacity: 0.9,
+  },
   dayCellWeekend: {
     backgroundColor: "#F5F3FF",
   },
@@ -796,6 +821,9 @@ const styles = StyleSheet.create({
   dayCellNumBlocked: {
     color: "#DC2626",
     fontWeight: "800",
+  },
+  dayCellNumPast: {
+    color: "#D1D5DB",
   },
   dayCellDot: {
     width: 4,

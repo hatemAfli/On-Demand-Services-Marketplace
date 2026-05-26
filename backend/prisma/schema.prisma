@@ -677,6 +677,10 @@ model Appointment {
   notes          String?           @db.Text
   photoUrls      String[]          @default([]) @map("photo_urls") // client attachments
 
+  // Client location at booking time
+  latitude       Float?
+  longitude      Float?
+
   // Provider response
   refusalReason  String?   @map("refusal_reason") @db.Text
   rescheduleDate DateTime? @db.Date @map("reschedule_date")
