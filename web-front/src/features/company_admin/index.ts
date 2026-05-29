@@ -1,2 +1,2 @@
 export { CompanyAdminLayout } from './layout/CompanyAdminLayout'
-export { CompanyDashboardPage, CompanyPlaceholderPage } from './pages'
+export { CompanyDashboardPage, CompanyProvidersPage, CompanyServicesPage, CompanyOrdersPage, CompanySchedulePage, CompanyRatingsPage, CompanySettingsPage, CompanyPlaceholderPage } from './pages'

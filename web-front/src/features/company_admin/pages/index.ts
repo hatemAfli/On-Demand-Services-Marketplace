@@ -1,2 +1,8 @@
 export { CompanyDashboardPage } from './dashboard/CompanyDashboardPage'
+export { CompanyProvidersPage } from './providers/CompanyProvidersPage'
+export { CompanyServicesPage } from './services/CompanyServicesPage'
+export { CompanyOrdersPage } from './orders/CompanyOrdersPage'
+export { CompanySchedulePage } from './schedule/CompanySchedulePage'
+export { CompanyRatingsPage } from './ratings/CompanyRatingsPage'
+export { CompanySettingsPage } from './settings/CompanySettingsPage'
 export { CompanyPlaceholderPage } from './placeholder/CompanyPlaceholderPage'

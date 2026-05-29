@@ -1,0 +1,361 @@
+.company-admin-shell {
+  min-height: 100vh;
+  display: flex;
+  background: #f8fafc;
+  color: #1f2937;
+}
+
+.company-admin-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  border: 0;
+  z-index: 30;
+}
+
+.company-sidebar {
+  width: 256px;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.company-sidebar-logo-area {
+  height: 64px;
+  padding: 0 24px;
+  border-bottom: 1px solid #f3f4f6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.company-sidebar-logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #7621c2;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 20px rgba(118, 33, 194, 0.3);
+}
+
+.company-sidebar-logo-text {
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 700;
+  color: #0d0d2c;
+}
+
+.company-branch-switcher-wrap {
+  padding: 16px;
+}
+
+.company-branch-switcher {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.company-branch-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.company-branch-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
+  background: #fff;
+}
+
+.company-branch-kicker {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.company-branch-name {
+  font-size: 14px;
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.company-branch-chevron {
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+.company-sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px 12px;
+}
+
+.company-sidebar-section {
+  margin-bottom: 14px;
+}
+
+.company-sidebar-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  font-weight: 700;
+  padding: 8px 12px;
+}
+
+.company-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: 0.2s ease;
+}
+
+.company-menu-item:hover {
+  color: #7621c2;
+  background: #fbf5ff;
+}
+
+.company-menu-item.active {
+  color: #7621c2;
+  background: #f3e8ff;
+  border-right: 4px solid #7621c2;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.company-menu-item-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.company-menu-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 999px;
+  background: #7621c2;
+  color: #fff;
+  padding: 2px 8px;
+}
+
+.company-sidebar-footer {
+  border-top: 1px solid #e5e7eb;
+  padding: 16px;
+}
+
+.company-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.company-profile-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid #e5e7eb;
+}
+
+.company-profile-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.company-profile-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.company-profile-role {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.company-logout-btn {
+  border: 0;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.company-logout-btn:hover {
+  color: #ef4444;
+}
+
+.company-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.company-header {
+  min-height: 64px;
+  border-bottom: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.company-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.company-mobile-menu-btn {
+  display: none;
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.company-header-title {
+  margin: 0;
+  font-size: 18px;
+  color: #0d0d2c;
+  font-weight: 700;
+}
+
+.company-header-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.company-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.company-search-wrap {
+  min-width: 260px;
+}
+
+.company-search-input {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  background: #f9fafb;
+  padding: 8px 12px;
+  outline: none;
+}
+
+.company-search-input:focus {
+  border-color: #7621c2;
+  box-shadow: 0 0 0 3px rgba(118, 33, 194, 0.1);
+}
+
+.company-quick-action-btn {
+  border: 0;
+  border-radius: 10px;
+  background: #7621c2;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  height: 38px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.company-notification-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #6b7280;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.company-notification-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  right: 9px;
+  top: 9px;
+  background: #ef4444;
+  border: 2px solid #fff;
+}
+
+.company-content {
+  flex: 1;
+  padding: 24px;
+  overflow: auto;
+}
+
+@media (max-width: 1120px) {
+  .company-search-wrap {
+    display: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .company-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+
+  .company-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .company-mobile-menu-btn {
+    display: block;
+  }
+}
+

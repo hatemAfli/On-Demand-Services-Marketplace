@@ -25,6 +25,12 @@ import {
 import {
   CompanyAdminLayout,
   CompanyDashboardPage,
+  CompanyProvidersPage,
+  CompanyServicesPage,
+  CompanyOrdersPage,
+  CompanySchedulePage,
+  CompanyRatingsPage,
+  CompanySettingsPage,
   CompanyPlaceholderPage,
 } from './features/company_admin'
 import { useAuthStore } from './stores/authStore'
@@ -188,14 +194,20 @@ function AppShell() {
               <Route path="/company" element={<CompanyAdminLayout />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<CompanyDashboardPage />} />
+                <Route path="providers" element={<CompanyProvidersPage />} />
+                <Route path="services" element={<CompanyServicesPage />} />
+                <Route path="orders" element={<CompanyOrdersPage />} />
                 <Route
-                  path="services"
-                  element={<CompanyPlaceholderPage title="Company services" />}
+                  path="schedule-capacity"
+                  element={<CompanySchedulePage />}
                 />
+                <Route path="finance" element={<CompanyPlaceholderPage title="Finance" />} />
+                <Route path="ratings" element={<CompanyRatingsPage />} />
                 <Route
-                  path="team"
-                  element={<CompanyPlaceholderPage title="Team & permissions" />}
+                  path="subscription-plan"
+                  element={<CompanyPlaceholderPage title="Subscription & Plan" />}
                 />
+                <Route path="settings" element={<CompanySettingsPage />} />
               </Route>
             </Route>
 
