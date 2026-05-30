@@ -846,7 +846,8 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
 export const ProviderHomeScreen: React.FC = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<ProviderStackParamList>>();
-  const { unreadCount, refreshUnreadCount } = useNotificationsRealtime();
+  const { unreadCount, refreshUnreadCount, addNewNotificationListener } =
+    useNotificationsRealtime();
   const [activeJob, setActiveJob] =
     useState<ProviderCalendarAppointment | null>(null);
   const [activeJobLoading, setActiveJobLoading] = useState(true);
@@ -879,6 +880,16 @@ export const ProviderHomeScreen: React.FC = () => {
       void refreshUnreadCount();
     }, [refreshUnreadCount]),
   );
+
+  // Deep-link new employee invitations to the invitations screen.
+  useEffect(() => {
+    const unsubscribe = addNewNotificationListener((notification) => {
+      if (notification.type === "EMPLOYEE_INVITATION_RECEIVED") {
+        navigation.navigate("ProviderInvitations");
+      }
+    });
+    return unsubscribe;
+  }, [addNewNotificationListener, navigation]);
 
   useLayoutEffect(() => {
     navigation.setOptions({

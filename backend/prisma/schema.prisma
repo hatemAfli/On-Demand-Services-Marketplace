@@ -147,6 +147,20 @@ enum NotificationType {
   COMPLAINT_DISMISSED // client: complaint dismissed
   // System
   SYSTEM_ANNOUNCEMENT // all users: platform announcement
+  // Employee invitations
+  EMPLOYEE_INVITATION_RECEIVED  // provider: company invited you to join
+  EMPLOYEE_INVITATION_ACCEPTED  // company admin: provider accepted
+  EMPLOYEE_INVITATION_DECLINED  // company admin: provider declined
+  EMPLOYEE_INVITATION_CANCELLED // provider: company cancelled the invitation
+  EMPLOYEE_REMOVED_FROM_COMPANY // provider: company admin removed them
+}
+
+enum InvitationStatus {
+  PENDING   // sent, waiting for provider response
+  ACCEPTED  // provider accepted — they become an employee
+  DECLINED  // provider declined
+  CANCELLED // company admin cancelled before provider responded
+  EXPIRED   // automatically expired after 7 days
 }
 
 enum MessageStatus {
@@ -275,15 +289,16 @@ model Provider {
   updatedAt           DateTime     @updatedAt @map("updated_at")
 
   // Relations
-  user          User           @relation(fields: [id], references: [id], onDelete: Cascade)
-  company       Company?       @relation("CompanyProviders", fields: [companyId], references: [id])
-  favoritedBy   ClientFavorite[] @relation("ClientFavoriteProvider")
-  availability  ProviderAvailability[]
-  daysOff       ProviderDayOff[]
-  appointments  Appointment[]
-  conversations Conversation[]
-  reviews         Review[]
-  complaints      Complaint[]
+  user                User                 @relation(fields: [id], references: [id], onDelete: Cascade)
+  company             Company?             @relation("CompanyProviders", fields: [companyId], references: [id])
+  favoritedBy         ClientFavorite[]     @relation("ClientFavoriteProvider")
+  availability        ProviderAvailability[]
+  daysOff             ProviderDayOff[]
+  appointments        Appointment[]
+  conversations       Conversation[]
+  reviews             Review[]
+  complaints          Complaint[]
+  receivedInvitations EmployeeInvitation[]
 
   @@map("providers")
 }
@@ -345,8 +360,9 @@ model CompanyAdmin {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  user    User     @relation(fields: [id], references: [id], onDelete: Cascade)
-  company Company? @relation
+  user            User                 @relation(fields: [id], references: [id], onDelete: Cascade)
+  company         Company?             @relation
+  sentInvitations EmployeeInvitation[]
 
   @@map("company_admins")
 }
@@ -376,6 +392,7 @@ model Company {
   // Relations
   providers     Provider[]     @relation("CompanyProviders")
   admin         CompanyAdmin?  @relation(fields: [adminId], references: [id])
+  invitations   EmployeeInvitation[]
 
   @@map("companies")
 }
@@ -918,4 +935,40 @@ model Notification {
   @@map("notifications")
 }
 
+/// An invitation sent by a company admin to an independent provider.
+/// On acceptance, the provider's type changes to EMPLOYEE and companyId is set.
+model EmployeeInvitation {
+  id             String           @id @default(uuid()) @db.Uuid
 
+  /// The company sending the invitation.
+  companyId      String           @map("company_id") @db.Uuid
+
+  /// The company admin who sent the invitation.
+  sentByAdminId  String           @map("sent_by_admin_id") @db.Uuid
+
+  /// The provider being invited (resolved by email lookup).
+  providerId     String           @map("provider_id") @db.Uuid
+
+  status         InvitationStatus @default(PENDING)
+
+  /// Optional personal message from the company admin.
+  message        String?          @db.Text
+
+  /// The invitation expires 7 days after creation.
+  expiresAt      DateTime         @map("expires_at")
+
+  respondedAt    DateTime?        @map("responded_at")
+
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  company        Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sentByAdmin    CompanyAdmin     @relation(fields: [sentByAdminId], references: [id], onDelete: Cascade)
+  provider       Provider         @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, providerId, status])
+  @@index([providerId, status])
+  @@index([companyId, status])
+  @@index([expiresAt])
+  @@map("employee_invitations")
+}

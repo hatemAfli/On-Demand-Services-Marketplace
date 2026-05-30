@@ -178,6 +178,7 @@ export type ProviderStackParamList = {
     clientLng: number;
     clientName: string;
   };
+  ProviderInvitations: undefined;
   ProviderSubscriptionPlan: undefined;
   ProviderRatings: undefined;
   /** Paginated public reviews for the signed-in provider (own id from profile). */

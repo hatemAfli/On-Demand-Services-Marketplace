@@ -92,6 +92,22 @@ export function getNotificationVisual(type: NotificationType): NotificationIconC
       iconColor: type === "COMPLAINT_RESOLVED" ? "#16A34A" : "#B45309",
     };
   }
+  if (
+    type === "EMPLOYEE_INVITATION_RECEIVED" ||
+    type === "EMPLOYEE_INVITATION_ACCEPTED" ||
+    type === "EMPLOYEE_INVITATION_DECLINED" ||
+    type === "EMPLOYEE_INVITATION_CANCELLED" ||
+    type === "EMPLOYEE_REMOVED_FROM_COMPANY"
+  ) {
+    const positive =
+      type === "EMPLOYEE_INVITATION_RECEIVED" ||
+      type === "EMPLOYEE_INVITATION_ACCEPTED";
+    return {
+      icon: "briefcase-outline",
+      bgColor: positive ? "#E0E7FF" : "#FEE2E2",
+      iconColor: positive ? "#4F46E5" : "#DC2626",
+    };
+  }
 
   return {
     icon: "notifications-outline",
@@ -210,6 +226,11 @@ export const NotificationsScreen: React.FC = () => {
         return;
       }
 
+      if (item.type === "EMPLOYEE_INVITATION_RECEIVED") {
+        navigation.navigate("ProviderInvitations");
+        return;
+      }
+
       const screen = typeof item.data?.screen === "string" ? item.data.screen : undefined;
       const appointmentId =
         typeof item.data?.appointmentId === "string"
@@ -225,6 +246,10 @@ export const NotificationsScreen: React.FC = () => {
       }
       if (screen === "ProviderComplaints") {
         navigation.navigate("ProviderComplaints");
+        return;
+      }
+      if (screen === "ProviderInvitationsScreen" || screen === "ProviderInvitations") {
+        navigation.navigate("ProviderInvitations");
         return;
       }
 

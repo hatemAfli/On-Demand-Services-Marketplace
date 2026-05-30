@@ -187,7 +187,37 @@ export type NotificationType =
   | "COMPLAINT_STATUS_UPDATED"
   | "COMPLAINT_RESOLVED"
   | "COMPLAINT_DISMISSED"
-  | "SYSTEM_ANNOUNCEMENT";
+  | "SYSTEM_ANNOUNCEMENT"
+  | "EMPLOYEE_INVITATION_RECEIVED"
+  | "EMPLOYEE_INVITATION_ACCEPTED"
+  | "EMPLOYEE_INVITATION_DECLINED"
+  | "EMPLOYEE_INVITATION_CANCELLED"
+  | "EMPLOYEE_REMOVED_FROM_COMPANY";
+
+/** A pending employee invitation received by a provider (GET /provider/invitations). */
+export type ReceivedInvitation = {
+  id: string;
+  status: "PENDING";
+  message: string | null;
+  expiresAt: string;
+  createdAt: string;
+  company: {
+    id: string;
+    companyName: string;
+    logo: string | null;
+    city: string;
+    averageRating: number;
+    totalReviews: number;
+  };
+  sentByAdmin: {
+    user: { firstName: string; lastName: string };
+  };
+};
+
+/** Provider's response to an invitation. */
+export type RespondInvitationPayload = {
+  action: "ACCEPTED" | "DECLINED";
+};
 
 export type AppNotification = {
   id: string;
@@ -857,6 +887,13 @@ export const api = {
     apiClient.get<ProviderComplaintsSummaryResponse>(
       "/complaints/my-provider-complaints",
     ),
+
+  // Employee invitations (role PROVIDER)
+  getMyReceivedInvitations: () =>
+    apiClient.get<ReceivedInvitation[]>("/provider/invitations"),
+
+  respondToInvitation: (id: string, payload: RespondInvitationPayload) =>
+    apiClient.patch<unknown>(`/provider/invitations/${id}/respond`, payload),
 };
 
 export default apiClient;

@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AppointmentStatus, NotificationType } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
+import { EmployeesService } from '../company/employees/employees.service';
 import { NotificationsService } from './notifications.service';
 
 @Injectable()
@@ -9,7 +10,15 @@ export class NotificationsScheduler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    @Inject(forwardRef(() => EmployeesService))
+    private readonly employeesService: EmployeesService,
   ) {}
+
+  // Runs once per day at midnight — mark stale PENDING invitations as EXPIRED.
+  @Cron('0 0 * * *')
+  async expireInvitations(): Promise<void> {
+    await this.employeesService.expireStaleInvitations();
+  }
 
   // Runs every 15 minutes
   @Cron('0 */15 * * * *')

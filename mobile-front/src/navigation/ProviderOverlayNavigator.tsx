@@ -30,6 +30,7 @@ import { ProviderDaysOffScreen } from "../screens/provider/schedule/ProviderDays
 import { ProviderCalendarScreen } from "../screens/provider/schedule/ProviderCalendarScreen";
 import { ProviderAppointmentDetailScreen } from "../screens/provider/schedule/ProviderAppointmentDetailScreen";
 import { ProviderItineraryScreen } from "../screens/provider/schedule/ProviderItineraryScreen";
+import { ProviderInvitationsScreen } from "../screens/provider/invitation/ProviderInvitationsScreen";
 import { ProviderSubscriptionPlanScreen } from "../screens/provider/subscription-plan/ProviderSubscriptionPlanScreen";
 import { ProviderRatingsScreen } from "../screens/provider/rating/ProviderRatingsScreen";
 import { ProviderReviewsScreen } from "../screens/provider/reviews/ProviderReviewsScreen";
@@ -112,6 +113,7 @@ export const ProviderOverlayNavigator: React.FC = () => {
             route.name !== "ProviderCalendar" &&
             route.name !== "ProviderAppointmentDetail" &&
             route.name !== "ProviderItinerary" &&
+            route.name !== "ProviderInvitations" &&
             route.name !== "Notifications" &&
             route.name !== "NotificationDetail" &&
             route.name !== "ConversationList" &&
@@ -201,6 +203,10 @@ export const ProviderOverlayNavigator: React.FC = () => {
         <Stack.Screen
           name="ProviderItinerary"
           component={ProviderItineraryScreen}
+        />
+        <Stack.Screen
+          name="ProviderInvitations"
+          component={ProviderInvitationsScreen}
         />
         <Stack.Screen
           name="ProviderSubscriptionPlan"

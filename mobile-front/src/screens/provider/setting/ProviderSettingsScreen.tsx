@@ -3,6 +3,7 @@ import {
   Image,
   ScrollView,
   StatusBar,
+  StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
@@ -31,6 +32,24 @@ type Nav = NativeStackNavigationProp<ProviderStackParamList>;
 const APP_VERSION =
   Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "1.0.0";
 
+const inviteBadgeStyles = StyleSheet.create({
+  badge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#4F46E5",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+    marginRight: 4,
+  },
+  badgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+});
+
 export const ProviderSettingsScreen: React.FC = () => {
   const { t, language, setLanguage } = useAppTranslation();
   const { user, logout } = useAuth();
@@ -42,6 +61,7 @@ export const ProviderSettingsScreen: React.FC = () => {
     useState(true);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [servicesCount, setServicesCount] = useState(0);
+  const [invitationsCount, setInvitationsCount] = useState(0);
 
   const displayName =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
@@ -89,6 +109,18 @@ export const ProviderSettingsScreen: React.FC = () => {
         }
       };
       void loadServicesCount();
+
+      const loadInvitationsCount = async () => {
+        try {
+          const res = await api.getMyReceivedInvitations();
+          const items = Array.isArray(res.data) ? res.data : [];
+          if (alive) setInvitationsCount(items.length);
+        } catch {
+          if (alive) setInvitationsCount(0);
+        }
+      };
+      void loadInvitationsCount();
+
       return () => {
         alive = false;
       };
@@ -199,6 +231,24 @@ export const ProviderSettingsScreen: React.FC = () => {
               title={t("provider.settings.menuMyReviews")}
               subtitle={t("provider.settings.menuMyReviewsHint")}
               onPress={() => navigation.navigate("ProviderReviews")}
+            />
+            <View style={styles.cardDivider} />
+            <SettingsRow
+              icon="briefcase"
+              iconBackground="#EEF2FF"
+              iconColor="#4F46E5"
+              title="Job Invitations"
+              subtitle="Invitations from companies to join their team"
+              onPress={() => navigation.navigate("ProviderInvitations")}
+              trailing={
+                invitationsCount > 0 ? (
+                  <View style={inviteBadgeStyles.badge}>
+                    <Text style={inviteBadgeStyles.badgeText}>
+                      {invitationsCount > 99 ? "99+" : String(invitationsCount)}
+                    </Text>
+                  </View>
+                ) : undefined
+              }
             />
             <View style={styles.cardDivider} />
             <SettingsRow
