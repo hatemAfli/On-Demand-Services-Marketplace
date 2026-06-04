@@ -48,6 +48,7 @@
 .cp-trend-up   { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #16a34a; }
 .cp-trend-yellow{ display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #ca8a04; }
 .cp-link-text  { font-size: 11px; font-weight: 600; color: #7621c2; cursor: pointer; }
+.cp-link-text-disabled { opacity: 0.5; cursor: default; pointer-events: none; }
 .cp-sub-text   { font-size: 11px; color: #94a3b8; }
 
 .cp-stat-icon {
@@ -536,6 +537,44 @@
   display: flex;
   flex-direction: column;
   gap: 22px;
+}
+
+.cp-drawer-body-schedule {
+  padding-top: 16px;
+}
+
+.cp-drawer-subtabs {
+  display: flex;
+  gap: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.cp-drawer-subtabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-family: inherit;
+  transition: color 0.15s;
+}
+
+.cp-drawer-subtabs button:hover {
+  color: #374151;
+}
+
+.cp-drawer-subtabs button.active {
+  color: #7621c2;
+  border-bottom-color: #7621c2;
 }
 
 .cp-drawer-profile {
@@ -1049,6 +1088,101 @@
 .cp-spin { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Value loaders / skeletons ───────────────────────────── */
+.cp-value-skeleton {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    #e2e8f0 0%,
+    #f1f5f9 45%,
+    #e2e8f0 90%
+  );
+  background-size: 200% 100%;
+  animation: cp-shimmer 1.2s ease-in-out infinite;
+}
+
+.cp-value-skeleton-inline {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.cp-avatar-skeleton {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.cp-drawer-avatar-sk {
+  width: 80px;
+  height: 80px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.cp-skeleton-text-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-skeleton-line-lg {
+  width: 72%;
+  height: 16px;
+}
+
+.cp-skeleton-line-md {
+  width: 55%;
+  height: 14px;
+}
+
+.cp-skeleton-line-sm {
+  width: 40%;
+  height: 12px;
+}
+
+.cp-skeleton-actions {
+  width: 64px;
+  height: 28px;
+  margin-left: auto;
+}
+
+.cp-pagination-skeleton {
+  width: 120px;
+  height: 32px;
+  border-radius: 10px;
+}
+
+.cp-page-btns-loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.cp-tr-skeleton td {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.cp-drawer-body-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cp-drawer-body-loading .cp-drawer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@keyframes cp-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
 .cp-tr.no-pointer { cursor: default; }
 .cp-tr.no-pointer:hover { background: transparent; }
 
@@ -1132,6 +1266,71 @@
 }
 
 .cp-textarea:focus { border-color: #7621c2; }
+
+/* ── Invitation drawer ─────────────────────────────────────── */
+.cp-invitation-preview {
+  margin-bottom: 4px;
+}
+
+.cp-invitation-preview .cp-preview-meta {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.cp-invitation-status-row {
+  margin-top: 0;
+}
+
+.cp-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 16px;
+}
+
+.cp-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cp-detail-item small {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cp-detail-item > span {
+  font-size: 14px;
+  color: #111827;
+  font-weight: 500;
+}
+
+.cp-detail-sub {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+.cp-invitation-message {
+  margin: 0;
+  padding: 12px 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #374151;
+  white-space: pre-wrap;
+}
+
+.cp-drawer-footer-single {
+  grid-template-columns: 1fr;
+}
 
 /* ── Toast ────────────────────────────────────────────────── */
 .cp-toast {

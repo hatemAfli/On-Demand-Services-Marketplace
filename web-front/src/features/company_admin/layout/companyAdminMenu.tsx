@@ -2,11 +2,11 @@ import type { IconType } from 'react-icons'
 import {
   FaCalendarCheck,
   FaClipboardList,
-  FaDollarSign,
   FaGem,
   FaGear,
   FaStar,
   FaTableCellsLarge,
+  FaTriangleExclamation,
   FaUsers,
   FaWallet,
 } from 'react-icons/fa6'
@@ -36,7 +36,11 @@ export const companyAdminMenuSections: CompanyMenuSection[] = [
         label: 'Schedule & Capacity',
         icon: FaCalendarCheck,
       },
-      { key: '/company/finance', label: 'Finance', icon: FaDollarSign },
+      {
+        key: '/company/complaints',
+        label: 'Complaints',
+        icon: FaTriangleExclamation,
+      },
       { key: '/company/ratings', label: 'Ratings', icon: FaStar },
     ],
   },

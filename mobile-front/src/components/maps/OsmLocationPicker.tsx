@@ -6,6 +6,8 @@ type Props = {
   latitude: string;
   longitude: string;
   onCoordinateChange: (lat: number, lng: number) => void;
+  /** Explicit map height (px) — parent should disable ScrollView scroll while touching. */
+  height?: number;
 };
 
 const DEFAULT_LAT = 36.8065;
@@ -18,13 +20,13 @@ const OSM_HTML = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<style>html,body,#map{margin:0;padding:0;height:100%;width:100%;touch-action:manipulation;background:#e8e4dc;}</style>
+<style>html,body,#map{margin:0;padding:0;height:100%;width:100%;touch-action:none;-webkit-user-select:none;user-select:none;background:#e8e4dc;}</style>
 </head><body>
 <div id="map"></div>
 <script>
 (function(){
   var ilat = ${DEFAULT_LAT}, ilng = ${DEFAULT_LNG};
-  var map = L.map('map', { zoomControl: true }).setView([ilat, ilng], 13);
+  var map = L.map('map', { zoomControl: true, tap: false }).setView([ilat, ilng], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -55,6 +57,7 @@ export function OsmLocationPicker({
   latitude,
   longitude,
   onCoordinateChange,
+  height = 320,
 }: Props) {
   const webRef = useRef<WebView>(null);
 
@@ -94,13 +97,17 @@ export function OsmLocationPicker({
   };
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { height }]}>
       <WebView
         ref={webRef}
         style={styles.web}
         originWhitelist={["*"]}
         source={{ html: OSM_HTML, baseUrl: "https://localhost" }}
         onMessage={onMessage}
+        nestedScrollEnabled
+        scrollEnabled={false}
+        bounces={false}
+        overScrollMode="never"
         onLoadEnd={() => {
           const lat = parseFloat(latitude);
           const lng = parseFloat(longitude);
@@ -124,14 +131,15 @@ export function OsmLocationPicker({
 
 const styles = StyleSheet.create({
   wrap: {
-    flex: 1,
-    minHeight: 260,
+    width: "100%",
     borderRadius: 16,
     overflow: "hidden",
     backgroundColor: "#e8e4dc",
   },
   web: {
     flex: 1,
+    width: "100%",
+    height: "100%",
     backgroundColor: "transparent",
   },
 });

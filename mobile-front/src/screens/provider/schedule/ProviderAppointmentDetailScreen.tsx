@@ -30,6 +30,10 @@ import {
 } from "../../../components/common";
 import type { ProviderStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
+import {
+  isAppointmentVisibleToEmployeeProvider,
+  isEmployeeProvider,
+} from "../../../utils/providerEmployment";
 import { useAppointmentRealtime } from "../../../hooks/useAppointmentRealtime";
 import { api, type AppointmentStatus } from "../../../services/api";
 import {
@@ -38,6 +42,16 @@ import {
 } from "../../../services/appointmentInterventionPhotosUpload";
 import i18n from "../../../i18n";
 import { pickApiStringArray } from "../../../utils/parseApiStringArray";
+import {
+  type DaysOffByDate,
+  type SlotPickerItem,
+  formatYmd,
+  isDateDayOff,
+  isSameLocalCalendarDay,
+  isSlotStartInPast,
+  normalizeDayOffApiDate,
+  normalizeSlotsResponse,
+} from "../../../utils/appointmentSlots";
 
 type Props = NativeStackScreenProps<
   ProviderStackParamList,
@@ -218,6 +232,24 @@ function parseYmdLocal(ymd: string): Date {
   return new Date(y, m - 1, d);
 }
 
+function combineLocalDateTime(dateYmd: string, timeHm: string): Date {
+  const [y, mo, d] = dateYmd.split("-").map(Number);
+  const parts = timeHm.split(":");
+  const hh = Number(parts[0]) || 0;
+  const mm = Number(parts[1]) || 0;
+  return new Date(y, (mo || 1) - 1, d || 1, hh, mm, 0, 0);
+}
+
+/** True when the booked start time is strictly before now (pending slot expired). */
+function isScheduledSlotPast(scheduledDate: string, scheduledTime: string): boolean {
+  if (!scheduledDate || !scheduledTime) return false;
+  try {
+    return combineLocalDateTime(scheduledDate, scheduledTime).getTime() < Date.now();
+  } catch {
+    return false;
+  }
+}
+
 function formatBookingDateTime(
   scheduledDate: string,
   scheduledTime: string,
@@ -308,10 +340,12 @@ function hasConfirmation(
   return confirmations.some((c) => c.role === role && c.type === type);
 }
 
-const RESCHEDULE_HOURS = Array.from({ length: 17 }, (_, i) =>
-  String(i + 6).padStart(2, "0"),
-) as string[];
-const RESCHEDULE_MINUTES = ["00", "15", "30", "45"] as const;
+const RESCHEDULE_DATE_STRIP_DAYS = 45;
+const RESCHEDULE_WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const RESCHEDULE_MONTH_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
 
 function statusBannerMeta(status: string): {
   bg: string;
@@ -791,6 +825,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
   const { appointmentId } = route.params;
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const isEmployee = isEmployeeProvider(user);
 
   const [appointment, setAppointment] =
     useState<ProviderAppointmentDetailModel | null>(null);
@@ -805,14 +840,25 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
   const [rescheduleDateKey, setRescheduleDateKey] = useState(() =>
     toYyyyMmDd(addDays(new Date(), 1)),
   );
-  const [rescheduleHour, setRescheduleHour] = useState("09");
-  const [rescheduleMinute, setRescheduleMinute] = useState("00");
+  const [selectedRescheduleTime, setSelectedRescheduleTime] = useState<
+    string | null
+  >(null);
+  const [rescheduleSlots, setRescheduleSlots] = useState<SlotPickerItem[]>([]);
+  const [rescheduleSlotsLoading, setRescheduleSlotsLoading] = useState(false);
+  const [rescheduleDaysOffByDate, setRescheduleDaysOffByDate] =
+    useState<DaysOffByDate>({});
+  const [rescheduleDaysOffLoading, setRescheduleDaysOffLoading] =
+    useState(false);
+  const [rescheduleNowCoarse, setRescheduleNowCoarse] = useState(() =>
+    Date.now(),
+  );
   const [beforeLocalUris, setBeforeLocalUris] = useState<string[]>([]);
   const [afterLocalUris, setAfterLocalUris] = useState<string[]>([]);
   const [noticeModal, setNoticeModal] =
     useState<ProviderAppointmentNoticeModal>(null);
   const [confirmCancelVisible, setConfirmCancelVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<"status" | "details">("status");
+  const [pendingClockTick, setPendingClockTick] = useState(0);
 
   const loadAppointment = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -823,7 +869,23 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
       }
       try {
         const res = await api.getAppointmentById(appointmentId);
-        setAppointment(parseAppointment(res.data));
+        const parsed = parseAppointment(res.data);
+        if (
+          isEmployee &&
+          parsed &&
+          !isAppointmentVisibleToEmployeeProvider(parsed.status)
+        ) {
+          setAppointment(null);
+          setNoticeModal({
+            title: "Not available yet",
+            message:
+              "This booking is still pending company approval. Your admin will confirm it before you can view or start the job.",
+            primaryLabel: "OK",
+            onPrimary: () => navigation.goBack(),
+          });
+          return;
+        }
+        setAppointment(parsed);
       } catch {
         if (!opts?.silent) {
           setAppointment(null);
@@ -842,7 +904,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
         }
       }
     },
-    [appointmentId, navigation],
+    [appointmentId, navigation, isEmployee],
   );
 
   useEffect(() => {
@@ -851,10 +913,28 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
 
   useAppointmentRealtime(
     appointmentId,
-    useCallback((raw) => {
-      const parsed = parseAppointment(raw);
-      if (parsed) setAppointment(parsed);
-    }, []),
+    useCallback(
+      (raw) => {
+        const parsed = parseAppointment(raw);
+        if (!parsed) return;
+        if (
+          isEmployee &&
+          !isAppointmentVisibleToEmployeeProvider(parsed.status)
+        ) {
+          setAppointment(null);
+          setNoticeModal({
+            title: "Not available yet",
+            message:
+              "This booking is still pending company approval. Your admin will confirm it before you can view or start the job.",
+            primaryLabel: "OK",
+            onPrimary: () => navigation.goBack(),
+          });
+          return;
+        }
+        setAppointment(parsed);
+      },
+      [isEmployee, navigation],
+    ),
   );
 
   useLayoutEffect(() => {
@@ -892,27 +972,170 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     );
   }, [appointment]);
 
+  const pendingSlotPassed = useMemo(() => {
+    if (!appointment || appointment.status !== "PENDING") return false;
+    return isScheduledSlotPast(
+      appointment.scheduledDate,
+      appointment.scheduledTime,
+    );
+  }, [appointment, pendingClockTick]);
+
+  useEffect(() => {
+    if (appointment?.status !== "PENDING") return;
+    const id = setInterval(() => setPendingClockTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, [appointment?.status]);
+
+  useEffect(() => {
+    if (pendingSlotPassed) {
+      setRefuseMode(false);
+      setRefusalReason("");
+      setRefusalError("");
+    }
+  }, [pendingSlotPassed]);
+
   const showTimerPhase = useMemo(() => {
     if (!appointment || appointment.status !== "IN_PROGRESS") return false;
     return !!appointment.startedAt && !waitingClientEnd;
   }, [appointment, waitingClientEnd]);
 
-  const rescheduleDayChips = useMemo(() => {
-    const out: { key: string; label: string }[] = [];
+  const rescheduleDuration = useMemo(
+    () =>
+      Math.max(
+        1,
+        appointment?.givenService.estimatedDurationMinutes ?? 60,
+      ),
+    [appointment?.givenService.estimatedDurationMinutes],
+  );
+
+  const rescheduleDateStrip = useMemo(() => {
     const start = new Date();
-    for (let i = 1; i <= 45; i++) {
-      const d = addDays(start, i);
-      out.push({
-        key: toYyyyMmDd(d),
-        label: d.toLocaleDateString("en-GB", {
-          weekday: "short",
-          day: "numeric",
-          month: "short",
-        }),
+    start.setHours(12, 0, 0, 0);
+    const firstOffset = pendingSlotPassed ? 0 : 1;
+    return Array.from({ length: RESCHEDULE_DATE_STRIP_DAYS }, (_, i) =>
+      formatYmd(addDays(start, i + firstOffset)),
+    );
+  }, [pendingSlotPassed]);
+
+  const rescheduleSelectedDayOff = isDateDayOff(
+    rescheduleDaysOffByDate,
+    rescheduleDateKey,
+  );
+  const rescheduleSelectedDayOffReason = rescheduleSelectedDayOff
+    ? rescheduleDaysOffByDate[rescheduleDateKey]
+    : null;
+
+  const rescheduleSelectableSlots = useMemo(() => {
+    const now = new Date(rescheduleNowCoarse);
+    return rescheduleSlots.filter(
+      (slot) =>
+        slot.status === "available" &&
+        !isSlotStartInPast(rescheduleDateKey, slot.time, now),
+    );
+  }, [rescheduleSlots, rescheduleDateKey, rescheduleNowCoarse]);
+
+  const canSendReschedule =
+    !!selectedRescheduleTime &&
+    rescheduleSelectableSlots.some((s) => s.time === selectedRescheduleTime);
+
+  useEffect(() => {
+    if (!rescheduleSheetVisible) return;
+    setSelectedRescheduleTime(null);
+  }, [rescheduleDateKey, rescheduleSheetVisible]);
+
+  useEffect(() => {
+    if (!rescheduleSheetVisible || !user?.id) return;
+    const from = rescheduleDateStrip[0];
+    const to = rescheduleDateStrip[rescheduleDateStrip.length - 1];
+    let cancelled = false;
+    setRescheduleDaysOffLoading(true);
+    void api
+      .getMyDaysOff(from, to)
+      .then((res) => {
+        if (cancelled) return;
+        const rows = Array.isArray(res.data) ? res.data : [];
+        const map: DaysOffByDate = {};
+        for (const row of rows) {
+          const key = normalizeDayOffApiDate(row.date);
+          if (key) map[key] = row.reason?.trim() || null;
+        }
+        setRescheduleDaysOffByDate(map);
+      })
+      .catch(() => {
+        if (!cancelled) setRescheduleDaysOffByDate({});
+      })
+      .finally(() => {
+        if (!cancelled) setRescheduleDaysOffLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [rescheduleSheetVisible, user?.id, rescheduleDateStrip]);
+
+  useEffect(() => {
+    if (!rescheduleSheetVisible || !user?.id) return;
+    if (isDateDayOff(rescheduleDaysOffByDate, rescheduleDateKey)) {
+      setRescheduleSlots([]);
+      setRescheduleSlotsLoading(false);
+      return;
     }
-    return out;
-  }, []);
+    let cancelled = false;
+    setRescheduleSlotsLoading(true);
+    void api
+      .getMyProviderDaySlots(
+        rescheduleDateKey,
+        rescheduleDuration,
+        appointmentId,
+      )
+      .then((res) => {
+        if (cancelled) return;
+        setRescheduleSlots(normalizeSlotsResponse(res.data));
+      })
+      .catch(() => {
+        if (!cancelled) setRescheduleSlots([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRescheduleSlotsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    rescheduleSheetVisible,
+    user?.id,
+    rescheduleDateKey,
+    rescheduleDuration,
+    appointmentId,
+    rescheduleDaysOffByDate,
+  ]);
+
+  useEffect(() => {
+    if (!rescheduleSheetVisible) return;
+    if (!isSameLocalCalendarDay(rescheduleDateKey, new Date())) return;
+    setRescheduleNowCoarse(Date.now());
+    const id = setInterval(() => setRescheduleNowCoarse(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, [rescheduleSheetVisible, rescheduleDateKey]);
+
+  useEffect(() => {
+    if (!selectedRescheduleTime) return;
+    const now = new Date(rescheduleNowCoarse);
+    const selected = rescheduleSlots.find(
+      (s) => s.time === selectedRescheduleTime,
+    );
+    if (
+      !selected ||
+      selected.status === "reserved" ||
+      isSlotStartInPast(rescheduleDateKey, selectedRescheduleTime, now)
+    ) {
+      setSelectedRescheduleTime(null);
+    }
+  }, [
+    selectedRescheduleTime,
+    rescheduleSlots,
+    rescheduleDateKey,
+    rescheduleNowCoarse,
+  ]);
 
   const runAction = useCallback(
     async (
@@ -952,12 +1175,31 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     [loadAppointment],
   );
 
-  const onAccept = () =>
+  const onAccept = () => {
+    if (pendingSlotPassed) {
+      setNoticeModal({
+        title: "Time has passed",
+        message:
+          "You can no longer accept this request at the original time. Propose a new time instead.",
+        primaryLabel: "OK",
+      });
+      return;
+    }
     void runAction(() =>
       api.providerRespond(appointmentId, { action: "CONFIRMED" }),
     );
+  };
 
   const onRefuseSubmit = () => {
+    if (pendingSlotPassed) {
+      setNoticeModal({
+        title: "Time has passed",
+        message:
+          "You can no longer refuse this request at the original time. Propose a new time instead.",
+        primaryLabel: "OK",
+      });
+      return;
+    }
     const reason = refusalReason.trim();
     if (!reason) {
       setRefusalError("Please enter a reason for refusal.");
@@ -972,14 +1214,33 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
     );
   };
 
-  const onProposeReschedule = () =>
+  const openRescheduleSheet = () => {
+    const defaultDate =
+      rescheduleDateStrip[0] ?? formatYmd(addDays(new Date(), 1));
+    setRescheduleDateKey(defaultDate);
+    setSelectedRescheduleTime(null);
+    setRescheduleNowCoarse(Date.now());
+    setRescheduleSheetVisible(true);
+  };
+
+  const onProposeReschedule = () => {
+    if (!selectedRescheduleTime || !canSendReschedule) {
+      setNoticeModal({
+        title: "Select a time",
+        message:
+          "Choose an available slot from your calendar. Reserved and past times cannot be selected.",
+        primaryLabel: "OK",
+      });
+      return;
+    }
     void runAction(() =>
       api.providerRespond(appointmentId, {
         action: "RESCHEDULED",
         rescheduleDate: rescheduleDateKey,
-        rescheduleTime: `${rescheduleHour}:${rescheduleMinute}`,
+        rescheduleTime: selectedRescheduleTime,
       }),
     );
+  };
 
   const onMarkEnRoute = () =>
     void runAction(() =>
@@ -1211,107 +1472,154 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
               </View>
             ) : null}
 
-            {appointment.status === "PENDING" ? (
+            {!isEmployee && appointment.status === "PENDING" ? (
               <View style={styles.actionBlock}>
-                <View style={styles.infoCard}>
-                  <Ionicons name="hourglass" size={18} color="#D97706" />
-                  <Text style={styles.infoCardText}>
-                    New booking request from {clientName}. Accept, refuse, or
-                    propose a new time.
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.btnPrimaryGreen,
-                    actionLoading && styles.btnDisabled,
-                  ]}
-                  disabled={actionLoading}
-                  onPress={onAccept}
-                  activeOpacity={0.88}
-                >
-                  {actionLoading ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-                      <Text style={styles.btnPrimaryGreenText}>
-                        Accept Appointment
+                {pendingSlotPassed ? (
+                  <>
+                    <View style={styles.infoCard}>
+                      <Ionicons
+                        name="alert-circle-outline"
+                        size={20}
+                        color="#D97706"
+                      />
+                      <Text style={styles.infoCardText}>
+                        The requested time (
+                        {formatBookingDateTime(
+                          appointment.scheduledDate,
+                          appointment.scheduledTime,
+                        )}
+                        ) has passed. You can only propose a new time for the
+                        client.
                       </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                {!refuseMode ? (
-                  <TouchableOpacity
-                    style={[
-                      styles.btnOutlineRed,
-                      actionLoading && styles.btnDisabled,
-                    ]}
-                    disabled={actionLoading}
-                    onPress={() => setRefuseMode(true)}
-                    activeOpacity={0.88}
-                  >
-                    <Ionicons name="close-circle-outline" size={16} color="#DC2626" />
-                    <Text style={styles.btnOutlineRedText}>Refuse</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.refuseBox}>
-                    <TextInput
-                      style={styles.refuseInput}
-                      placeholder="Reason for refusal…"
-                      placeholderTextColor="#94A3B8"
-                      value={refusalReason}
-                      onChangeText={(text) => {
-                        setRefusalReason(text);
-                        if (refusalError) setRefusalError("");
-                      }}
-                      multiline
-                    />
-                    {refusalError ? (
-                      <Text style={styles.refuseError}>{refusalError}</Text>
-                    ) : null}
+                    </View>
                     <TouchableOpacity
                       style={[
-                        styles.btnOutlineRed,
+                        styles.btnPrimary,
                         actionLoading && styles.btnDisabled,
                       ]}
                       disabled={actionLoading}
-                      onPress={onRefuseSubmit}
+                      onPress={openRescheduleSheet}
                       activeOpacity={0.88}
                     >
                       {actionLoading ? (
-                        <ActivityIndicator color="#DC2626" />
+                        <ActivityIndicator color="#FFFFFF" />
                       ) : (
-                        <Text style={styles.btnOutlineRedText}>
-                          Confirm refusal
-                        </Text>
+                        <>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={16}
+                            color="#FFFFFF"
+                          />
+                          <Text style={styles.btnPrimaryText}>
+                            Propose a different time
+                          </Text>
+                        </>
                       )}
                     </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
                     <TouchableOpacity
-                      style={styles.cancelLinkWrap}
-                      onPress={() => {
-                        setRefuseMode(false);
-                        setRefusalReason("");
-                        setRefusalError("");
-                      }}
+                      style={[
+                        styles.btnPrimaryGreen,
+                        actionLoading && styles.btnDisabled,
+                      ]}
+                      disabled={actionLoading}
+                      onPress={onAccept}
+                      activeOpacity={0.88}
+                    >
+                      {actionLoading ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={16}
+                            color="#FFFFFF"
+                          />
+                          <Text style={styles.btnPrimaryGreenText}>
+                            Accept Appointment
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    {!refuseMode ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.btnOutlineRed,
+                          actionLoading && styles.btnDisabled,
+                        ]}
+                        disabled={actionLoading}
+                        onPress={() => setRefuseMode(true)}
+                        activeOpacity={0.88}
+                      >
+                        <Ionicons
+                          name="close-circle-outline"
+                          size={16}
+                          color="#DC2626"
+                        />
+                        <Text style={styles.btnOutlineRedText}>Refuse</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.refuseBox}>
+                        <TextInput
+                          style={styles.refuseInput}
+                          placeholder="Reason for refusal…"
+                          placeholderTextColor="#94A3B8"
+                          value={refusalReason}
+                          onChangeText={(text) => {
+                            setRefusalReason(text);
+                            if (refusalError) setRefusalError("");
+                          }}
+                          multiline
+                        />
+                        {refusalError ? (
+                          <Text style={styles.refuseError}>{refusalError}</Text>
+                        ) : null}
+                        <TouchableOpacity
+                          style={[
+                            styles.btnOutlineRed,
+                            actionLoading && styles.btnDisabled,
+                          ]}
+                          disabled={actionLoading}
+                          onPress={onRefuseSubmit}
+                          activeOpacity={0.88}
+                        >
+                          {actionLoading ? (
+                            <ActivityIndicator color="#DC2626" />
+                          ) : (
+                            <Text style={styles.btnOutlineRedText}>
+                              Confirm refusal
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.cancelLinkWrap}
+                          onPress={() => {
+                            setRefuseMode(false);
+                            setRefusalReason("");
+                            setRefusalError("");
+                          }}
+                          disabled={actionLoading}
+                        >
+                          <Text style={styles.linkMuted}>Cancel</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.proposeLink}
+                      onPress={openRescheduleSheet}
                       disabled={actionLoading}
                     >
-                      <Text style={styles.linkMuted}>Cancel</Text>
+                      <Ionicons name="time-outline" size={15} color="#6366F1" />
+                      <Text style={styles.proposeLinkText}>
+                        Propose a different time
+                      </Text>
                     </TouchableOpacity>
-                  </View>
+                  </>
                 )}
-
-                <TouchableOpacity
-                  style={styles.proposeLink}
-                  onPress={() => setRescheduleSheetVisible(true)}
-                  disabled={actionLoading}
-                >
-                  <Ionicons name="time-outline" size={15} color="#6366F1" />
-                  <Text style={styles.proposeLinkText}>
-                    Propose a different time
-                  </Text>
-                </TouchableOpacity>
               </View>
             ) : null}
 
@@ -1341,13 +1649,15 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                     </>
                   )}
                 </TouchableOpacity>
-                <TouchableOpacity
-                  disabled={actionLoading}
-                  onPress={onCancelConfirmed}
-                  style={styles.cancelLinkWrap}
-                >
-                  <Text style={styles.linkDanger}>Cancel appointment</Text>
-                </TouchableOpacity>
+                {!isEmployee ? (
+                  <TouchableOpacity
+                    disabled={actionLoading}
+                    onPress={onCancelConfirmed}
+                    style={styles.cancelLinkWrap}
+                  >
+                    <Text style={styles.linkDanger}>Cancel appointment</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             ) : null}
 
@@ -1374,20 +1684,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
 
             {appointment.status === "EN_ROUTE" ? (
               <View style={styles.actionBlock}>
-                <View style={styles.enRouteCard}>
-                  <View style={styles.enRouteIconWrap}>
-                    <Ionicons name="car" size={28} color="#0284C7" />
-                  </View>
-                  <Text style={styles.enRouteText}>You are on the way</Text>
-                  {appointment.enRouteAt ? (
-                    <Text style={styles.enRouteSub}>
-                      Departed at {formatTimeOnly(appointment.enRouteAt)}
-                    </Text>
-                  ) : null}
-                  <Text style={styles.enRouteSub}>
-                    Client has been notified
-                  </Text>
-                </View>
+                
 
                 {appointment.latitude != null && appointment.longitude != null && (
                   <TouchableOpacity
@@ -1728,157 +2025,236 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
               { paddingBottom: Math.max(insets.bottom, 24) },
             ]}
           >
-            <View style={sheetStyles.sheetHandleRow}>
-              <View style={sheetStyles.sheetHandle} />
-            </View>
-
-            <View style={sheetStyles.sheetHeaderRow}>
-              <View style={sheetStyles.sheetHeaderIcon}>
-                <Ionicons name="calendar-outline" size={20} color="#6366F1" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={sheetStyles.sheetTitle}>Propose New Time</Text>
-                <Text style={sheetStyles.sheetDesc}>
-                  Pick a date and time that works better for this appointment.
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() =>
-                  !actionLoading && setRescheduleSheetVisible(false)
-                }
-                hitSlop={12}
-              >
-                <Ionicons name="close" size={22} color="#94A3B8" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={sheetStyles.sheetSub}>Choose a date</Text>
             <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={sheetStyles.dateChipsRow}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
-              {rescheduleDayChips.map((chip) => {
-                const sel = chip.key === rescheduleDateKey;
-                return (
-                  <TouchableOpacity
-                    key={chip.key}
-                    style={[
-                      sheetStyles.dateChip,
-                      sel && sheetStyles.dateChipSelected,
-                    ]}
-                    onPress={() => setRescheduleDateKey(chip.key)}
-                    activeOpacity={0.8}
-                  >
-                    <Text
+              <View style={sheetStyles.sheetHandleRow}>
+                <View style={sheetStyles.sheetHandle} />
+              </View>
+
+              <View style={sheetStyles.sheetHeaderRow}>
+                <View style={sheetStyles.sheetHeaderIcon}>
+                  <Ionicons name="calendar-outline" size={20} color="#6366F1" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={sheetStyles.sheetTitle}>Propose New Time</Text>
+                  <Text style={sheetStyles.sheetDesc}>
+                    Dates and times follow your real availability. Reserved
+                    slots are already booked.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() =>
+                    !actionLoading && setRescheduleSheetVisible(false)
+                  }
+                  hitSlop={12}
+                >
+                  <Ionicons name="close" size={22} color="#94A3B8" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={sheetStyles.sheetSub}>Choose a date</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={sheetStyles.dateChipsRow}
+              >
+                {rescheduleDateStrip.map((ymd) => {
+                  const d = parseYmdLocal(ymd);
+                  const isToday = isSameLocalCalendarDay(ymd, new Date());
+                  const isDayOff = isDateDayOff(rescheduleDaysOffByDate, ymd);
+                  const sel = ymd === rescheduleDateKey;
+                  const dow = isToday
+                    ? "Today"
+                    : RESCHEDULE_WEEKDAY_SHORT[d.getDay()];
+                  return (
+                    <TouchableOpacity
+                      key={ymd}
                       style={[
-                        sheetStyles.dateChipText,
-                        sel && sheetStyles.dateChipTextSelected,
+                        sheetStyles.dateChip,
+                        isDayOff && !sel && sheetStyles.dateChipDayOff,
+                        isDayOff && sel && sheetStyles.dateChipDayOffActive,
+                        !isDayOff && sel && sheetStyles.dateChipSelected,
                       ]}
+                      onPress={() => setRescheduleDateKey(ymd)}
+                      activeOpacity={0.8}
                     >
-                      {chip.label}
+                      {isDayOff ? (
+                        <Text
+                          style={[
+                            sheetStyles.dateChipOffLabel,
+                            sel && sheetStyles.dateChipOffLabelActive,
+                          ]}
+                        >
+                          Day off
+                        </Text>
+                      ) : null}
+                      <Text
+                        style={[
+                          sheetStyles.dateChipDow,
+                          sel && !isDayOff && sheetStyles.dateChipTextSelected,
+                          isDayOff && !sel && sheetStyles.dateChipDowDayOff,
+                          isDayOff && sel && sheetStyles.dateChipDowDayOffActive,
+                        ]}
+                      >
+                        {dow}
+                      </Text>
+                      <Text
+                        style={[
+                          sheetStyles.dateChipDom,
+                          sel && !isDayOff && sheetStyles.dateChipTextSelected,
+                          isDayOff && !sel && sheetStyles.dateChipDomDayOff,
+                          isDayOff && sel && sheetStyles.dateChipDomDayOffActive,
+                        ]}
+                      >
+                        {d.getDate()}
+                      </Text>
+                      <Text
+                        style={[
+                          sheetStyles.dateChipMon,
+                          sel && !isDayOff && sheetStyles.dateChipTextSelected,
+                          isDayOff && !sel && sheetStyles.dateChipMonDayOff,
+                          isDayOff && sel && sheetStyles.dateChipMonDayOffActive,
+                        ]}
+                      >
+                        {RESCHEDULE_MONTH_SHORT[d.getMonth()]}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <Text style={sheetStyles.sheetSub}>Select time</Text>
+              {rescheduleDaysOffLoading && !rescheduleSelectedDayOff ? (
+                <View style={sheetStyles.slotsLoading}>
+                  <ActivityIndicator size="small" color="#6366F1" />
+                  <Text style={sheetStyles.slotsLoadingText}>
+                    Loading schedule…
+                  </Text>
+                </View>
+              ) : rescheduleSelectedDayOff ? (
+                <View style={sheetStyles.dayOffPanel}>
+                  <Ionicons
+                    name="calendar-clear-outline"
+                    size={26}
+                    color="#D97706"
+                  />
+                  <Text style={sheetStyles.dayOffTitle}>Day off</Text>
+                  <Text style={sheetStyles.dayOffSub}>
+                    You marked this date as unavailable.
+                  </Text>
+                  {rescheduleSelectedDayOffReason ? (
+                    <Text style={sheetStyles.dayOffReason}>
+                      {rescheduleSelectedDayOffReason}
                     </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            <Text style={sheetStyles.sheetSub}>Select time</Text>
-            <View style={sheetStyles.timePickRow}>
-              <View style={sheetStyles.timeColWrap}>
-                <Text style={sheetStyles.timeColLabel}>Hour</Text>
-                <ScrollView
-                  style={sheetStyles.timeCol}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {RESCHEDULE_HOURS.map((h) => {
-                    const sel = rescheduleHour === h;
-                    return (
-                      <TouchableOpacity
-                        key={h}
-                        style={[
-                          sheetStyles.timeChip,
-                          sel && sheetStyles.timeChipSelected,
-                        ]}
-                        onPress={() => setRescheduleHour(h)}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          style={[
-                            sheetStyles.timeChipText,
-                            sel && sheetStyles.timeChipTextSelected,
-                          ]}
-                        >
-                          {h}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-              <Text style={sheetStyles.timeColon}>:</Text>
-              <View style={sheetStyles.timeColWrap}>
-                <Text style={sheetStyles.timeColLabel}>Minute</Text>
-                <ScrollView
-                  style={sheetStyles.timeCol}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {RESCHEDULE_MINUTES.map((m) => {
-                    const sel = rescheduleMinute === m;
-                    return (
-                      <TouchableOpacity
-                        key={m}
-                        style={[
-                          sheetStyles.timeChip,
-                          sel && sheetStyles.timeChipSelected,
-                        ]}
-                        onPress={() => setRescheduleMinute(m)}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          style={[
-                            sheetStyles.timeChipText,
-                            sel && sheetStyles.timeChipTextSelected,
-                          ]}
-                        >
-                          {m}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            </View>
-
-            <View style={sheetStyles.timePreview}>
-              <View style={sheetStyles.timePreviewBadge}>
-                <Ionicons name="time-outline" size={14} color="#6366F1" />
-                <Text style={sheetStyles.timePreviewText}>
-                  {rescheduleDayChips.find((c) => c.key === rescheduleDateKey)
-                    ?.label ?? rescheduleDateKey}{" "}
-                  at {rescheduleHour}:{rescheduleMinute}
-                </Text>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                sheetStyles.sendBtn,
-                actionLoading && styles.btnDisabled,
-              ]}
-              onPress={onProposeReschedule}
-              disabled={actionLoading}
-              activeOpacity={0.85}
-            >
-              {actionLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                  ) : null}
+                  <Text style={sheetStyles.dayOffHint}>
+                    Choose another date to propose a time.
+                  </Text>
+                </View>
+              ) : rescheduleSlotsLoading ? (
+                <View style={sheetStyles.slotsLoading}>
+                  <ActivityIndicator size="small" color="#6366F1" />
+                  <Text style={sheetStyles.slotsLoadingText}>
+                    Checking availability…
+                  </Text>
+                </View>
+              ) : rescheduleSlots.length === 0 ? (
+                <View style={sheetStyles.slotsEmpty}>
+                  <Ionicons name="time-outline" size={28} color="#94A3B8" />
+                  <Text style={sheetStyles.slotsEmptyTitle}>
+                    No open slots
+                  </Text>
+                  <Text style={sheetStyles.slotsEmptySub}>
+                    You have no working hours on this day. Pick another date.
+                  </Text>
+                </View>
               ) : (
                 <>
-                  <Ionicons name="paper-plane" size={15} color="#FFFFFF" />
-                  <Text style={sheetStyles.sendBtnText}>Send Proposal</Text>
+                  {rescheduleSelectableSlots.length === 0 ? (
+                    <Text style={sheetStyles.slotsHint}>
+                      {rescheduleSlots.some((s) => s.status === "reserved")
+                        ? "All open times are reserved or in the past."
+                        : "All remaining slots are in the past. Choose another date."}
+                    </Text>
+                  ) : null}
+                  <View style={sheetStyles.slotsGrid}>
+                    {rescheduleSlots.map((slot) => {
+                      const reserved = slot.status === "reserved";
+                      const past = isSlotStartInPast(
+                        rescheduleDateKey,
+                        slot.time,
+                        new Date(rescheduleNowCoarse),
+                      );
+                      const disabled = reserved || past;
+                      const sel = selectedRescheduleTime === slot.time;
+                      return (
+                        <TouchableOpacity
+                          key={slot.time}
+                          style={[
+                            sheetStyles.slotBtn,
+                            reserved && sheetStyles.slotBtnReserved,
+                            past && sheetStyles.slotBtnPast,
+                            sel && sheetStyles.slotBtnSelected,
+                          ]}
+                          disabled={disabled}
+                          onPress={() => setSelectedRescheduleTime(slot.time)}
+                          activeOpacity={0.82}
+                        >
+                          <Text
+                            style={[
+                              sheetStyles.slotBtnText,
+                              reserved && sheetStyles.slotBtnTextReserved,
+                              past && sheetStyles.slotBtnTextPast,
+                              sel && sheetStyles.slotBtnTextSelected,
+                            ]}
+                          >
+                            {slot.time}
+                          </Text>
+                          {reserved ? (
+                            <Text style={sheetStyles.slotReservedTag}>
+                              Reserved
+                            </Text>
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </>
               )}
-            </TouchableOpacity>
+
+              {selectedRescheduleTime && canSendReschedule ? (
+                <View style={sheetStyles.timePreview}>
+                  <View style={sheetStyles.timePreviewBadge}>
+                    <Ionicons name="time-outline" size={14} color="#6366F1" />
+                    <Text style={sheetStyles.timePreviewText}>
+                      {formatLongDate(rescheduleDateKey)} at{" "}
+                      {selectedRescheduleTime}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                style={[
+                  sheetStyles.sendBtn,
+                  (actionLoading || !canSendReschedule) && styles.btnDisabled,
+                ]}
+                onPress={onProposeReschedule}
+                disabled={actionLoading || !canSendReschedule}
+                activeOpacity={0.85}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="paper-plane" size={15} color="#FFFFFF" />
+                    <Text style={sheetStyles.sendBtnText}>Send Proposal</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2697,12 +3073,14 @@ const sheetStyles = StyleSheet.create({
   },
   dateChipsRow: { gap: 8, paddingVertical: 4 },
   dateChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    minWidth: 64,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: 12,
     backgroundColor: "#F8FAFC",
     borderWidth: 1.5,
     borderColor: "#E2E8F0",
+    alignItems: "center",
   },
   dateChipSelected: {
     backgroundColor: "#6366F1",
@@ -2713,55 +3091,159 @@ const sheetStyles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  dateChipText: { fontSize: 13, fontWeight: "600", color: "#334155" },
+  dateChipDayOff: {
+    backgroundColor: "#FFFBEB",
+    borderColor: "#FDE68A",
+  },
+  dateChipDayOffActive: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#F59E0B",
+  },
+  dateChipOffLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#D97706",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: 2,
+  },
+  dateChipOffLabelActive: { color: "#B45309" },
+  dateChipDow: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  dateChipDom: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginTop: 1,
+  },
+  dateChipMon: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#94A3B8",
+    marginTop: 1,
+  },
+  dateChipDowDayOff: { color: "#B45309" },
+  dateChipDomDayOff: { color: "#92400E" },
+  dateChipMonDayOff: { color: "#D97706" },
+  dateChipDowDayOffActive: { color: "#92400E" },
+  dateChipDomDayOffActive: { color: "#78350F" },
+  dateChipMonDayOffActive: { color: "#B45309" },
   dateChipTextSelected: { color: "#FFFFFF", fontWeight: "700" },
-  timePickRow: {
+  slotsLoading: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    height: 220,
-    marginBottom: 4,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 28,
   },
-  timeColWrap: { flex: 1, gap: 6 },
-  timeColLabel: {
-    fontSize: 11,
+  slotsLoadingText: { fontSize: 13, color: "#64748B", fontWeight: "600" },
+  dayOffPanel: {
+    alignItems: "center",
+    paddingVertical: 20,
+    paddingHorizontal: 12,
+    backgroundColor: "#FFFBEB",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    marginBottom: 8,
+  },
+  dayOffTitle: {
+    fontSize: 15,
     fontWeight: "700",
-    color: "#94A3B8",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    color: "#B45309",
+    marginTop: 8,
+  },
+  dayOffSub: {
+    fontSize: 13,
+    color: "#92400E",
+    textAlign: "center",
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  dayOffReason: {
+    fontSize: 12,
+    color: "#78350F",
+    marginTop: 8,
+    textAlign: "center",
+    fontStyle: "italic",
+  },
+  dayOffHint: {
+    fontSize: 12,
+    color: "#D97706",
+    marginTop: 10,
     textAlign: "center",
   },
-  timeCol: { flex: 1 },
-  timeColon: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#CBD5E1",
-    paddingBottom: 20,
-  },
-  timeChip: {
-    height: 44,
+  slotsEmpty: {
     alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 10,
-    marginVertical: 2,
-    marginHorizontal: 4,
+    paddingVertical: 24,
+    gap: 6,
   },
-  timeChipSelected: {
-    backgroundColor: "#FFFFFF",
+  slotsEmptyTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  slotsEmptySub: {
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  slotsHint: {
+    fontSize: 12,
+    color: "#64748B",
+    marginBottom: 10,
+    lineHeight: 17,
+  },
+  slotsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
+  },
+  slotBtn: {
+    minWidth: "30%",
+    flexGrow: 1,
+    flexBasis: "30%",
+    maxWidth: "32%",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
     borderWidth: 1.5,
-    borderColor: "#A5B4FC",
-    shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 2,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
   },
-  timeChipText: { fontSize: 18, fontWeight: "600", color: "#94A3B8" },
-  timeChipTextSelected: { color: "#6366F1", fontWeight: "800" },
+  slotBtnReserved: {
+    backgroundColor: "#FFF1F1",
+    borderColor: "#FECACA",
+  },
+  slotBtnPast: {
+    opacity: 0.45,
+  },
+  slotBtnSelected: {
+    backgroundColor: "#EEF2FF",
+    borderColor: "#6366F1",
+  },
+  slotBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  slotBtnTextReserved: { color: "#DC2626" },
+  slotBtnTextPast: { color: "#94A3B8" },
+  slotBtnTextSelected: { color: "#6366F1" },
+  slotReservedTag: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#DC2626",
+    marginTop: 3,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
   timePreview: {
     alignItems: "center",
     paddingTop: 14,

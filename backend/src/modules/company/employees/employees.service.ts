@@ -13,6 +13,7 @@ import {
   ProviderType,
 } from '@prisma/client';
 import { PrismaService } from '../../../config/prisma.config';
+import { AvailabilityService } from '../../availability/availability.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { GetEmployeesDto } from './dto/get-employees.dto';
 import { InviteProviderDto } from './dto/invite-provider.dto';
@@ -25,6 +26,7 @@ export class EmployeesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly availabilityService: AvailabilityService,
   ) {}
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -208,6 +210,19 @@ export class EmployeesService {
             photoUrl: true,
             city: true,
             averageRating: true,
+            totalReviews: true,
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
+        sentByAdmin: {
+          select: {
+            id: true,
             user: {
               select: {
                 firstName: true,
@@ -226,6 +241,7 @@ export class EmployeesService {
 
   async getMyReceivedInvitations(
     providerUserId: string,
+    filter: 'all' | 'pending' | 'cancelled' = 'pending',
   ): Promise<EmployeeInvitation[]> {
     const provider = await this.prisma.provider.findUnique({
       where: { id: providerUserId },
@@ -234,12 +250,27 @@ export class EmployeesService {
       throw new NotFoundException('Provider account not found.');
     }
 
+    const where: {
+      providerId: string;
+      status?: InvitationStatus;
+      expiresAt?: { gt: Date };
+    } = { providerId: provider.id };
+
+    switch (filter) {
+      case 'pending':
+        where.status = InvitationStatus.PENDING;
+        where.expiresAt = { gt: new Date() };
+        break;
+      case 'cancelled':
+        where.status = InvitationStatus.CANCELLED;
+        break;
+      case 'all':
+      default:
+        break;
+    }
+
     return this.prisma.employeeInvitation.findMany({
-      where: {
-        providerId: provider.id,
-        status: InvitationStatus.PENDING,
-        expiresAt: { gt: new Date() },
-      },
+      where,
       include: {
         company: {
           select: {
@@ -316,6 +347,10 @@ export class EmployeesService {
           },
         }),
       ]);
+
+      await this.availabilityService.ensureDefaultWeeklyAvailabilityIfEmpty(
+        invitation.providerId,
+      );
 
       void this.notificationsService.send({
         userId: adminUserId,

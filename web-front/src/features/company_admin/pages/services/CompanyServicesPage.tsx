@@ -1,531 +1,486 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  FaArrowTrendUp,
-  FaCheck,
-  FaCircleInfo,
-  FaClock,
-  FaEllipsisVertical,
-  FaFire,
-  FaFilter,
-  FaLayerGroup,
+  FaBriefcase,
   FaMagnifyingGlass,
-  FaPenToSquare,
-  FaPlus,
-  FaTag,
-  FaTrashCan,
-  FaTriangleExclamation,
-  FaUsers,
-  FaUsersGear,
+  FaStar,
   FaXmark,
 } from 'react-icons/fa6'
-import { FaRegClock, FaEyeSlash } from 'react-icons/fa'
+import { companyApi } from '../../../../services/companyApi'
+import type {
+  CategoryFilter,
+  CompanyServiceDetail,
+  CompanyServiceGroup,
+} from '../../../../types/company'
 import './CompanyServicesPage.css'
 
-type ServiceCard = {
-  id: number
-  name: string
-  description: string
-  price: number
-  category: string
-  categoryColor: string
-  image: string
-  capacity: string
-  capacityStatus: 'available' | 'full'
-  addons: string
-  duration: string
-  providers: string[]
-  extraProviders?: number
-  inactive?: boolean
-  layout?: 'horizontal' | 'vertical'
+/* ── helpers ─────────────────────────────────────────────── */
+function initials(name: string) {
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
 }
 
-const SERVICES: ServiceCard[] = [
-  {
-    id: 1,
-    name: 'Deep Home Cleaning',
-    description: 'Comprehensive sanitization for apartments and villas.',
-    price: 250,
-    category: 'Cleaning',
-    categoryColor: 'purple',
-    image: 'https://storage.googleapis.com/uxpilot-auth.appspot.com/33d2ff2b89-20f776849c35cef7691e.png',
-    capacity: '10/day',
-    capacityStatus: 'available',
-    addons: '2 active',
-    duration: '240 min',
-    providers: [
-      'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-1.jpg',
-      'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-3.jpg',
-    ],
-    extraProviders: 8,
-    layout: 'horizontal',
-  },
-  {
-    id: 2,
-    name: 'AC Duct Cleaning',
-    description: 'Professional air quality improvement.',
-    price: 180,
-    category: 'Maintenance',
-    categoryColor: 'blue',
-    image: 'https://storage.googleapis.com/uxpilot-auth.appspot.com/bb6bbfb827-88fb46c6f3497494c80e.png',
-    capacity: '5/day',
-    capacityStatus: 'full',
-    addons: 'None',
-    duration: '120 min',
-    providers: [
-      'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-4.jpg',
-    ],
-    extraProviders: 4,
-    layout: 'horizontal',
-  },
-  {
-    id: 3,
-    name: 'Sofa Shampooing',
-    description: 'Deep shampoo cleaning for fabric sofas to remove stains and odors.',
-    price: 120,
-    category: 'Cleaning',
-    categoryColor: 'purple',
-    image: 'https://images.unsplash.com/photo-1560750588-73207b1ef5b8?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    capacity: '–',
-    capacityStatus: 'available',
-    addons: '–',
-    duration: '1.5h',
-    providers: [
-      'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-6.jpg',
-      'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-2.jpg',
-    ],
-    extraProviders: 5,
-    layout: 'vertical',
-  },
-  {
-    id: 4,
-    name: 'Relaxing Massage',
-    description: '60-minute full body relaxation massage with essential oils.',
-    price: 300,
-    category: 'Beauty & Spa',
-    categoryColor: 'pink',
-    image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    capacity: '–',
-    capacityStatus: 'available',
-    addons: '–',
-    duration: '1h',
-    providers: [
-      'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-7.jpg',
-      'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-8.jpg',
-    ],
-    extraProviders: 3,
-    layout: 'vertical',
-  },
-  {
-    id: 5,
-    name: 'Premium Car Wash',
-    description: 'Interior and exterior premium wash with wax polishing.',
-    price: 85,
-    category: 'Automotive',
-    categoryColor: 'gray',
-    image: 'https://images.unsplash.com/photo-1595429035839-c99c298ffdde?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-    capacity: '–',
-    capacityStatus: 'available',
-    addons: '–',
-    duration: '1h',
-    providers: [],
-    inactive: true,
-    layout: 'vertical',
-  },
+function fmtPrice(n: number) {
+  return n.toFixed(0)
+}
+
+const CATEGORY_COLORS = [
+  '#6366f1', '#0ea5e9', '#10b981', '#f59e0b',
+  '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6',
 ]
+function categoryColor(id: string) {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
+  return CATEGORY_COLORS[h % CATEGORY_COLORS.length]
+}
 
-const CATEGORIES = ['All Services', 'Cleaning', 'Maintenance', 'Beauty & Spa', 'Automotive']
-
+/* ── main component ───────────────────────────────────────── */
 export function CompanyServicesPage() {
+  const navigate = useNavigate()
+
+  const [services, setServices] = useState<CompanyServiceGroup[]>([])
+  const [categories, setCategories] = useState<CategoryFilter[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all')
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
+
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [serviceActive, setServiceActive] = useState(true)
-  const [activeCategory, setActiveCategory] = useState('All Services')
+  const [drawerServiceId, setDrawerServiceId] = useState<string | null>(null)
+  const [drawerDetail, setDrawerDetail] = useState<CompanyServiceDetail | null>(null)
+  const [drawerLoading, setDrawerLoading] = useState(false)
+
+  /* debounce search */
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [searchQuery])
+
+  /* fetch services */
+  const fetchServices = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params: { search?: string; categoryId?: string; active?: boolean } = {}
+      if (debouncedSearch) params.search = debouncedSearch
+      if (selectedCategoryId !== 'all') params.categoryId = selectedCategoryId
+      if (activeFilter === 'active') params.active = true
+      if (activeFilter === 'inactive') params.active = false
+      const data = await companyApi.getCompanyServices(params)
+      setServices(data)
+    } finally {
+      setLoading(false)
+    }
+  }, [debouncedSearch, selectedCategoryId, activeFilter])
+
+  useEffect(() => { void fetchServices() }, [fetchServices])
+
+  /* fetch categories once */
+  useEffect(() => {
+    companyApi.getCompanyCategories().then(setCategories).catch(() => {})
+  }, [])
+
+  /* stats */
+  const stats = useMemo(() => {
+    const totalServices = services.length
+    const activeOfferings = services.reduce((s, g) => s + g.activeProviders, 0)
+    const totalJobs = services.reduce((s, g) => s + g.totalCompletedJobs, 0)
+    const totalReviews = services.reduce((s, g) => s + g.totalReviews, 0)
+    const avgRating =
+      totalReviews > 0
+        ? services.reduce((s, g) => s + g.averageRating * g.totalReviews, 0) / totalReviews
+        : 0
+    return { totalServices, activeOfferings, avgRating, totalJobs }
+  }, [services])
+
+  /* open drawer */
+  const openDrawer = useCallback((serviceId: string) => {
+    setDrawerOpen(true)
+    setDrawerServiceId(serviceId)
+    setDrawerDetail(null)
+    setDrawerLoading(true)
+    companyApi
+      .getCompanyServiceDetail(serviceId)
+      .then((data) => { setDrawerDetail(data) })
+      .finally(() => setDrawerLoading(false))
+  }, [])
+
+  const closeDrawer = () => {
+    setDrawerOpen(false)
+    setDrawerServiceId(null)
+    setDrawerDetail(null)
+  }
+
+  /* optimistic toggle for a provider row inside the drawer */
+  const handleToggleProvider = useCallback(
+    async (givenServiceId: string, current: boolean) => {
+      // optimistic
+      setDrawerDetail((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          givenServices: prev.givenServices.map((gs) =>
+            gs.id === givenServiceId ? { ...gs, active: !current } : gs,
+          ),
+        }
+      })
+      try {
+        await companyApi.toggleGivenServiceActive(givenServiceId, !current)
+        // also refresh service list card
+        void fetchServices()
+      } catch {
+        // revert on error
+        setDrawerDetail((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            givenServices: prev.givenServices.map((gs) =>
+              gs.id === givenServiceId ? { ...gs, active: current } : gs,
+            ),
+          }
+        })
+      }
+    },
+    [fetchServices],
+  )
 
   return (
     <div className="cs-root">
-      {/* Stats */}
+      {/* ── Stats ────────────────────────────────────────────── */}
       <div className="cs-stats-grid">
-        <article className="cs-stat-card cs-hover-purple">
-          <div>
-            <p>Active Services</p>
-            <h3>24</h3>
-            <span className="cs-trend-green"><FaCheck /> 100% Operational</span>
-          </div>
-          <div className="cs-stat-icon purple"><FaLayerGroup /></div>
-        </article>
-
-        <article className="cs-stat-card cs-hover-green">
-          <div>
-            <p>Most Popular</p>
-            <h3>Deep Clean</h3>
-            <span className="cs-sub-text">42% of total bookings</span>
-          </div>
-          <div className="cs-stat-icon green"><FaFire /></div>
-        </article>
-
-        <article className="cs-stat-card cs-hover-blue">
-          <div>
-            <p>Avg. Service Price</p>
-            <h3>AED 185</h3>
-            <span className="cs-trend-blue"><FaArrowTrendUp /> +12% vs last month</span>
-          </div>
-          <div className="cs-stat-icon blue"><FaTag /></div>
-        </article>
-
-        <article className="cs-stat-card cs-hover-yellow">
-          <div>
-            <p>Unassigned Services</p>
-            <h3>2</h3>
-            <span className="cs-link-text">Assign providers now</span>
-          </div>
-          <div className="cs-stat-icon yellow"><FaTriangleExclamation /></div>
-        </article>
+        <StatCard
+          label="Total services"
+          value={loading ? '—' : String(stats.totalServices)}
+          sub="unique services"
+          color="purple"
+        />
+        <StatCard
+          label="Active offerings"
+          value={loading ? '—' : String(stats.activeOfferings)}
+          sub="provider slots active"
+          color="green"
+        />
+        <StatCard
+          label="Average rating"
+          value={loading ? '—' : stats.avgRating > 0 ? stats.avgRating.toFixed(1) : '—'}
+          sub="weighted by reviews"
+          color="yellow"
+        />
+        <StatCard
+          label="Total jobs done"
+          value={loading ? '—' : String(stats.totalJobs)}
+          sub="completed appointments"
+          color="blue"
+        />
       </div>
 
-      {/* Toolbar */}
-      <div className="cs-toolbar">
-        <div className="cs-toolbar-left">
-          <div className="cs-search-wrap">
-            <FaMagnifyingGlass className="cs-search-icon" />
-            <input type="text" placeholder="Search services, categories..." />
+      {/* ── Toolbar ──────────────────────────────────────────── */}
+      <div className="cs2-toolbar">
+        <div className="cs2-toolbar-left">
+          <div className="cs2-search-wrap">
+            <FaMagnifyingGlass className="cs2-search-icon" />
+            <input
+              type="text"
+              placeholder="Search services…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-          <button className="cs-btn-ghost"><FaFilter /> Filters</button>
-        </div>
-        <div className="cs-toolbar-right">
-          <button className="cs-btn-primary" onClick={() => setDrawerOpen(true)}>
-            <FaPlus /> Create New Service
-          </button>
-        </div>
-      </div>
 
-      {/* Category tabs */}
-      <div className="cs-tabs">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            className={`cs-tab${activeCategory === cat ? ' active' : ''}`}
-            onClick={() => setActiveCategory(cat)}
+          <select
+            className="cs2-select"
+            value={selectedCategoryId}
+            onChange={(e) => setSelectedCategoryId(e.target.value)}
           >
-            {cat}
-          </button>
-        ))}
-      </div>
+            <option value="all">All categories</option>
+            {categories.map((c) => (
+              <option key={c.categoryId} value={c.categoryId}>
+                {c.categoryName} ({c.serviceCount})
+              </option>
+            ))}
+          </select>
 
-      {/* Services grid */}
-      <div className="cs-grid">
-        {SERVICES.map((s) =>
-          s.layout === 'horizontal' ? (
-            <HorizontalCard key={s.id} service={s} onEdit={() => setDrawerOpen(true)} />
-          ) : (
-            <VerticalCard key={s.id} service={s} onEdit={() => setDrawerOpen(true)} />
-          ),
-        )}
-
-        {/* Add new card */}
-        <div className="cs-add-card" onClick={() => setDrawerOpen(true)}>
-          <div className="cs-add-icon"><FaPlus /></div>
-          <h3>Add New Service</h3>
-          <p>Create a new service offering and assign providers</p>
+          <div className="cs2-toggle-group">
+            {(['all', 'active', 'inactive'] as const).map((v) => (
+              <button
+                key={v}
+                className={`cs2-toggle-btn${activeFilter === v ? ' active' : ''}`}
+                onClick={() => setActiveFilter(v)}
+              >
+                {v === 'all' ? 'All' : v === 'active' ? 'Active only' : 'Inactive only'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="cs-footer">
-        <span>© 2024 HireWise Inc. All rights reserved.</span>
-        <div>
-          <a href="#">Privacy Policy</a>
-          <a href="#">Terms of Service</a>
-          <a href="#">Help Center</a>
+      {/* ── Grid ─────────────────────────────────────────────── */}
+      {loading ? (
+        <div className="cs2-grid">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="cs2-card-skeleton" />
+          ))}
         </div>
-      </footer>
+      ) : services.length === 0 ? (
+        <div className="cs2-empty">
+          <FaBriefcase />
+          <p>No services found</p>
+          <small>Services appear here once providers are added to your company.</small>
+        </div>
+      ) : (
+        <div className="cs2-grid">
+          {services.map((svc) => (
+            <ServiceCard
+              key={svc.serviceId}
+              group={svc}
+              onClick={() => openDrawer(svc.serviceId)}
+              isOpen={drawerServiceId === svc.serviceId && drawerOpen}
+            />
+          ))}
+        </div>
+      )}
 
-      {/* Manage Service Drawer */}
-      {drawerOpen ? (
+      {/* ── Drawer ───────────────────────────────────────────── */}
+      {drawerOpen && (
         <>
-          <div className="cs-drawer-backdrop" onClick={() => setDrawerOpen(false)} />
-          <aside className="cs-drawer">
-            <div className="cs-drawer-header">
-              <div>
-                <h2>Manage Service</h2>
-                <p>Configure details, pricing, and rules.</p>
+          <div className="cs2-backdrop" onClick={closeDrawer} />
+          <aside className="cs2-drawer">
+            <div className="cs2-drawer-header">
+              <div className="cs2-drawer-title-group">
+                <h2>{drawerDetail?.serviceName ?? '…'}</h2>
+                {drawerDetail && (
+                  <span className="cs2-cat-badge" style={{ background: '#6366f120', color: '#6366f1' }}>
+                    {drawerDetail.categoryName}
+                  </span>
+                )}
               </div>
-              <div className="cs-drawer-head-right">
-                <span className="cs-status-label">Status:</span>
-                <button
-                  role="switch"
-                  aria-checked={serviceActive}
-                  className={`cs-toggle${serviceActive ? ' on' : ''}`}
-                  onClick={() => setServiceActive((v) => !v)}
-                >
-                  <span className="cs-toggle-thumb" />
-                </button>
-                <div className="cs-divider" />
-                <button className="cs-close-btn" onClick={() => setDrawerOpen(false)}>
-                  <FaXmark />
-                </button>
-              </div>
+              <button className="cs2-close-btn" onClick={closeDrawer}>
+                <FaXmark />
+              </button>
             </div>
 
-            <div className="cs-drawer-body">
-              {/* Basic Info */}
-              <section className="cs-drawer-section">
-                <h3><FaCircleInfo className="cs-section-icon" /> Basic Information</h3>
-                <div className="cs-form-group">
-                  <label>Service Name</label>
-                  <input type="text" defaultValue="Deep Home Cleaning" />
-                </div>
-                <div className="cs-form-grid-2">
-                  <div className="cs-form-group">
-                    <label>Category</label>
-                    <select>
-                      <option>Cleaning</option>
-                      <option>Maintenance</option>
-                      <option>Beauty</option>
-                    </select>
+            <div className="cs2-drawer-body">
+              {drawerLoading ? (
+                <DrawerSkeleton />
+              ) : drawerDetail ? (
+                <>
+                  {/* provider list */}
+                  <div className="cs2-provider-section-title">
+                    Providers offering this service ({drawerDetail.givenServices.length})
                   </div>
-                  <div className="cs-form-group">
-                    <label>Sub-Category</label>
-                    <select>
-                      <option>Residential</option>
-                      <option>Commercial</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="cs-form-group">
-                  <label>Description</label>
-                  <textarea
-                    defaultValue="Comprehensive deep cleaning service for apartments and villas including sanitization."
-                  />
-                </div>
-              </section>
+                  {drawerDetail.givenServices.length === 0 ? (
+                    <p className="cs2-drawer-empty">No providers yet.</p>
+                  ) : (
+                    <div className="cs2-provider-list">
+                      {drawerDetail.givenServices.map((gs) => {
+                        const name = `${gs.provider.user.firstName} ${gs.provider.user.lastName}`
+                        const color = categoryColor(gs.provider.id)
+                        return (
+                          <div key={gs.id} className="cs2-provider-row">
+                            <div className="cs2-prov-left">
+                              {gs.provider.photoUrl ? (
+                                <img
+                                  src={gs.provider.photoUrl}
+                                  alt={name}
+                                  className="cs2-prov-avatar"
+                                />
+                              ) : (
+                                <div
+                                  className="cs2-prov-avatar-ini"
+                                  style={{ background: color }}
+                                >
+                                  {initials(name)}
+                                </div>
+                              )}
+                              <div>
+                                <div className="cs2-prov-name">{name}</div>
+                                <div className="cs2-prov-email">{gs.provider.user.email}</div>
+                              </div>
+                            </div>
 
-              {/* Pricing & Rules */}
-              <section className="cs-drawer-section">
-                <h3><FaTag className="cs-section-icon" /> Pricing &amp; Rules</h3>
-                <div className="cs-pricing-box">
-                  <div className="cs-form-grid-2">
-                    <div className="cs-form-group">
-                      <label>Base Price (AED)</label>
-                      <div className="cs-input-prefix">
-                        <span>AED</span>
-                        <input type="number" defaultValue="250" />
-                      </div>
+                            <div className="cs2-prov-right">
+                              <StatusBadge status={gs.provider.user.status} />
+                              <div className="cs2-prov-price">
+                                {fmtPrice(gs.price)} TND
+                                {gs.pricingType === 'HOURLY' ? '/hr' : ' fixed'}
+                              </div>
+                              <div className="cs2-prov-rating">
+                                <FaStar className="cs2-star" />
+                                {Number(gs.averageRating) > 0 ? Number(gs.averageRating).toFixed(1) : '—'}
+                              </div>
+
+                              {/* active toggle */}
+                              <button
+                                role="switch"
+                                aria-checked={gs.active}
+                                className={`cs2-toggle${gs.active ? ' on' : ''}`}
+                                onClick={() => void handleToggleProvider(gs.id, gs.active)}
+                                title={gs.active ? 'Deactivate' : 'Activate'}
+                              >
+                                <span className="cs2-toggle-thumb" />
+                              </button>
+
+                              <button
+                                className="cs2-edit-btn"
+                                onClick={() =>
+                                  navigate(`/company/services/given/${gs.id}`)
+                                }
+                              >
+                                Edit →
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
-                    <div className="cs-form-group">
-                      <label>Duration (Minutes)</label>
-                      <div className="cs-input-prefix">
-                        <FaRegClock />
-                        <input type="number" defaultValue="240" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="cs-form-group">
-                    <label>Pricing Model</label>
-                    <div className="cs-radio-group">
-                      {['Fixed Price', 'Hourly Rate', 'Variable'].map((m, i) => (
-                        <label key={m} className="cs-radio-option">
-                          <input type="radio" name="pricing_model" defaultChecked={i === 0} />
-                          <span>{m}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="cs-form-group">
-                    <div className="cs-label-row">
-                      <label>Add-ons &amp; Options</label>
-                      <button className="cs-link-btn">+ Add Option</button>
-                    </div>
-                    {[
-                      { name: 'Eco-friendly Products', price: 50 },
-                      { name: 'Balcony Cleaning', price: 30 },
-                    ].map((addon) => (
-                      <div key={addon.name} className="cs-addon-row">
-                        <input type="text" defaultValue={addon.name} />
-                        <div className="cs-addon-price">
-                          <span>AED</span>
-                          <input type="number" defaultValue={addon.price} />
-                        </div>
-                        <button className="cs-trash-btn"><FaTrashCan /></button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-
-              {/* Capacity & Assignment */}
-              <section className="cs-drawer-section">
-                <h3><FaUsersGear className="cs-section-icon" /> Capacity &amp; Assignment</h3>
-                <div className="cs-form-grid-2">
-                  <div className="cs-form-group">
-                    <label>Staff Required</label>
-                    <input type="number" defaultValue="2" />
-                  </div>
-                  <div className="cs-form-group">
-                    <label>Max Daily Bookings</label>
-                    <input type="number" defaultValue="10" />
-                  </div>
-                </div>
-
-                <div className="cs-form-group">
-                  <label>Branch Availability</label>
-                  <div className="cs-branch-checks">
-                    {[
-                      { label: 'Dubai HQ', checked: true },
-                      { label: 'Abu Dhabi Branch', checked: false },
-                      { label: 'Sharjah Branch', checked: false },
-                    ].map((b) => (
-                      <label key={b.label} className={`cs-branch-chip${b.checked ? ' checked' : ''}`}>
-                        <input type="checkbox" defaultChecked={b.checked} />
-                        {b.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="cs-form-group">
-                  <div className="cs-label-row">
-                    <label>Assigned Providers</label>
-                    <span className="cs-count-badge">10 selected</span>
-                  </div>
-                  <div className="cs-providers-list">
-                    {[
-                      { name: 'Sarah Mitchell', avatar: 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-1.jpg', checked: true },
-                      { name: 'David Chen', avatar: 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-3.jpg', checked: true },
-                      { name: 'Elena Rodriguez', avatar: 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-5.jpg', checked: false },
-                    ].map((p) => (
-                      <div key={p.name} className="cs-provider-item">
-                        <div className="cs-prov-info">
-                          <img src={p.avatar} alt={p.name} />
-                          <span>{p.name}</span>
-                        </div>
-                        <input type="checkbox" defaultChecked={p.checked} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <div className="cs-drawer-footer">
-              <button className="cs-btn-ghost" onClick={() => setDrawerOpen(false)}>Cancel</button>
-              <button className="cs-btn-primary">Save Changes</button>
+                  )}
+                </>
+              ) : null}
             </div>
           </aside>
         </>
-      ) : null}
+      )}
     </div>
   )
 }
 
-/* ── Sub-components ───────────────────────────────────────── */
-function HorizontalCard({ service: s, onEdit }: { service: ServiceCard; onEdit: () => void }) {
-  return (
-    <div className="cs-card-h">
-      <div className="cs-card-h-img">
-        <img src={s.image} alt={s.name} />
-        <span className={`cs-cat-badge top-left ${s.categoryColor}`}>{s.category}</span>
-      </div>
-      <div className="cs-card-h-body">
-        <div className="cs-card-title-row">
-          <div>
-            <h3>{s.name}</h3>
-            <p>{s.description}</p>
-          </div>
-          <div className="cs-price-col">
-            <span className="cs-price">AED {s.price}</span>
-            <small>Base Price</small>
-          </div>
-        </div>
+/* ── sub-components ───────────────────────────────────────── */
 
-        <div className="cs-mini-grid">
-          <div className="cs-mini-cell">
-            <small>Capacity</small>
-            <span>
-              {s.capacity}{' '}
-              <em className={s.capacityStatus === 'full' ? 'red' : 'green'}>
-                {s.capacityStatus === 'full' ? 'Full' : 'Available'}
-              </em>
-            </span>
-          </div>
-          <div className="cs-mini-cell">
-            <small>Add-ons</small>
-            <span>{s.addons}</span>
-          </div>
-          <div className="cs-mini-cell">
-            <small>Duration</small>
-            <span>{s.duration}</span>
-          </div>
-        </div>
-
-        <div className="cs-card-footer">
-          <AvatarStack providers={s.providers} extra={s.extraProviders} />
-          <div className="cs-card-actions">
-            <button className="cs-icon-btn" onClick={onEdit}><FaPenToSquare /></button>
-            <button className="cs-quick-assign-btn">Quick Assign</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function VerticalCard({ service: s, onEdit }: { service: ServiceCard; onEdit: () => void }) {
-  return (
-    <div className={`cs-card-v${s.inactive ? ' inactive' : ''}`} onClick={onEdit}>
-      <button className="cs-more-btn" onClick={(e) => { e.stopPropagation() }}>
-        <FaEllipsisVertical />
-      </button>
-      {s.inactive ? (
-        <div className="cs-inactive-badge"><FaEyeSlash /> Inactive</div>
-      ) : null}
-      <div className="cs-card-v-img">
-        <img src={s.image} alt={s.name} className={s.inactive ? 'grayscale' : ''} />
-        <span className={`cs-cat-badge bottom-left ${s.categoryColor}`}>{s.category}</span>
-      </div>
-      <div className="cs-card-v-body">
-        <div className="cs-card-title-row">
-          <h3 className={s.inactive ? 'muted' : ''}>{s.name}</h3>
-          <div className="cs-price-inline">
-            <span className="cs-currency">AED</span>
-            <span className={`cs-price-val${s.inactive ? ' muted' : ''}`}>{s.price}</span>
-          </div>
-        </div>
-        <p>{s.description}</p>
-        <div className="cs-card-v-footer">
-          <div className="cs-tags">
-            <span><FaRegClock /> {s.duration}</span>
-            {s.inactive ? null : <span><FaUsers /> 1 Staff</span>}
-          </div>
-          {s.inactive ? (
-            <span className="cs-no-providers">No Providers</span>
-          ) : (
-            <AvatarStack providers={s.providers} extra={s.extraProviders} small />
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function AvatarStack({
-  providers,
-  extra,
-  small,
+function StatCard({
+  label,
+  value,
+  sub,
+  color,
 }: {
-  providers: string[]
-  extra?: number
-  small?: boolean
+  label: string
+  value: string
+  sub: string
+  color: 'purple' | 'green' | 'yellow' | 'blue'
 }) {
-  const size = small ? 'cs-avatar-sm' : 'cs-avatar'
   return (
-    <div className="cs-avatar-stack">
-      {providers.map((src) => (
-        <img key={src} src={src} alt="" className={size} />
+    <article className={`cs-stat-card cs-hover-${color}`}>
+      <div>
+        <p>{label}</p>
+        <h3>{value}</h3>
+        <span className="cs-sub-text">{sub}</span>
+      </div>
+      <div className={`cs-stat-icon ${color}`}>
+        <FaBriefcase />
+      </div>
+    </article>
+  )
+}
+
+function ServiceCard({
+  group: g,
+  onClick,
+  isOpen,
+}: {
+  group: CompanyServiceGroup
+  onClick: () => void
+  isOpen: boolean
+}) {
+  const color = categoryColor(g.categoryId)
+
+  const activeBadgeClass =
+    g.activeProviders === g.totalProviders
+      ? 'cs2-active-badge green'
+      : g.activeProviders === 0
+      ? 'cs2-active-badge red'
+      : 'cs2-active-badge amber'
+  const activeBadgeText =
+    g.activeProviders === g.totalProviders
+      ? 'All active'
+      : g.activeProviders === 0
+      ? 'All inactive'
+      : `${g.activeProviders} of ${g.totalProviders} active`
+
+  const slots = Array.from({ length: Math.min(g.totalProviders, 3) })
+
+  return (
+    <div
+      className={`cs2-card${isOpen ? ' selected' : ''}`}
+      onClick={onClick}
+    >
+      {/* image area — only rendered when the service has its own photo */}
+      {g.coverImage && (
+        <div className="cs2-card-img-wrap">
+          <img src={g.coverImage} alt={g.serviceName} className="cs2-card-img" />
+          <span className="cs2-overlay-badge left" style={{ background: color }}>
+            {g.categoryName}
+          </span>
+          <span className="cs2-overlay-badge right">
+            {g.totalProviders} provider{g.totalProviders !== 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
+
+      {/* body */}
+      <div className="cs2-card-body">
+        <div className="cs2-card-name">{g.serviceName}</div>
+        <div className="cs2-card-category">{g.categoryName}</div>
+
+        <div className="cs2-card-stats">
+          <span>⭐ {Number(g.averageRating) > 0 ? Number(g.averageRating).toFixed(1) : '—'}</span>
+          <span>📋 {g.totalCompletedJobs} jobs</span>
+          <span>💰 {fmtPrice(Number(g.averagePrice))} TND</span>
+        </div>
+
+        <div className="cs2-card-footer">
+          {/* mini avatar stack */}
+          <div className="cs2-avatar-stack">
+            {slots.map((_, i) => (
+              <div
+                key={i}
+                className="cs2-avatar-ini"
+                style={{ background: CATEGORY_COLORS[(i + 2) % CATEGORY_COLORS.length] }}
+              >
+                {String.fromCharCode(65 + i)}
+              </div>
+            ))}
+            {g.totalProviders > 3 && (
+              <div className="cs2-avatar-ini cs2-avatar-extra">
+                +{g.totalProviders - 3}
+              </div>
+            )}
+          </div>
+
+          <span className={activeBadgeClass}>{activeBadgeText}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    ACTIVE: { label: 'Active', cls: 'cs2-status-badge green' },
+    PENDING: { label: 'Pending', cls: 'cs2-status-badge amber' },
+    SUSPENDED: { label: 'Suspended', cls: 'cs2-status-badge red' },
+  }
+  const s = map[status] ?? { label: status, cls: 'cs2-status-badge gray' }
+  return <span className={s.cls}>{s.label}</span>
+}
+
+function DrawerSkeleton() {
+  return (
+    <div className="cs2-skeleton-wrap">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="cs2-skeleton-row">
+          <div className="cs2-skel cs2-skel-avatar" />
+          <div style={{ flex: 1 }}>
+            <div className="cs2-skel cs2-skel-line" style={{ width: '60%' }} />
+            <div className="cs2-skel cs2-skel-line" style={{ width: '40%', marginTop: 6 }} />
+          </div>
+        </div>
       ))}
-      {extra ? (
-        <div className={`${size} cs-avatar-extra`}>+{extra}</div>
-      ) : null}
     </div>
   )
 }

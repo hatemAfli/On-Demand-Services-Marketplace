@@ -1,0 +1,16 @@
+.faq-admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.faq-admin-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.faq-admin-form {
+  margin-top: 8px;
+}

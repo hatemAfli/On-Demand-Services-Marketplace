@@ -12,6 +12,7 @@ import {
   Complaint,
   ComplaintCategory,
   ComplaintDecision,
+  ComplaintForwardTarget,
   ComplaintStatus,
   Locale,
   NotificationType,
@@ -179,6 +180,14 @@ export class ComplaintsService {
       );
     }
 
+    if (!appointment.providerId || !appointment.provider) {
+      throw new BadRequestException(
+        'This appointment has no assigned provider to report.',
+      );
+    }
+    const complaintProviderId = appointment.providerId;
+    const complaintProvider = appointment.provider;
+
     const existingComplaint = await this.prisma.complaint.findUnique({
       where: {
         appointmentId_clientId: {
@@ -191,7 +200,34 @@ export class ComplaintsService {
       throw new ConflictException('A complaint already exists for this appointment');
     }
 
-    const targetIsEmployee = appointment.provider.type === ProviderType.EMPLOYEE;
+    const targetIsEmployee = complaintProvider.type === ProviderType.EMPLOYEE;
+    const employeeCompanyId = complaintProvider.companyId;
+
+    let forwardTarget: ComplaintForwardTarget = ComplaintForwardTarget.PLATFORM;
+    if (targetIsEmployee) {
+      if (!dto.forwardTarget) {
+        throw new BadRequestException(
+          'Choose whether to send this complaint to platform support, your company, or both.',
+        );
+      }
+      if (!employeeCompanyId) {
+        throw new BadRequestException(
+          'This employee is not linked to a company. Contact support.',
+        );
+      }
+      forwardTarget = dto.forwardTarget;
+    }
+
+    const notifyPlatform =
+      !targetIsEmployee ||
+      forwardTarget === ComplaintForwardTarget.PLATFORM ||
+      forwardTarget === ComplaintForwardTarget.BOTH;
+    const notifyCompany =
+      targetIsEmployee &&
+      employeeCompanyId != null &&
+      (forwardTarget === ComplaintForwardTarget.COMPANY ||
+        forwardTarget === ComplaintForwardTarget.BOTH);
+
     const evidenceUrls = this.assertEvidenceUrls(
       dto.evidenceUrls,
       dto.appointmentId,
@@ -203,17 +239,19 @@ export class ComplaintsService {
         data: {
           appointmentId: dto.appointmentId,
           clientId: appointment.clientId,
-          providerId: appointment.providerId,
+          providerId: complaintProviderId,
           category: dto.category,
           description: dto.description.trim(),
           evidenceUrls,
           status: ComplaintStatus.OPEN,
           targetIsEmployee,
+          forwardTarget,
+          companyId: notifyCompany ? employeeCompanyId : null,
         },
       });
 
       await tx.provider.update({
-        where: { id: appointment.providerId },
+        where: { id: complaintProviderId },
         data: {
           totalComplaints: { increment: 1 },
           activeComplaints: { increment: 1 },
@@ -235,33 +273,48 @@ export class ComplaintsService {
 
     const categoryLabel = this.getCategoryLabel(dto.category);
     const clientName = `${appointment.client.user.firstName} ${appointment.client.user.lastName}`.trim();
-    const providerName = `${appointment.provider.user.firstName} ${appointment.provider.user.lastName}`.trim();
+    const providerName = `${complaintProvider.user.firstName} ${complaintProvider.user.lastName}`.trim();
 
     void this.notificationsService.send({
-      userId: appointment.provider.user.id,
+      userId: complaintProvider.user.id,
       type: NotificationType.COMPLAINT_FILED,
       title: 'A complaint has been filed',
       body: `A client reported an issue with your service: ${categoryLabel}. This has been sent to our team for review.`,
       data: { complaintId: complaint.id, screen: 'ProviderComplaints' },
     });
 
-    const admins = await this.prisma.platformAdmin.findMany({
-      include: { user: { select: { id: true } } },
-    });
-    for (const admin of admins) {
-      void this.notificationsService.send({
-        userId: admin.user.id,
-        type: NotificationType.SYSTEM_ANNOUNCEMENT,
-        title: '⚠️ New complaint filed',
-        body: `${clientName} filed a ${categoryLabel} complaint against ${providerName}`,
-        data: { complaintId: complaint.id, screen: 'AdminComplaintDetail' },
+    if (notifyPlatform) {
+      const admins = await this.prisma.platformAdmin.findMany({
+        include: { user: { select: { id: true } } },
       });
+      for (const admin of admins) {
+        void this.notificationsService.send({
+          userId: admin.user.id,
+          type: NotificationType.SYSTEM_ANNOUNCEMENT,
+          title: '⚠️ New complaint filed',
+          body: `${clientName} filed a ${categoryLabel} complaint against ${providerName}`,
+          data: { complaintId: complaint.id, screen: 'AdminComplaintDetail' },
+        });
+      }
     }
 
-    if (targetIsEmployee) {
-      this.logger.log(
-        `[Complaints] Company admin notification for employee complaint ${complaint.id} — to be implemented in company module`,
-      );
+    if (notifyCompany && employeeCompanyId) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: employeeCompanyId },
+        select: { adminId: true, companyName: true },
+      });
+      if (company?.adminId) {
+        void this.notificationsService.send({
+          userId: company.adminId,
+          type: NotificationType.SYSTEM_ANNOUNCEMENT,
+          title: 'New customer complaint',
+          body: `${clientName} reported ${categoryLabel} regarding your provider ${providerName}.`,
+          data: {
+            complaintId: complaint.id,
+            screen: 'CompanyComplaintDetail',
+          },
+        });
+      }
     }
 
     return complaint;
@@ -464,24 +517,31 @@ export class ComplaintsService {
 
     const categories = Object.values(ComplaintCategory);
 
+    const platformScope: Prisma.ComplaintWhereInput = {
+      forwardTarget: { not: ComplaintForwardTarget.COMPANY },
+    };
+
     const [total, open, underReview, resolvedThisMonth, categoryCounts] =
       await Promise.all([
-        this.prisma.complaint.count(),
+        this.prisma.complaint.count({ where: platformScope }),
         this.prisma.complaint.count({
-          where: { status: ComplaintStatus.OPEN },
+          where: { ...platformScope, status: ComplaintStatus.OPEN },
         }),
         this.prisma.complaint.count({
-          where: { status: ComplaintStatus.UNDER_REVIEW },
+          where: { ...platformScope, status: ComplaintStatus.UNDER_REVIEW },
         }),
         this.prisma.complaint.count({
           where: {
+            ...platformScope,
             status: ComplaintStatus.RESOLVED,
             resolvedAt: { gte: monthStart },
           },
         }),
         Promise.all(
           categories.map((category) =>
-            this.prisma.complaint.count({ where: { category } }),
+            this.prisma.complaint.count({
+              where: { ...platformScope, category },
+            }),
           ),
         ),
       ]);
@@ -512,6 +572,7 @@ export class ComplaintsService {
     const orderDir = sort === 'oldest' ? 'asc' : 'desc';
 
     const where: Prisma.ComplaintWhereInput = {
+      forwardTarget: { not: ComplaintForwardTarget.COMPANY },
       ...(dto.status != null ? { status: dto.status } : {}),
       ...(dto.category != null ? { category: dto.category } : {}),
       ...(dto.providerId != null ? { providerId: dto.providerId } : {}),

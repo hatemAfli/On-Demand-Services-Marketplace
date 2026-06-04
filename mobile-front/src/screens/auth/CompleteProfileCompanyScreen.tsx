@@ -21,6 +21,7 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  useWindowDimensions,
 } from "react-native";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import MapView, { Marker, Region, PROVIDER_GOOGLE } from "react-native-maps";
@@ -48,18 +49,27 @@ import {
 } from "../../types/documents";
 import { OsmLocationPicker } from "../../components/maps/OsmLocationPicker";
 
-const ACCENT = "#4F46E5";
+const ACCENT = "#EA580C";
+const ACCENT_SOFT = "#FFEDD5";
+const ACCENT_BORDER = "#FDBA74";
+const STEP_GREEN = "#10B981";
+const STEP_TRACK = "#E2E8F0";
+const SCREEN_BG = "#F1F5F9";
 const TOTAL_STEPS = 3;
 
 const USE_OSM_WEB_MAP =
   Platform.OS === "android" &&
   Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
+const MAP_ZOOM_DELTA = 0.035;
+const MAP_MIN_HEIGHT = 320;
+const MAP_MAX_HEIGHT = 440;
+
 const DEFAULT_MAP_REGION: Region = {
   latitude: 36.8065,
   longitude: 10.1815,
-  latitudeDelta: 0.08,
-  longitudeDelta: 0.08,
+  latitudeDelta: MAP_ZOOM_DELTA,
+  longitudeDelta: MAP_ZOOM_DELTA,
 };
 
 type PendingDoc = {
@@ -80,6 +90,12 @@ export const CompleteProfileCompanyScreen: React.FC<
   const { completeRegistration } = useAuth();
   const { t, isRTL } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const mapHeight = Math.min(
+    Math.max(screenHeight * 0.38, MAP_MIN_HEIGHT),
+    MAP_MAX_HEIGHT,
+  );
+  const mapWidth = screenWidth - 40;
 
   const [formData, setFormData] = useState({
     phoneNumber: "",
@@ -113,30 +129,44 @@ export const CompleteProfileCompanyScreen: React.FC<
   const mapRef = useRef<MapView | null>(null);
   const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_MAP_REGION);
   const [locating, setLocating] = useState(false);
+  const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
 
-  const applyCoords = useCallback((lat: number, lng: number) => {
-    const la = Math.round(lat * 1e6) / 1e6;
-    const lo = Math.round(lng * 1e6) / 1e6;
-    setFormData((prev) => ({
-      ...prev,
-      latitude: String(la),
-      longitude: String(lo),
-    }));
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next.latitude;
-      delete next.longitude;
-      return next;
-    });
-    const nextRegion: Region = {
-      latitude: la,
-      longitude: lo,
-      latitudeDelta: 0.06,
-      longitudeDelta: 0.06,
-    };
-    setMapRegion(nextRegion);
-    mapRef.current?.animateToRegion(nextRegion, 280);
+  const releaseMapTouch = useCallback(() => {
+    setParentScrollEnabled(true);
   }, []);
+
+  const captureMapTouch = useCallback(() => {
+    setParentScrollEnabled(false);
+  }, []);
+
+  const applyCoords = useCallback(
+    (lat: number, lng: number, options?: { animate?: boolean }) => {
+      const la = Math.round(lat * 1e6) / 1e6;
+      const lo = Math.round(lng * 1e6) / 1e6;
+      setFormData((prev) => ({
+        ...prev,
+        latitude: String(la),
+        longitude: String(lo),
+      }));
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.latitude;
+        delete next.longitude;
+        return next;
+      });
+      const nextRegion: Region = {
+        latitude: la,
+        longitude: lo,
+        latitudeDelta: MAP_ZOOM_DELTA,
+        longitudeDelta: MAP_ZOOM_DELTA,
+      };
+      setMapRegion(nextRegion);
+      if (options?.animate !== false) {
+        mapRef.current?.animateToRegion(nextRegion, 280);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (currentStep !== 2) return;
@@ -151,8 +181,8 @@ export const CompleteProfileCompanyScreen: React.FC<
       const next: Region = {
         latitude: lat,
         longitude: lng,
-        latitudeDelta: 0.06,
-        longitudeDelta: 0.06,
+        latitudeDelta: MAP_ZOOM_DELTA,
+        longitudeDelta: MAP_ZOOM_DELTA,
       };
       setMapRegion(next);
       const tmr = setTimeout(() => {
@@ -479,34 +509,74 @@ export const CompleteProfileCompanyScreen: React.FC<
 
     return (
       <View style={styles.stepNavigator}>
-        <View style={styles.stepNavigatorRow}>
+        <Text style={[styles.stepProgressCaption, isRTL && styles.rtlText]}>
+          {t("completeProfile.stepProgress", {
+            current: currentStep,
+            total: TOTAL_STEPS,
+          })}
+        </Text>
+        <View
+          style={[styles.stepTrackRow, isRTL && styles.stepTrackRowRtl]}
+        >
+          {steps.map((label, index) => {
+            const stepNumber = index + 1;
+            const isActive = currentStep === stepNumber;
+            const isDone = currentStep > stepNumber;
+            const connectorDone = index > 0 && currentStep > index;
+
+            return (
+              <React.Fragment key={`company-step-${stepNumber}`}>
+                {index > 0 ? (
+                  <View
+                    style={[
+                      styles.stepConnector,
+                      connectorDone && styles.stepConnectorDone,
+                    ]}
+                  />
+                ) : null}
+                <View
+                  style={[
+                    styles.stepCircle,
+                    isDone && styles.stepCircleDone,
+                    isActive && styles.stepCircleActive,
+                    !isDone && !isActive && styles.stepCirclePending,
+                  ]}
+                >
+                  {isDone ? (
+                    <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.stepCircleNum,
+                        isActive && styles.stepCircleNumOnAccent,
+                      ]}
+                    >
+                      {stepNumber}
+                    </Text>
+                  )}
+                </View>
+              </React.Fragment>
+            );
+          })}
+        </View>
+        <View style={[styles.stepLabelsRow, isRTL && styles.stepLabelsRowRtl]}>
           {steps.map((label, index) => {
             const stepNumber = index + 1;
             const isActive = currentStep === stepNumber;
             const isDone = currentStep > stepNumber;
             return (
-              <View key={label} style={styles.stepNavigatorItem}>
-                <View
-                  style={[
-                    styles.stepNavigatorDot,
-                    isActive && styles.stepNavigatorDotActive,
-                    isDone && styles.stepNavigatorDotDone,
-                  ]}
-                >
-                  <Text style={styles.stepNavigatorDotText}>
-                    {isDone ? "✓" : stepNumber}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.stepNavigatorLabel,
-                    isActive && styles.stepNavigatorLabelActive,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {label}
-                </Text>
-              </View>
+              <Text
+                key={`company-step-label-${stepNumber}`}
+                style={[
+                  styles.stepLabel,
+                  isActive && styles.stepLabelActive,
+                  isDone && styles.stepLabelDone,
+                  isRTL && styles.rtlText,
+                ]}
+                numberOfLines={2}
+              >
+                {label}
+              </Text>
             );
           })}
         </View>
@@ -516,12 +586,6 @@ export const CompleteProfileCompanyScreen: React.FC<
 
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
-      <View style={styles.stepHeader}>
-        <Ionicons name="person-circle-outline" size={56} color={ACCENT} />
-        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.companyStep1Title")}
-        </Text>
-      </View>
       <View style={styles.form}>
         <Input
           label={t("completeProfile.firstNameLabel")}
@@ -556,12 +620,6 @@ export const CompleteProfileCompanyScreen: React.FC<
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      <View style={styles.stepHeader}>
-        <Ionicons name="business-outline" size={56} color={ACCENT} />
-        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.companyStep2Title")}
-        </Text>
-      </View>
       <View style={styles.form}>
         <Input
           label={t("completeProfile.companyNameFieldLabel")}
@@ -586,8 +644,6 @@ export const CompleteProfileCompanyScreen: React.FC<
           value={formData.address}
           onChangeText={(v) => updateField("address", v)}
           leftIcon="home-outline"
-          multiline
-          numberOfLines={2}
         />
         {Platform.OS === "web" ? (
           <View style={styles.webMapFallback}>
@@ -620,17 +676,23 @@ export const CompleteProfileCompanyScreen: React.FC<
             <Text style={[styles.mapSectionTitle, isRTL && styles.rtlText]}>
               {t("completeProfile.mapLocationTitle")}
             </Text>
-            <Text style={[styles.mapHint, isRTL && styles.rtlText]}>
-              {USE_OSM_WEB_MAP
-                ? t("completeProfile.mapOsmExpoGoHint")
-                : t("completeProfile.mapLocationHint")}
-            </Text>
-            <View style={styles.mapWrap}>
+            <View
+              style={[
+                styles.mapWrap,
+                { width: mapWidth, height: mapHeight },
+              ]}
+              onTouchStart={captureMapTouch}
+              onTouchEnd={releaseMapTouch}
+              onTouchCancel={releaseMapTouch}
+            >
               {USE_OSM_WEB_MAP ? (
                 <OsmLocationPicker
                   latitude={formData.latitude}
                   longitude={formData.longitude}
-                  onCoordinateChange={applyCoords}
+                  onCoordinateChange={(lat, lng) =>
+                    applyCoords(lat, lng, { animate: false })
+                  }
+                  height={mapHeight}
                 />
               ) : (
                 <MapView
@@ -642,16 +704,30 @@ export const CompleteProfileCompanyScreen: React.FC<
                   initialRegion={mapRegion}
                   onPress={handleMapPress}
                   mapType="standard"
+                  scrollEnabled
+                  zoomEnabled
+                  zoomTapEnabled
+                  rotateEnabled={false}
+                  pitchEnabled={false}
+                  scrollDuringRotateOrZoomEnabled
+                  moveOnMarkerPress={false}
+                  onPanDrag={captureMapTouch}
+                  onRegionChangeComplete={releaseMapTouch}
                 >
                   <Marker
                     coordinate={markerCoordinate}
                     draggable
-                    onDragEnd={(e) =>
+                    anchor={{ x: 0.5, y: 1 }}
+                    tracksViewChanges={false}
+                    onDragStart={captureMapTouch}
+                    onDragEnd={(e) => {
+                      releaseMapTouch();
                       applyCoords(
                         e.nativeEvent.coordinate.latitude,
                         e.nativeEvent.coordinate.longitude,
-                      )
-                    }
+                        { animate: false },
+                      );
+                    }}
                   />
                 </MapView>
               )}
@@ -680,12 +756,6 @@ export const CompleteProfileCompanyScreen: React.FC<
 
   const renderStep3 = () => (
     <View style={styles.stepContainer}>
-      <View style={styles.stepHeader}>
-        <Ionicons name="document-text-outline" size={56} color={ACCENT} />
-        <Text style={[styles.stepTitle, isRTL && styles.rtlText]}>
-          {t("completeProfile.companyStep3Title")}
-        </Text>
-      </View>
       <Input
         label={t("completeProfile.taxIdLabel")}
         placeholder={t("completeProfile.taxIdPlaceholder")}
@@ -779,6 +849,8 @@ export const CompleteProfileCompanyScreen: React.FC<
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView
+          scrollEnabled={parentScrollEnabled}
+          nestedScrollEnabled
           contentContainerStyle={[
             styles.scrollContent,
             {
@@ -814,8 +886,8 @@ export const CompleteProfileCompanyScreen: React.FC<
             >
               <Ionicons
                 name={isRTL ? "chevron-forward" : "chevron-back"}
-                size={18}
-                color="#4F46E5"
+                size={20}
+                color={ACCENT}
               />
             </TouchableOpacity>
           )}
@@ -961,14 +1033,14 @@ export const CompleteProfileCompanyScreen: React.FC<
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F1F5F9" },
+  root: { flex: 1, backgroundColor: SCREEN_BG },
   topBackContainer: {
     position: "absolute",
     left: 24,
     zIndex: 10,
   },
   container: { flex: 1 },
-  scrollContent: { flexGrow: 1, paddingHorizontal: 24 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 0 },
   navBackButton: {
     paddingVertical: 8,
     paddingHorizontal: 8,
@@ -977,68 +1049,108 @@ const styles = StyleSheet.create({
   },
   navBackText: { color: ACCENT, fontSize: 16, fontWeight: "600" },
   panel: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-    padding: 16,
     width: "100%",
-    maxWidth: 420,
-    alignSelf: "center",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 1,
+    alignSelf: "stretch",
+    backgroundColor: SCREEN_BG,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 24,
+    minHeight: 400,
   },
   stepNavigator: {
-    marginBottom: 22,
-    paddingHorizontal: 4,
+    marginBottom: 28,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
   },
-  stepNavigatorRow: {
+  stepProgressCaption: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748B",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  stepTrackRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
+    width: "100%",
+    paddingHorizontal: 4,
   },
-  stepNavigatorItem: {
+  stepTrackRowRtl: {
+    flexDirection: "row-reverse",
+  },
+  stepConnector: {
     flex: 1,
-    alignItems: "center",
-    gap: 7,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: STEP_TRACK,
+    marginHorizontal: 6,
+    marginBottom: 0,
   },
-  stepNavigatorDot: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#EEF2FF",
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
+  stepConnectorDone: {
+    backgroundColor: STEP_GREEN,
+  },
+  stepCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
-  stepNavigatorDotActive: {
-    backgroundColor: "#4F46E5",
-    borderColor: "#4F46E5",
-    transform: [{ scale: 1.05 }],
+  stepCirclePending: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: STEP_TRACK,
   },
-  stepNavigatorDotDone: {
-    backgroundColor: "#10B981",
-    borderColor: "#10B981",
+  stepCircleActive: {
+    backgroundColor: ACCENT,
+    borderWidth: 2,
+    borderColor: ACCENT,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  stepNavigatorDotText: {
+  stepCircleDone: {
+    backgroundColor: STEP_GREEN,
+    borderWidth: 2,
+    borderColor: STEP_GREEN,
+  },
+  stepCircleNum: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#64748B",
+  },
+  stepCircleNumOnAccent: {
     color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
   },
-  stepNavigatorLabel: {
-    fontSize: 11,
-    color: "#6B7280",
-    fontWeight: "600",
-    textAlign: "center",
+  stepLabelsRow: {
+    flexDirection: "row",
+    marginTop: 12,
     width: "100%",
   },
-  stepNavigatorLabelActive: {
-    color: "#312E81",
+  stepLabelsRowRtl: {
+    flexDirection: "row-reverse",
+  },
+  stepLabel: {
+    flex: 1,
+    fontSize: 11,
+    color: "#94A3B8",
+    fontWeight: "600",
+    textAlign: "center",
+    paddingHorizontal: 2,
+    lineHeight: 15,
+  },
+  stepLabelActive: {
+    color: "#C2410C",
+    fontWeight: "800",
+  },
+  stepLabelDone: {
+    color: STEP_GREEN,
+    fontWeight: "700",
   },
   stepContainer: { marginBottom: 8 },
   stepHeader: { alignItems: "center", marginBottom: 24 },
@@ -1059,21 +1171,16 @@ const styles = StyleSheet.create({
     color: "#111827",
     marginBottom: 8,
   },
-  mapHint: {
-    fontSize: 13,
-    color: "#4B5563",
-    lineHeight: 19,
-    marginBottom: 12,
-  },
   mapWrap: {
-    height: 260,
+    width: "100%",
+    alignSelf: "center",
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#E5E7EB",
     backgroundColor: "#F9FAFB",
   },
-  map: { width: "100%", height: "100%" },
+  map: { ...StyleSheet.absoluteFillObject },
   mapFab: {
     position: "absolute",
     bottom: 14,
@@ -1176,53 +1283,56 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 24,
-    backgroundColor: "rgba(255,255,255,0.98)",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    backgroundColor: SCREEN_BG,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: "#E2E8F0",
     flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-    justifyContent: "center",
+    gap: 10,
+    alignItems: "stretch",
   },
   stepBackButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 1.4,
-    borderColor: "#C7D2FE",
-    backgroundColor: "#EEF2FF",
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: ACCENT_BORDER,
+    backgroundColor: ACCENT_SOFT,
     alignItems: "center",
     justifyContent: "center",
+    alignSelf: "center",
   },
   stepPrimaryButton: {
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#4F46E5",
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: ACCENT,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     gap: 8,
-    shadowColor: "#4F46E5",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.24,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 3,
   },
   stepPrimaryButtonFull: { flex: 1 },
-  stepPrimaryButtonWithBack: { flex: 2 },
-  stepPrimaryButtonDisabled: { opacity: 0.7 },
+  stepPrimaryButtonWithBack: { flex: 1 },
+  stepPrimaryButtonDisabled: { opacity: 0.65 },
   stepPrimaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
   stepPrimaryIconWrap: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },

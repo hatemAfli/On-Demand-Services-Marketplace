@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Image,
   Pressable,
   RefreshControl,
@@ -32,6 +33,8 @@ import {
   ServiceDiscoveryCard,
   type ServiceCardDisplay,
 } from "../category-services/ListOfServicesScreen";
+import type { MarketplaceServiceItem } from "../category-services/types";
+import { getStoredClientCoords } from "../../../services/client-location-cache";
 
 function clientLocationLine(
   city?: string | null,
@@ -49,6 +52,8 @@ type ClientHomeHighlight = {
   startedAt: string | null;
   givenService: { serviceName: string; categoryName: string };
   provider: { firstName: string; lastName: string };
+  givenServiceId: string | null;
+  categoryId: string | null;
 };
 
 function pickLocaleName(
@@ -117,6 +122,22 @@ function normalizeClientHomeAppointment(
       firstName: prov?.user?.firstName?.trim() ?? "",
       lastName: prov?.user?.lastName?.trim() ?? "",
     },
+    givenServiceId:
+      typeof gs?.serviceId === "string"
+        ? gs.serviceId
+        : typeof (gs?.service as { id?: unknown } | undefined)?.id === "string"
+          ? ((gs?.service as { id?: string }).id ?? null)
+          : null,
+    categoryId:
+      typeof (gs?.service as { categoryId?: unknown } | undefined)?.categoryId ===
+      "string"
+        ? ((gs?.service as { categoryId?: string }).categoryId ?? null)
+        : typeof (gs?.service as { category?: { id?: unknown } } | undefined)
+              ?.category?.id === "string"
+          ? (((gs?.service as { category?: { id?: string } }).category?.id as
+              | string
+              | undefined) ?? null)
+          : null,
   };
 }
 
@@ -273,6 +294,38 @@ type CategoryApi = {
   sortOrder: number;
 };
 
+type SearchProviderResultItem = {
+  givenServiceId: string;
+  serviceName: string;
+  averageRating: number;
+  owner: {
+    id: string;
+    type: "PROVIDER" | "COMPANY";
+    displayName: string;
+    photoUrl: string | null;
+    city: string;
+    latitude: number | null;
+    longitude: number | null;
+    isTopProvider: boolean;
+  };
+  isAvailableImmediately: boolean | null;
+};
+
+type PopularNearbyItem = {
+  ownerId: string;
+  ownerType: "PROVIDER" | "COMPANY";
+  givenServiceId: string;
+  serviceId: string;
+  serviceName: string;
+  displayName: string;
+  imageUrl: string | null;
+  city: string;
+  rating: number;
+  distanceKm: number | null;
+  isTopProvider: boolean;
+  isAvailableImmediately: boolean;
+};
+
 const FALLBACK_COLORS = [
   "#7C5CFC",
   "#F59E0B",
@@ -289,137 +342,548 @@ const CATEGORY_COLLAPSED_ROWS = 2;
 const CATEGORY_COLLAPSED_MAX = CATEGORY_ITEMS_PER_ROW * CATEGORY_COLLAPSED_ROWS;
 
 type RecommendedSeed = {
-  id: string;
-  imageUri: string;
-  title: string;
-  description: string;
-  duration: string;
-  activeGivenCount: number;
+  serviceId: string;
+  score: number;
 };
 
-const RECOMMENDED_POOL: RecommendedSeed[] = [
-  {
-    id: "1",
-    imageUri:
-      "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80",
-    title: "Sparkle Home Clean",
-    description: "Home • Deep cleaning • Weekly slots",
-    duration: "25–35 min",
-    activeGivenCount: 14,
-  },
-  {
-    id: "2",
-    imageUri:
-      "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=800&q=80",
-    title: "ProFix Electrical",
-    description: "Electrical • Wiring • Safety checks",
-    duration: "Same day",
-    activeGivenCount: 9,
-  },
-  {
-    id: "3",
-    imageUri:
-      "https://images.unsplash.com/photo-1631540579695-8c0dacdbe22b?auto=format&fit=crop&w=800&q=80",
-    title: "CoolAir HVAC",
-    description: "AC • Maintenance • Gas refill",
-    duration: "45–60 min",
-    activeGivenCount: 11,
-  },
-  {
-    id: "4",
-    imageUri:
-      "https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?auto=format&fit=crop&w=800&q=80",
-    title: "PipeRight Plumbing",
-    description: "Plumbing • Leaks • Installations",
-    duration: "Emergency",
-    activeGivenCount: 7,
-  },
-  {
-    id: "5",
-    imageUri:
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=800&q=80",
-    title: "GreenGarden Care",
-    description: "Landscaping • Irrigation • Seasonal trim",
-    duration: "1–2 hrs",
-    activeGivenCount: 6,
-  },
-  {
-    id: "6",
-    imageUri:
-      "https://images.unsplash.com/photo-1563453392212-326f5e854d02?auto=format&fit=crop&w=800&q=80",
-    title: "SmartLock Security",
-    description: "Locks • Smart doors • Key copy",
-    duration: "30 min",
-    activeGivenCount: 8,
-  },
-  {
-    id: "7",
-    imageUri:
-      "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=800&q=80",
-    title: "BuildCraft Carpentry",
-    description: "Woodwork • Shelves • Repairs",
-    duration: "Book ahead",
-    activeGivenCount: 5,
-  },
-  {
-    id: "8",
-    imageUri:
-      "https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?auto=format&fit=crop&w=800&q=80",
-    title: "ChefAtHome Catering",
-    description: "Private chef • Events • Meal prep",
-    duration: "2–3 hrs",
-    activeGivenCount: 4,
-  },
-  {
-    id: "9",
-    imageUri:
-      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=800&q=80",
-    title: "PaintPro Interiors",
-    description: "Painting • Prep • Color consult",
-    duration: "Half day",
-    activeGivenCount: 10,
-  },
-  {
-    id: "10",
-    imageUri:
-      "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?auto=format&fit=crop&w=800&q=80",
-    title: "MoveEasy Helpers",
-    description: "Moving • Packing • Furniture",
-    duration: "Weekend slots",
-    activeGivenCount: 12,
-  },
-];
-
-function pickRandomThree(services: RecommendedSeed[]): RecommendedSeed[] {
-  const shuffled = [...services];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const tmp = shuffled[i];
-    shuffled[i] = shuffled[j]!;
-    shuffled[j] = tmp!;
-  }
-  return shuffled.slice(0, 3);
-}
+type SearchHistoryItem = {
+  id: string;
+  query: string | null;
+  service: MarketplaceServiceItem;
+};
 
 function toCardDisplay(
-  item: RecommendedSeed,
+  item: MarketplaceServiceItem,
   tr: (key: string, opts?: Record<string, unknown>) => string,
 ): ServiceCardDisplay {
+  const count = typeof item.activeGivenCount === "number" ? item.activeGivenCount : 0;
   return {
     id: item.id,
-    title: item.title,
-    description: item.description,
-    duration: item.duration,
+    title: item.name,
+    description: item.description?.trim() || item.category?.name || "—",
+    duration: tr("client.categoryServices.durationVaries"),
     price: tr("client.categoryServices.priceOnRequest"),
     unit: "",
-    image: item.imageUri,
-    activeGivenCount: item.activeGivenCount,
+    image: item.servicePhoto?.trim() || null,
+    activeGivenCount: count,
   };
 }
 
+function appointmentWeight(status: AppointmentStatus): number {
+  switch (status) {
+    case "COMPLETED":
+      return 6;
+    case "IN_PROGRESS":
+    case "EN_ROUTE":
+    case "CONFIRMED":
+      return 5;
+    case "PENDING":
+    case "RESCHEDULED":
+      return 3;
+    default:
+      return 1;
+  }
+}
+
+function haversineKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const r = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return r * c;
+}
+
+const POPULAR_CAROUSEL_GAP = 14;
+const POPULAR_HORIZONTAL_PAD = 16;
+
+const POPULAR_CARD_THEMES = [
+  { gradient: ["#EDE9FE", "#FFFFFF"] as [string, string], accent: "#7C5CFC" },
+  { gradient: ["#EFF6FF", "#FFFFFF"] as [string, string], accent: "#3B82F6" },
+  { gradient: ["#ECFDF5", "#FFFFFF"] as [string, string], accent: "#059669" },
+  { gradient: ["#FFF7ED", "#FFFFFF"] as [string, string], accent: "#EA580C" },
+  { gradient: ["#F5F3FF", "#FFFFFF"] as [string, string], accent: "#8B5CF6" },
+] as const;
+
+function PopularNearbyCarousel({
+  items,
+  onPressItem,
+}: {
+  items: PopularNearbyItem[];
+  onPressItem: (item: PopularNearbyItem) => void;
+}) {
+  const { width: windowWidth } = useWindowDimensions();
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const cardWidth = Math.round(windowWidth - POPULAR_HORIZONTAL_PAD * 2 - 36);
+  const snapInterval = cardWidth + POPULAR_CAROUSEL_GAP;
+
+  return (
+    <View style={popularCarouselStyles.wrap}>
+      <FlatList
+        data={items}
+        keyExtractor={(item) =>
+          `${item.ownerType}:${item.ownerId}:${item.givenServiceId}`
+        }
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        snapToInterval={snapInterval}
+        snapToAlignment="start"
+        disableIntervalMomentum
+        contentContainerStyle={popularCarouselStyles.listContent}
+        ItemSeparatorComponent={() => (
+          <View style={{ width: POPULAR_CAROUSEL_GAP }} />
+        )}
+        onMomentumScrollEnd={(e) => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / snapInterval);
+          setActiveIndex(Math.min(items.length - 1, Math.max(0, idx)));
+        }}
+        renderItem={({ item, index }) => {
+          const theme =
+            POPULAR_CARD_THEMES[index % POPULAR_CARD_THEMES.length];
+          const isCompany = item.ownerType === "COMPANY";
+          const initials = item.displayName
+            .split(" ")
+            .map((w) => w[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase();
+
+          return (
+            <TouchableOpacity
+              activeOpacity={0.92}
+              onPress={() => onPressItem(item)}
+              style={[popularCarouselStyles.cardShell, { width: cardWidth }]}
+            >
+              <View style={popularCarouselStyles.card}>
+                <View
+                  style={[
+                    popularCarouselStyles.cardAccent,
+                    { backgroundColor: theme.accent },
+                  ]}
+                />
+
+                {isCompany ? (
+                  <View style={popularCarouselStyles.companyTag}>
+                    <Ionicons name="business" size={11} color="#7C5CFC" />
+                    <Text style={popularCarouselStyles.companyTagText}>
+                      Company
+                    </Text>
+                  </View>
+                ) : null}
+
+                <View style={popularCarouselStyles.cardRow}>
+                  <View style={popularCarouselStyles.avatarWrap}>
+                    {item.imageUrl ? (
+                      <Image
+                        source={{ uri: item.imageUrl }}
+                        style={popularCarouselStyles.avatar}
+                      />
+                    ) : (
+                      <View style={popularCarouselStyles.avatarFallback}>
+                        <Text style={popularCarouselStyles.avatarInitials}>
+                          {initials}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={popularCarouselStyles.cardBody}>
+                    <View style={popularCarouselStyles.cardNameRow}>
+                      <View style={popularCarouselStyles.cardNameCol}>
+                        <Text
+                          style={popularCarouselStyles.cardTitle}
+                          numberOfLines={1}
+                        >
+                          {item.displayName}
+                        </Text>
+                        <Text
+                          style={popularCarouselStyles.cardSub}
+                          numberOfLines={1}
+                        >
+                          {item.serviceName}
+                        </Text>
+                      </View>
+                      <View style={popularCarouselStyles.ratingPill}>
+                        <Ionicons name="star" size={11} color="#F59E0B" />
+                        <Text style={popularCarouselStyles.ratingText}>
+                          {item.rating.toFixed(1)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={popularCarouselStyles.infoRow}>
+                      <View style={popularCarouselStyles.infoChip}>
+                        <Ionicons
+                          name="location-outline"
+                          size={12}
+                          color="#9B9BB0"
+                        />
+                        <Text style={popularCarouselStyles.infoChipText}>
+                          {item.city}
+                          {item.distanceKm != null
+                            ? ` · ${item.distanceKm.toFixed(1)} km`
+                            : ""}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={popularCarouselStyles.tagsRow}>
+                      <View
+                        style={[
+                          popularCarouselStyles.tag,
+                          popularCarouselStyles.tagGray,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            popularCarouselStyles.tagText,
+                            popularCarouselStyles.tagGrayText,
+                          ]}
+                        >
+                          {isCompany ? "Company" : "Provider"}
+                        </Text>
+                      </View>
+                      {item.isTopProvider ? (
+                        <View
+                          style={[
+                            popularCarouselStyles.tag,
+                            popularCarouselStyles.tagIndigo,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              popularCarouselStyles.tagText,
+                              popularCarouselStyles.tagIndigoText,
+                            ]}
+                          >
+                            Top rated
+                          </Text>
+                        </View>
+                      ) : null}
+                      {item.isAvailableImmediately ? (
+                        <View
+                          style={[
+                            popularCarouselStyles.tag,
+                            popularCarouselStyles.tagGreen,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              popularCarouselStyles.tagText,
+                              popularCarouselStyles.tagGreenText,
+                            ]}
+                          >
+                            Available now
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    <View style={popularCarouselStyles.cardDivider} />
+
+                    <View style={popularCarouselStyles.ctaRow}>
+                      <Text
+                        style={[
+                          popularCarouselStyles.ctaText,
+                          { color: theme.accent },
+                        ]}
+                      >
+                        View profile
+                      </Text>
+                      <Ionicons
+                        name="arrow-forward"
+                        size={14}
+                        color={theme.accent}
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                <View style={popularCarouselStyles.indexWrap}>
+                  <Text style={popularCarouselStyles.indexLabel}>
+                    {String(index + 1).padStart(2, "0")} /{" "}
+                    {String(items.length).padStart(2, "0")}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+      />
+
+      {items.length > 1 ? (
+        <View style={popularCarouselStyles.dotsRow}>
+          {items.map((item, i) => {
+            const accent =
+              POPULAR_CARD_THEMES[i % POPULAR_CARD_THEMES.length].accent;
+            return (
+              <View
+                key={`${item.ownerId}-dot`}
+                style={[
+                  popularCarouselStyles.dot,
+                  i === activeIndex && [
+                    popularCarouselStyles.dotActive,
+                    { backgroundColor: accent },
+                  ],
+                ]}
+              />
+            );
+          })}
+        </View>
+      ) : null}
+
+      {items.length > 1 ? (
+        <Text style={popularCarouselStyles.swipeHint}>
+          Swipe for more nearby profiles
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+const popularCarouselStyles = StyleSheet.create({
+  wrap: {
+    marginHorizontal: -POPULAR_HORIZONTAL_PAD,
+  },
+  listContent: {
+    paddingHorizontal: POPULAR_HORIZONTAL_PAD,
+    paddingVertical: 6,
+  },
+  cardShell: {
+    borderRadius: 22,
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  card: {
+    borderRadius: 22,
+    padding: 14,
+    minHeight: 206,
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    position: "relative",
+  },
+  cardAccent: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+  },
+  companyTag: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#EDE9FE",
+    borderWidth: 1,
+    borderColor: "#C4B5FD",
+    zIndex: 2,
+  },
+  companyTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#7C5CFC",
+  },
+  cardRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  avatarWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    flexShrink: 0,
+  },
+  avatar: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 28,
+  },
+  avatarFallback: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 28,
+    backgroundColor: "#EDE9FE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitials: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#7C5CFC",
+  },
+  cardBody: {
+    flex: 1,
+    gap: 9,
+  },
+  cardNameRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  cardNameCol: { flex: 1, minWidth: 0 },
+  ratingPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  ratingText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#B45309",
+  },
+  indexLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#9B9BB0",
+    letterSpacing: 0.5,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1A1A2E",
+    letterSpacing: -0.1,
+  },
+  cardSub: {
+    fontSize: 12,
+    color: "#9B9BB0",
+    fontWeight: "500",
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  infoRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  infoChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#F4F3FA",
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+  },
+  infoChipText: {
+    fontSize: 11,
+    color: "#6B6B80",
+    fontWeight: "600",
+  },
+  tagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  tag: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  tagText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  tagIndigo: { backgroundColor: "#EDE9FE" },
+  tagIndigoText: { color: "#7C5CFC" },
+  tagGray: { backgroundColor: "#F4F3FA" },
+  tagGrayText: { color: "#6B6B80" },
+  tagGreen: {
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#6EE7B7",
+  },
+  tagGreenText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#047857",
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: "#F4F3FA",
+    marginTop: 2,
+  },
+  ctaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 4,
+  },
+  ctaText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  indexWrap: {
+    position: "absolute",
+    bottom: 10,
+    right: 12,
+  },
+  dotsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 14,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#D4D4E0",
+  },
+  dotActive: {
+    width: 20,
+    borderRadius: 999,
+  },
+  swipeHint: {
+    marginTop: 8,
+    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#9B9BB0",
+    letterSpacing: 0.3,
+  },
+});
+
 export const ClientHomeScreen: React.FC = () => {
   const { t, isRTL } = useAppTranslation();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const navigation =
     useNavigation<NativeStackNavigationProp<ClientStackParamList>>();
   const { width } = useWindowDimensions();
@@ -438,8 +902,14 @@ export const ClientHomeScreen: React.FC = () => {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [categoriesExpanded, setCategoriesExpanded] = useState(false);
-
-  const [recommendedItems] = useState(() => pickRandomThree(RECOMMENDED_POOL));
+  const [recommendedItems, setRecommendedItems] = useState<MarketplaceServiceItem[]>(
+    [],
+  );
+  const [recommendedLoading, setRecommendedLoading] = useState(true);
+  const [popularNearbyItems, setPopularNearbyItems] = useState<PopularNearbyItem[]>(
+    [],
+  );
+  const [popularNearbyLoading, setPopularNearbyLoading] = useState(true);
 
   const avatarUri = user?.client?.imageUrl;
   const clientCity = user?.client?.city;
@@ -467,6 +937,199 @@ export const ClientHomeScreen: React.FC = () => {
       setActiveOrderLoading(false);
     }
   }, []);
+
+  const loadRecommendations = useCallback(async () => {
+    setRecommendedLoading(true);
+    try {
+      const [servicesRes, historyRes, appointmentsRes] = await Promise.all([
+        api.listServices(),
+        api.getClientSearchHistory(),
+        api.getMyAppointmentsAsClient(),
+      ]);
+
+      const services = Array.isArray(servicesRes.data)
+        ? (servicesRes.data as MarketplaceServiceItem[])
+        : [];
+      const history = Array.isArray(historyRes.data)
+        ? (historyRes.data as SearchHistoryItem[])
+        : [];
+      const appointments = Array.isArray(appointmentsRes.data)
+        ? appointmentsRes.data
+        : [];
+
+      const scoreByService = new Map<string, number>();
+      const scoreByCategory = new Map<string, number>();
+      const addScore = (
+        map: Map<string, number>,
+        key: string | null | undefined,
+        value: number,
+      ) => {
+        if (!key || !key.trim()) return;
+        map.set(key, (map.get(key) ?? 0) + value);
+      };
+
+      history.slice(0, 12).forEach((h, index) => {
+        const base = Math.max(1, 12 - index);
+        addScore(scoreByService, h.service?.id ?? null, base * 2);
+        addScore(scoreByCategory, h.service?.categoryId ?? null, base);
+      });
+
+      appointments
+        .map((row) => normalizeClientHomeAppointment(row))
+        .filter((x): x is ClientHomeHighlight => x !== null)
+        .forEach((appt) => {
+          const w = appointmentWeight(appt.status);
+          addScore(scoreByService, appt.givenServiceId, w * 2);
+          addScore(scoreByCategory, appt.categoryId, w);
+        });
+
+      const scored: RecommendedSeed[] = services.map((s, idx) => {
+        const serviceScore = scoreByService.get(s.id) ?? 0;
+        const categoryScore = scoreByCategory.get(s.categoryId) ?? 0;
+        const supplyScore =
+          typeof s.activeGivenCount === "number"
+            ? Math.min(8, Math.max(0, s.activeGivenCount / 3))
+            : 0;
+        const recencyTieBreaker = 1 / (idx + 1);
+        return {
+          serviceId: s.id,
+          score: serviceScore + categoryScore + supplyScore + recencyTieBreaker,
+        };
+      });
+
+      const selected = scored
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map((entry) => services.find((s) => s.id === entry.serviceId))
+        .filter((x): x is MarketplaceServiceItem => Boolean(x));
+
+      setRecommendedItems(selected);
+    } catch {
+      setRecommendedItems([]);
+    } finally {
+      setRecommendedLoading(false);
+    }
+  }, []);
+
+  const loadPopularNearby = useCallback(async () => {
+    setPopularNearbyLoading(true);
+    try {
+      const [historyRes, appointmentsRes, servicesRes] = await Promise.all([
+        api.getClientSearchHistory(),
+        api.getMyAppointmentsAsClient(),
+        api.listServices(),
+      ]);
+      const history = Array.isArray(historyRes.data)
+        ? (historyRes.data as SearchHistoryItem[])
+        : [];
+      const appointments = Array.isArray(appointmentsRes.data)
+        ? appointmentsRes.data
+        : [];
+      const services = Array.isArray(servicesRes.data)
+        ? (servicesRes.data as MarketplaceServiceItem[])
+        : [];
+
+      const serviceSignals: string[] = [];
+      for (const item of history.slice(0, 8)) {
+        if (item.service?.id) serviceSignals.push(item.service.id);
+      }
+      for (const row of appointments) {
+        const a = normalizeClientHomeAppointment(row);
+        if (a?.givenServiceId) serviceSignals.push(a.givenServiceId);
+      }
+      if (serviceSignals.length === 0) {
+        serviceSignals.push(...services.slice(0, 3).map((s) => s.id));
+      }
+      const uniqServiceIds = [...new Set(serviceSignals)].slice(0, 4);
+
+      let clientLat: number | undefined;
+      let clientLng: number | undefined;
+      if (session?.user?.id) {
+        const coords = await getStoredClientCoords(session.user.id);
+        if (coords) {
+          clientLat = coords.latitude;
+          clientLng = coords.longitude;
+        }
+      }
+
+      const searchResponses = await Promise.all(
+        uniqServiceIds.map((serviceId) =>
+          api.searchProviders({
+            serviceId,
+            clientLat,
+            clientLng,
+            city: user?.client?.city ?? undefined,
+            sort: "RECOMMENDED",
+            page: 1,
+            limit: 6,
+          }),
+        ),
+      );
+
+      const byOwner = new Map<string, PopularNearbyItem>();
+      for (let i = 0; i < searchResponses.length; i += 1) {
+        const serviceId = uniqServiceIds[i];
+        const serviceName =
+          services.find((s) => s.id === serviceId)?.name ?? "Service";
+        const rows = Array.isArray((searchResponses[i].data as { items?: unknown[] })?.items)
+          ? ((searchResponses[i].data as { items?: unknown[] }).items as SearchProviderResultItem[])
+          : [];
+        for (const row of rows) {
+          const key = `${row.owner.type}:${row.owner.id}`;
+          const distanceKm =
+            clientLat != null &&
+            clientLng != null &&
+            row.owner.latitude != null &&
+            row.owner.longitude != null
+              ? haversineKm(
+                  clientLat,
+                  clientLng,
+                  row.owner.latitude,
+                  row.owner.longitude,
+                )
+              : null;
+          const mapped: PopularNearbyItem = {
+            ownerId: row.owner.id,
+            ownerType: row.owner.type,
+            givenServiceId: row.givenServiceId,
+            serviceId,
+            serviceName: row.serviceName || serviceName,
+            displayName: row.owner.displayName,
+            imageUrl: row.owner.photoUrl,
+            city: row.owner.city,
+            rating: Number(row.averageRating || 0),
+            distanceKm,
+            isTopProvider: Boolean(row.owner.isTopProvider),
+            isAvailableImmediately: Boolean(row.isAvailableImmediately),
+          };
+          const existing = byOwner.get(key);
+          if (!existing) {
+            byOwner.set(key, mapped);
+            continue;
+          }
+          const existingScore =
+            existing.rating * 10 - (existing.distanceKm ?? 5) + (existing.isTopProvider ? 1 : 0);
+          const nextScore =
+            mapped.rating * 10 - (mapped.distanceKm ?? 5) + (mapped.isTopProvider ? 1 : 0);
+          if (nextScore > existingScore) byOwner.set(key, mapped);
+        }
+      }
+
+      const picked = [...byOwner.values()]
+        .sort((a, b) => {
+          const dA = a.distanceKm ?? 999;
+          const dB = b.distanceKm ?? 999;
+          if (dA !== dB) return dA - dB;
+          return b.rating - a.rating;
+        })
+        .slice(0, 5);
+      setPopularNearbyItems(picked);
+    } catch {
+      setPopularNearbyItems([]);
+    } finally {
+      setPopularNearbyLoading(false);
+    }
+  }, [session?.user?.id, user?.client?.city]);
 
   const loadCategories = useCallback(async () => {
     setCategoriesError(null);
@@ -519,12 +1182,22 @@ export const ClientHomeScreen: React.FC = () => {
     useCallback(() => {
       void refreshUnreadCount();
       void loadActiveOrder();
-    }, [loadActiveOrder, refreshUnreadCount]),
+      void loadRecommendations();
+      void loadPopularNearby();
+    }, [loadActiveOrder, loadRecommendations, loadPopularNearby, refreshUnreadCount]),
   );
 
   useEffect(() => {
     if (categoriesRefreshSignal > 0) void loadActiveOrder();
   }, [categoriesRefreshSignal, loadActiveOrder]);
+
+  useEffect(() => {
+    if (categoriesRefreshSignal > 0) void loadRecommendations();
+  }, [categoriesRefreshSignal, loadRecommendations]);
+
+  useEffect(() => {
+    if (categoriesRefreshSignal > 0) void loadPopularNearby();
+  }, [categoriesRefreshSignal, loadPopularNearby]);
 
   useEffect(() => {
     setCategoriesLoading(true);
@@ -806,108 +1479,93 @@ export const ClientHomeScreen: React.FC = () => {
           </Text>
         </View>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.recommendedScrollView}
-        contentContainerStyle={styles.recommendedScrollContent}
-      >
-        {recommendedItems.map((item) => {
-          const card = toCardDisplay(item, t);
-          return (
-            <ServiceDiscoveryCard
-              key={item.id}
-              style={{ width: recommendedCardWidth, marginRight: 14 }}
-              service={card}
-              isFavorite={false}
-              onToggleFavorite={() => {}}
-              providersCountLabel={t(
-                "client.categoryServices.cardProvidersCount",
-                { count: card.activeGivenCount },
-              )}
-              onPress={() => {}}
-            />
-          );
-        })}
-      </ScrollView>
+      {recommendedLoading ? (
+        <View style={styles.recommendedLoadingWrap}>
+          <ActivityIndicator color="#7C5CFC" />
+        </View>
+      ) : recommendedItems.length === 0 ? (
+        <View style={styles.recommendedEmptyWrap}>
+          <Text style={styles.recommendedEmptyText}>
+            Explore services to get personalized recommendations.
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.recommendedScrollView}
+          contentContainerStyle={styles.recommendedScrollContent}
+        >
+          {recommendedItems.map((item) => {
+            const card = toCardDisplay(item, t);
+            return (
+              <ServiceDiscoveryCard
+                key={item.id}
+                style={{ width: recommendedCardWidth, marginRight: 14 }}
+                service={card}
+                isFavorite={false}
+                onToggleFavorite={() => {}}
+                providersCountLabel={t(
+                  "client.categoryServices.cardProvidersCount",
+                  { count: card.activeGivenCount },
+                )}
+                onPress={() =>
+                  navigation.navigate("ClientSearchProvider", {
+                    serviceId: item.id,
+                    serviceName: item.name,
+                    serviceImage: item.servicePhoto ?? undefined,
+                  })
+                }
+              />
+            );
+          })}
+        </ScrollView>
+      )}
     </View>
+  );
+
+  const openPopularProfile = useCallback(
+    (item: PopularNearbyItem) => {
+      if (item.ownerType === "COMPANY") {
+        navigation.navigate("ClientCompanyProfile", {
+          companyId: item.ownerId,
+          serviceId: item.serviceId,
+          serviceName: item.serviceName,
+        });
+        return;
+      }
+      navigation.navigate("ClientProviderProfile", {
+        givenServiceId: item.givenServiceId,
+      });
+    },
+    [navigation],
   );
 
   /* ── Popular section ── */
   const renderPopularSection = () => (
     <View style={styles.popularContainer}>
-      <Text style={[styles.sectionTitle, { marginBottom: 14 }]}>
-        {popularTitle}
-      </Text>
-      <View style={styles.popularList}>
-        {[
-          {
-            uri: "https://storage.googleapis.com/uxpilot-auth.appspot.com/f48cad009e-4f349cc0d9a71f14d364.png",
-            title: "Brew Crew Coffee",
-            rating: "4.7",
-            category: "Cafe",
-            distance: "1.2 km",
-            tags: [
-              { label: "Free Delivery", type: "indigo" as const },
-              { label: "Top Rated", type: "gray" as const },
-            ],
-          },
-          {
-            uri: "https://images.unsplash.com/photo-1632833239869-a37e3a5806d2?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80",
-            title: "QuickFix Plumbing",
-            rating: "4.9",
-            category: "Maintenance",
-            distance: "0.8 km",
-            tags: [{ label: "Available Now", type: "green" as const }],
-          },
-        ].map((item) => (
-          <View key={item.title} style={styles.popularItem}>
-            <Image source={{ uri: item.uri }} style={styles.popularItemImage} />
-            <View style={styles.popularItemContent}>
-              <View style={styles.popularItemHeader}>
-                <Text style={styles.popularItemTitle}>{item.title}</Text>
-                <TouchableOpacity
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons name="heart-outline" size={16} color="#C4C4C4" />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.popularItemInfo}>
-                <Ionicons name="star" size={11} color="#F59E0B" />
-                <Text style={styles.popularItemRating}>{item.rating}</Text>
-                <Text style={styles.dot}>·</Text>
-                <Text style={styles.popularItemCategory}>{item.category}</Text>
-                <Text style={styles.dot}>·</Text>
-                <Text style={styles.popularItemDistance}>{item.distance}</Text>
-              </View>
-              <View style={styles.popularItemTags}>
-                {item.tags.map((tag) => (
-                  <View
-                    key={tag.label}
-                    style={[
-                      styles.tag,
-                      tag.type === "indigo" && styles.tagIndigo,
-                      tag.type === "gray" && styles.tagGray,
-                      tag.type === "green" && styles.tagGreen,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.tagText,
-                        tag.type === "indigo" && styles.tagIndigoText,
-                        tag.type === "gray" && styles.tagGrayText,
-                        tag.type === "green" && styles.tagGreenText,
-                      ]}
-                    >
-                      {tag.label}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
-        ))}
+      <View style={styles.popularHeader}>
+        <Text style={styles.sectionTitle}>{popularTitle}</Text>
+        <Text style={styles.sectionSubtitle}>
+          Swipe through top profiles near you
+        </Text>
       </View>
+      {popularNearbyLoading ? (
+        <View style={styles.popularLoadingWrap}>
+          <ActivityIndicator color="#7C5CFC" />
+        </View>
+      ) : popularNearbyItems.length === 0 ? (
+        <View style={styles.popularEmptyWrap}>
+          <Text style={styles.recommendedEmptyText}>
+            No nearby profiles found yet. Try searching services.
+          </Text>
+        </View>
+      ) : (
+        <PopularNearbyCarousel
+          items={popularNearbyItems}
+          onPressItem={openPopularProfile}
+        />
+      )}
     </View>
   );
 
@@ -1258,61 +1916,50 @@ const styles = StyleSheet.create({
   recommendedHeader: { paddingHorizontal: 16, marginBottom: 14 },
   recommendedScrollView: { paddingLeft: 16 },
   recommendedScrollContent: { paddingRight: 16 },
+  recommendedLoadingWrap: {
+    minHeight: 110,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recommendedEmptyWrap: {
+    marginHorizontal: 16,
+    minHeight: 92,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E9E8F6",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  recommendedEmptyText: {
+    fontSize: 12,
+    color: "#9B9BB0",
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 18,
+  },
 
   /* ── Popular ── */
-  popularContainer: { paddingHorizontal: 16, marginTop: 24, marginBottom: 8 },
-  popularList: { gap: 10 },
-  popularItem: {
-    flexDirection: "row",
+  popularContainer: { marginTop: 24, marginBottom: 8 },
+  popularHeader: {
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  popularLoadingWrap: {
+    minHeight: 110,
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 12,
+    justifyContent: "center",
+  },
+  popularEmptyWrap: {
+    marginHorizontal: 16,
+    minHeight: 92,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#EBEBF5",
-    shadowColor: "#1A1A2E",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
-    gap: 14,
-  },
-  popularItemImage: {
-    width: 76,
-    height: 76,
-    borderRadius: 14,
-    backgroundColor: "#F4F3FA",
-    flexShrink: 0,
-  },
-  popularItemContent: { flex: 1, gap: 4 },
-  popularItemHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  popularItemTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1A1A2E",
-    letterSpacing: -0.1,
-  },
-  popularItemInfo: { flexDirection: "row", alignItems: "center", gap: 4 },
-  popularItemRating: { fontSize: 12, fontWeight: "700", color: "#1A1A2E" },
-  dot: { color: "#D4D4E0", fontSize: 12 },
-  popularItemCategory: { fontSize: 12, color: "#9B9BB0" },
-  popularItemDistance: { fontSize: 12, color: "#9B9BB0" },
-  popularItemTags: {
-    flexDirection: "row",
+    borderColor: "#E9E8F6",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
-    gap: 6,
-    flexWrap: "wrap",
+    justifyContent: "center",
+    paddingHorizontal: 18,
   },
-  tag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  tagText: { fontSize: 10, fontWeight: "700" },
-  tagIndigo: { backgroundColor: "#EDE9FE" },
-  tagIndigoText: { color: "#7C5CFC" },
-  tagGray: { backgroundColor: "#F4F3FA" },
-  tagGrayText: { color: "#6B6B80" },
-  tagGreen: { backgroundColor: "#ECFDF5" },
-  tagGreenText: { color: "#059669" },
 });

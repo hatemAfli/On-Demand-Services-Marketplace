@@ -59,6 +59,11 @@ const MENU_ITEMS: {
     icon: "calendar-outline",
   },
   {
+    key: "ClientMyReviews",
+    labelKey: "client.sidebar.menu.reviews",
+    icon: "star-outline",
+  },
+  {
     key: "ClientFavorites",
     labelKey: "client.sidebar.menu.favorites",
     icon: "heart-outline",

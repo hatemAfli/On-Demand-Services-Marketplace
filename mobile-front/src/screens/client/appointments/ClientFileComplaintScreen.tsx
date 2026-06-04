@@ -31,7 +31,11 @@ import {
 } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { COLORS } from "../../../constants";
-import { api, type ComplaintCategory } from "../../../services/api";
+import {
+  api,
+  type ComplaintCategory,
+  type ComplaintForwardTarget,
+} from "../../../services/api";
 import { uploadComplaintEvidencePhotos } from "../../../services/complaintEvidencePhotosUpload";
 import { useAuth } from "../../../context/AuthContext";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
@@ -47,6 +51,42 @@ const MAX_PHOTOS = 5;
 const DESC_MIN = 20;
 const DESC_MAX = 2000;
 const COMPLAINT_RED = "#DC2626";
+
+type ForwardOption = {
+  value: ComplaintForwardTarget;
+  title: string;
+  subtitle: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  accent: string;
+  accentBg: string;
+};
+
+const FORWARD_OPTIONS: ForwardOption[] = [
+  {
+    value: "PLATFORM",
+    title: "Platform support",
+    subtitle: "Our marketplace team investigates and responds",
+    icon: "shield-checkmark",
+    accent: "#4F46E5",
+    accentBg: "#EEF2FF",
+  },
+  {
+    value: "COMPANY",
+    title: "Company admin",
+    subtitle: "The provider's employer reviews this case directly",
+    icon: "business",
+    accent: "#7621C2",
+    accentBg: "#F3E8FF",
+  },
+  {
+    value: "BOTH",
+    title: "Platform & company",
+    subtitle: "Notify both teams for the fastest resolution",
+    icon: "people",
+    accent: "#059669",
+    accentBg: "#ECFDF5",
+  },
+];
 
 function parseYmdLocal(ymd: string): Date {
   const [y, m, d] = ymd.split("-").map(Number);
@@ -197,6 +237,9 @@ export const ClientFileComplaintScreen: React.FC<Props> = ({
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [scheduleLine, setScheduleLine] = useState<string | null>(null);
   const [scheduleLoading, setScheduleLoading] = useState(true);
+  const [providerIsEmployee, setProviderIsEmployee] = useState(false);
+  const [forwardTarget, setForwardTarget] =
+    useState<ComplaintForwardTarget | null>(null);
   const [photoSourceOpen, setPhotoSourceOpen] = useState(false);
 
   const orderRef = useMemo(
@@ -230,6 +273,11 @@ export const ClientFileComplaintScreen: React.FC<Props> = ({
         const ymd = sd.includes("T") ? sd.slice(0, 10) : sd;
         if (ymd && st) setScheduleLine(formatBookingDateTime(ymd, st));
         else setScheduleLine(null);
+
+        const provider = raw.provider as Record<string, unknown> | undefined;
+        const pType =
+          provider && typeof provider.type === "string" ? provider.type : "";
+        setProviderIsEmployee(pType === "EMPLOYEE");
       })
       .catch(() => {
         if (!cancelled) setScheduleLine(null);
@@ -314,7 +362,8 @@ export const ClientFileComplaintScreen: React.FC<Props> = ({
 
   const descTrim = description.trim();
   const descOk = descTrim.length >= DESC_MIN && descTrim.length <= DESC_MAX;
-  const canSubmitContent = !!selectedCategory && descOk;
+  const forwardOk = !providerIsEmployee || forwardTarget != null;
+  const canSubmitContent = !!selectedCategory && descOk && forwardOk;
 
   const descInvalidShort = descTrim.length > 0 && descTrim.length < DESC_MIN;
   const showDescError =
@@ -331,6 +380,14 @@ export const ClientFileComplaintScreen: React.FC<Props> = ({
     }
     if (!descOk) {
       setSubmitAttempted(true);
+      return;
+    }
+    if (providerIsEmployee && !forwardTarget) {
+      setSubmitAttempted(true);
+      Alert.alert(
+        "Choose who should receive this",
+        "Select platform support, company admin, or both.",
+      );
       return;
     }
     setSubmitting(true);
@@ -356,6 +413,9 @@ export const ClientFileComplaintScreen: React.FC<Props> = ({
         category: selectedCategory,
         description: descTrim,
         evidenceUrls,
+        ...(providerIsEmployee && forwardTarget
+          ? { forwardTarget }
+          : {}),
       });
       navigation.replace("ClientComplaintSuccess", {
         category: selectedCategory,
@@ -381,6 +441,8 @@ export const ClientFileComplaintScreen: React.FC<Props> = ({
     photoUris,
     providerName,
     selectedCategory,
+    providerIsEmployee,
+    forwardTarget,
     user?.id,
   ]);
 
@@ -523,6 +585,79 @@ export const ClientFileComplaintScreen: React.FC<Props> = ({
                 </View>
               ))}
 
+              {providerIsEmployee ? (
+                <>
+                  <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>
+                    Who should review this?
+                  </Text>
+                  <Text style={styles.forwardIntro}>
+                    This provider works for a company. Choose where to send your
+                    complaint.
+                  </Text>
+                  {submitAttempted && !forwardTarget ? (
+                    <Text style={styles.inlineError}>
+                      Please select one option below.
+                    </Text>
+                  ) : null}
+                  <View style={styles.forwardList}>
+                    {FORWARD_OPTIONS.map((opt) => {
+                      const selected = forwardTarget === opt.value;
+                      return (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[
+                            styles.forwardCard,
+                            selected && styles.forwardCardSelected,
+                          ]}
+                          onPress={() => setForwardTarget(opt.value)}
+                          activeOpacity={0.9}
+                        >
+                          <View
+                            style={[
+                              styles.forwardIconWrap,
+                              { backgroundColor: opt.accentBg },
+                            ]}
+                          >
+                            <Ionicons
+                              name={opt.icon}
+                              size={22}
+                              color={opt.accent}
+                            />
+                          </View>
+                          <View style={styles.forwardTextCol}>
+                            <Text
+                              style={[
+                                styles.forwardTitle,
+                                selected && styles.forwardTitleSelected,
+                              ]}
+                            >
+                              {opt.title}
+                            </Text>
+                            <Text style={styles.forwardSubtitle}>
+                              {opt.subtitle}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.forwardRadio,
+                              selected && styles.forwardRadioSelected,
+                            ]}
+                          >
+                            {selected ? (
+                              <Ionicons
+                                name="checkmark"
+                                size={14}
+                                color="#FFFFFF"
+                              />
+                            ) : null}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : null}
+
               <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>
                 Describe what happened
               </Text>
@@ -647,9 +782,11 @@ export const ClientFileComplaintScreen: React.FC<Props> = ({
                 color="#B45309"
               />
               <Text style={styles.noticeText}>
-                Your complaint will be reviewed by our team within 48 hours. The
-                provider will be notified that a complaint has been filed but
-                will not see your personal details.
+                {providerIsEmployee && forwardTarget === "COMPANY"
+                  ? "Your complaint will be sent to the provider's company administrator. They typically respond within 48 hours. The provider is notified without seeing your personal details."
+                  : providerIsEmployee && forwardTarget === "BOTH"
+                    ? "Your complaint will be reviewed by both our platform team and the provider's company. You will receive updates as the case progresses."
+                    : "Your complaint will be reviewed by our team within 48 hours. The provider will be notified that a complaint has been filed but will not see your personal details."}
               </Text>
             </View>
 
@@ -675,7 +812,9 @@ export const ClientFileComplaintScreen: React.FC<Props> = ({
               <Text style={styles.submitHint}>
                 {canSubmitContent
                   ? "Ready to submit"
-                  : "Select a category and add at least 20 characters"}
+                  : providerIsEmployee && !forwardTarget
+                    ? "Select who receives the complaint, a category, and description"
+                    : "Select a category and add at least 20 characters"}
               </Text>
             </View>
           </View>
@@ -876,6 +1015,73 @@ const styles = StyleSheet.create({
   },
   sectionTitleSpaced: {
     marginTop: 8,
+  },
+  forwardIntro: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#64748B",
+    marginBottom: 12,
+  },
+  forwardList: {
+    gap: 10,
+    marginBottom: 4,
+  },
+  forwardCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+  },
+  forwardCardSelected: {
+    borderColor: BRAND_ORANGE,
+    backgroundColor: "#FFF7ED",
+    shadowColor: BRAND_ORANGE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  forwardIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  forwardTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  forwardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  forwardTitleSelected: {
+    color: "#9A3412",
+  },
+  forwardSubtitle: {
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#64748B",
+  },
+  forwardRadio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  forwardRadioSelected: {
+    borderColor: BRAND_ORANGE,
+    backgroundColor: BRAND_ORANGE,
   },
   inlineError: {
     fontSize: 13,

@@ -20,9 +20,14 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { COLORS } from "../../../constants";
+import { useAuth } from "../../../context/AuthContext";
 import { useNotificationsRealtime } from "../../../context/NotificationsRealtimeContext";
 import type { ProviderStackParamList } from "../../../navigation/types";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
+import {
+  isAppointmentVisibleToEmployeeProvider,
+  isEmployeeProvider,
+} from "../../../utils/providerEmployment";
 import {
   api,
   mapProviderCalendarAppointmentRow,
@@ -151,6 +156,8 @@ function compareTime(a: string, b: string): number {
 export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { t } = useAppTranslation();
+  const { user } = useAuth();
+  const isEmployee = isEmployeeProvider(user);
   const initialMonday = useMemo(() => startOfIsoWeekMonday(new Date()), []);
   const initialSelected = useMemo(() => toYyyyMmDd(new Date()), []);
 
@@ -192,7 +199,12 @@ export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
         const rows = Array.isArray(calendarRes.data) ? calendarRes.data : [];
         const mapped = rows
           .map((row) => mapProviderCalendarAppointmentRow(row))
-          .filter((x): x is ProviderCalendarAppointment => x !== null);
+          .filter((x): x is ProviderCalendarAppointment => x !== null)
+          .filter(
+            (a) =>
+              !isEmployee ||
+              isAppointmentVisibleToEmployeeProvider(a.status),
+          );
         setAppointments(mapped);
 
         const dayOffRows = Array.isArray(daysOffRes.data)
@@ -224,7 +236,7 @@ export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
         setRefreshing(false);
       }
     },
-    [currentWeekStart],
+    [currentWeekStart, isEmployee],
   );
 
   useEffect(() => {
@@ -434,6 +446,7 @@ export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
             {unreadCount > 0 ? <View style={styles.headerBellDot} /> : null}
           </TouchableOpacity>
 
+          {!isEmployee ? (
           <TouchableOpacity
             onPress={() => navigation.navigate("ProviderSchedule")}
             activeOpacity={0.88}
@@ -447,6 +460,7 @@ export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
               color={COLORS.text.secondary}
             />
           </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
@@ -563,8 +577,10 @@ export const ProviderCalendarScreen: React.FC<Props> = ({ navigation }) => {
                     {filteredAppointments.length} Jobs
                   </Text>
                   <Text style={styles.summaryMeta}>
-                    {doneCount} Completed | {onlineCount} Active |{" "}
-                    {pendingCount} Pending
+                    {doneCount} Completed | {onlineCount} Active
+                    {!isEmployee
+                      ? ` | ${pendingCount} Pending`
+                      : ""}
                   </Text>
                 </View>
                 <View style={styles.summaryRight}>

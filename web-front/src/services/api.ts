@@ -120,6 +120,16 @@ export const api = {
       body,
     ),
 
+  reviewVerificationDocument: (
+    requestId: string,
+    documentId: string,
+    body: { decision: 'accept' | 'reject'; rejectionReason?: string },
+  ) =>
+    apiClient.patch<AdminVerificationRequestItem>(
+      `/admin/verification-requests/${requestId}/documents/${documentId}`,
+      body,
+    ),
+
   listAdminServiceCategories: (params?: { activeOnly?: boolean }) =>
     apiClient.get<ServiceCategory[]>('/admin/service-categories', { params }),
 
@@ -170,6 +180,51 @@ export const api = {
 
   getLatestLegalDocument: (type: LegalDocumentType, lang: 'en' | 'ar') =>
     apiClient.get('/legal-documents/latest', { params: { type, lang } }),
+
+  listAdminFaq: () => apiClient.get<import('../types/support').FaqAdminItem[]>('/admin/faq'),
+
+  createAdminFaq: (body: {
+    audience: import('../types/support').FaqAudience
+    sortOrder?: number
+    isPublished?: boolean
+    en: { question: string; answer: string }
+    ar: { question: string; answer: string }
+  }) => apiClient.post('/admin/faq', body),
+
+  updateAdminFaq: (
+    id: string,
+    body: Partial<{
+      audience: import('../types/support').FaqAudience
+      sortOrder: number
+      isPublished: boolean
+      en: { question: string; answer: string }
+      ar: { question: string; answer: string }
+    }>,
+  ) => apiClient.patch(`/admin/faq/${id}`, body),
+
+  deleteAdminFaq: (id: string) => apiClient.delete(`/admin/faq/${id}`),
+
+  listAdminSupportMessages: (params?: {
+    status?: import('../types/support').SupportMessageStatus
+    search?: string
+  }) =>
+    apiClient.get<import('../types/support').SupportMessageItem[]>(
+      '/admin/support-messages',
+      { params },
+    ),
+
+  getAdminSupportMessage: (id: string) =>
+    apiClient.get<import('../types/support').SupportMessageItem>(
+      `/admin/support-messages/${id}`,
+    ),
+
+  updateAdminSupportMessageStatus: (
+    id: string,
+    body: { status: import('../types/support').SupportMessageStatus },
+  ) => apiClient.patch(`/admin/support-messages/${id}/status`, body),
+
+  getAdminSupportMessageStats: () =>
+    apiClient.get<{ newCount: number }>('/admin/support-messages/stats'),
 }
 
 export default apiClient

@@ -18,6 +18,12 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { GetProviderReviewsDto } from './dto/get-provider-reviews.dto';
 import { ReplyToReviewDto } from './dto/reply-to-review.dto';
+import { UpdateReviewDto } from './dto/update-review.dto';
+import {
+  CLIENT_REVIEW_LIST_INCLUDE,
+  mapClientReviewItem,
+} from './helpers/client-review.mapper';
+import { recomputeReviewAggregates } from './helpers/recompute-review-aggregates';
 
 const REVIEW_LIST_INCLUDE = {
   client: {
@@ -95,6 +101,12 @@ export class ReviewsService {
       );
     }
 
+    if (!appointment.providerId || !appointment.provider) {
+      throw new BadRequestException('Appointment has no assigned provider to review');
+    }
+    const reviewedProviderId = appointment.providerId;
+    const reviewedProviderUserId = appointment.provider.user.id;
+
     const existing = await this.prisma.review.findUnique({
       where: { appointmentId: dto.appointmentId },
     });
@@ -107,50 +119,18 @@ export class ReviewsService {
         data: {
           appointmentId: dto.appointmentId,
           clientId: appointment.clientId,
-          providerId: appointment.providerId,
+          providerId: reviewedProviderId,
           givenServiceId: appointment.givenServiceId,
           rating: dto.rating,
           comment: dto.comment?.trim() ? dto.comment.trim() : null,
         },
       });
 
-      const providerRatings = await tx.review.findMany({
-        where: {
-          providerId: appointment.providerId,
-          visibility: ReviewVisibility.PUBLIC,
-        },
-        select: { rating: true },
-      });
-      const newAvg =
-        providerRatings.reduce((s, r) => s + r.rating, 0) / providerRatings.length;
-      const newTotal = providerRatings.length;
-
-      await tx.provider.update({
-        where: { id: appointment.providerId },
-        data: {
-          averageRating: new Prisma.Decimal(newAvg.toFixed(2)),
-          totalReviews: newTotal,
-          isTopProvider: newAvg >= 4.5 && newTotal >= 10,
-        },
-      });
-
-      const serviceRatings = await tx.review.findMany({
-        where: {
-          givenServiceId: appointment.givenServiceId,
-          visibility: ReviewVisibility.PUBLIC,
-        },
-        select: { rating: true },
-      });
-      const newServiceAvg =
-        serviceRatings.reduce((s, r) => s + r.rating, 0) / serviceRatings.length;
-
-      await tx.givenService.update({
-        where: { id: appointment.givenServiceId },
-        data: {
-          averageRating: new Prisma.Decimal(newServiceAvg.toFixed(2)),
-          totalReviews: serviceRatings.length,
-        },
-      });
+      await recomputeReviewAggregates(
+        tx,
+        reviewedProviderId,
+        appointment.givenServiceId,
+      );
 
       return review;
     });
@@ -163,7 +143,7 @@ export class ReviewsService {
         : '';
 
     void this.notificationsService.send({
-      userId: appointment.provider.user.id,
+      userId: reviewedProviderUserId,
       type: NotificationType.NEW_REVIEW,
       title: 'New review received',
       body: `${clientName} rated you ${stars}${commentSnippet}`,
@@ -334,5 +314,103 @@ export class ReviewsService {
       existingRating: existing?.rating ?? null,
       existingComment: existing?.comment?.trim() || null,
     };
+  }
+
+  /** Reviews the client has submitted (settings profile stats). */
+  async countByClient(clientUserId: string): Promise<{ count: number }> {
+    const count = await this.prisma.review.count({
+      where: { clientId: clientUserId },
+    });
+    return { count };
+  }
+
+  async listMyReviews(clientUserId: string, locale: 'en' | 'ar' = 'en') {
+    const rows = await this.prisma.review.findMany({
+      where: { clientId: clientUserId },
+      orderBy: { createdAt: 'desc' },
+      include: CLIENT_REVIEW_LIST_INCLUDE,
+    });
+    return {
+      items: rows.map((row) => mapClientReviewItem(row, locale)),
+      total: rows.length,
+    };
+  }
+
+  async getMyReview(
+    clientUserId: string,
+    reviewId: string,
+    locale: 'en' | 'ar' = 'en',
+  ) {
+    const row = await this.prisma.review.findUnique({
+      where: { id: reviewId },
+      include: CLIENT_REVIEW_LIST_INCLUDE,
+    });
+    if (!row) throw new NotFoundException('Review not found');
+    if (row.clientId !== clientUserId) {
+      throw new ForbiddenException('You can only access your own reviews');
+    }
+    return mapClientReviewItem(row, locale);
+  }
+
+  private async assertClientOwnsReview(clientUserId: string, reviewId: string) {
+    const review = await this.prisma.review.findUnique({
+      where: { id: reviewId },
+      select: {
+        id: true,
+        clientId: true,
+        providerId: true,
+        givenServiceId: true,
+        hiddenAt: true,
+      },
+    });
+    if (!review) throw new NotFoundException('Review not found');
+    if (review.clientId !== clientUserId) {
+      throw new ForbiddenException('You can only modify your own reviews');
+    }
+    if (review.hiddenAt) {
+      throw new BadRequestException('This review can no longer be edited');
+    }
+    return review;
+  }
+
+  async updateMyReview(
+    clientUserId: string,
+    reviewId: string,
+    dto: UpdateReviewDto,
+    locale: 'en' | 'ar' = 'en',
+  ) {
+    const existing = await this.assertClientOwnsReview(clientUserId, reviewId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.review.update({
+        where: { id: reviewId },
+        data: {
+          rating: dto.rating,
+          comment: dto.comment?.trim() ? dto.comment.trim() : null,
+        },
+      });
+      await recomputeReviewAggregates(
+        tx,
+        existing.providerId,
+        existing.givenServiceId,
+      );
+    });
+
+    return this.getMyReview(clientUserId, reviewId, locale);
+  }
+
+  async deleteMyReview(clientUserId: string, reviewId: string) {
+    const existing = await this.assertClientOwnsReview(clientUserId, reviewId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.review.delete({ where: { id: reviewId } });
+      await recomputeReviewAggregates(
+        tx,
+        existing.providerId,
+        existing.givenServiceId,
+      );
+    });
+
+    return { deleted: true };
   }
 }

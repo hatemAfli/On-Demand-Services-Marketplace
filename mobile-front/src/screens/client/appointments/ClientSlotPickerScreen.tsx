@@ -38,6 +38,8 @@ type Props = NativeStackScreenProps<ClientStackParamList, "ClientSlotPicker">;
 const NOTES_MAX = 500;
 const MAX_PHOTOS = 5;
 const DATE_STRIP_DAYS = 22;
+/** Avoid device locale (e.g. French) for booking copy shown to the client. */
+const BOOKING_DATE_LOCALE = "en-US";
 
 // ─── Design tokens ─────────────────────────────────────────
 const C = {
@@ -58,6 +60,7 @@ const C = {
   errorBg: "#FFF1F1",
   warning: "#D97706",
   warningBg: "#FFFBEB",
+  warningBorder: "#FDE68A",
   shadow: "rgba(0,0,0,0.05)",
   cardShadow: "rgba(0,0,0,0.05)",
 };
@@ -86,6 +89,19 @@ function isSameLocalCalendarDay(ymd: string, ref: Date): boolean {
   return ymd === formatYmd(ref);
 }
 
+function normalizeDayOffApiDate(raw: string): string {
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return raw.slice(0, 10);
+}
+
+/** `ymd` → reason text, or `null` when blocked with no reason. */
+type DaysOffByDate = Record<string, string | null>;
+
+function isDateDayOff(map: DaysOffByDate, ymd: string): boolean {
+  return Object.prototype.hasOwnProperty.call(map, ymd);
+}
+
 /**
  * For the given calendar day, true if the slot start (local) is strictly before `now`.
  * Only applies when `ymd` is today; future days always return false.
@@ -107,6 +123,48 @@ function isSlotStartInPast(ymd: string, slotHHmm: string, now: Date): boolean {
     0,
   );
   return slotStart.getTime() < now.getTime();
+}
+
+type SlotPickerItem = {
+  time: string;
+  status: "available" | "reserved";
+};
+
+/** Generic business-hour slots for "any provider" company bookings (08:00–18:00). */
+function generateGenericSlots(): SlotPickerItem[] {
+  const out: SlotPickerItem[] = [];
+  for (let h = 8; h <= 18; h += 1) {
+    const time = `${String(h).padStart(2, "0")}:00`;
+    out.push({ time, status: "available" });
+  }
+  return out;
+}
+
+function normalizeSlotsResponse(data: unknown): SlotPickerItem[] {
+  if (Array.isArray(data)) {
+    return data
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((time) => ({ time, status: "available" as const }));
+  }
+  if (data && typeof data === "object" && "slots" in data) {
+    const slots = (data as { slots?: unknown }).slots;
+    if (!Array.isArray(slots)) return [];
+    return slots
+      .map((entry) => {
+        if (typeof entry === "string") {
+          return { time: entry, status: "available" as const };
+        }
+        if (entry && typeof entry === "object" && "time" in entry) {
+          const row = entry as { time?: unknown; status?: unknown };
+          const time = typeof row.time === "string" ? row.time : "";
+          const status = row.status === "reserved" ? "reserved" : "available";
+          return time ? { time, status } : null;
+        }
+        return null;
+      })
+      .filter((row): row is SlotPickerItem => row !== null);
+  }
+  return [];
 }
 
 const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -162,6 +220,11 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
 maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
 var marker=L.marker([${lat},${lng}],{draggable:true}).addTo(map);
 function send(la,ln){if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(JSON.stringify({lat:la,lng:ln}));}
+window.setPickerPosition=function(la,ln,notify){
+marker.setLatLng([la,ln]);
+map.setView([la,ln],Math.max(map.getZoom(),15));
+if(notify)send(la,ln);
+};
 map.on('click',function(e){marker.setLatLng(e.latlng);send(e.latlng.lat,e.latlng.lng);});
 marker.on('dragend',function(e){var p=e.target.getLatLng();send(p.lat,p.lng);});
 </script></body></html>`;
@@ -199,9 +262,14 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
     providerName,
     serviceName,
     estimatedDurationMinutes,
+    companyId,
   } = route.params;
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+
+  // "Any available provider" company booking: no concrete provider, so we offer
+  // generic business-hour slots and the company admin assigns someone free.
+  const isCompanyAnyProvider = !!companyId && !providerId;
 
   const duration = useMemo(
     () => Math.max(1, estimatedDurationMinutes || 60),
@@ -211,7 +279,7 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
   // ── State (all unchanged) ─────────────────────────────────
   const [selectedDate, setSelectedDate] = useState(() => formatYmd(new Date()));
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [slots, setSlots] = useState<string[]>([]);
+  const [slots, setSlots] = useState<SlotPickerItem[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [notes, setNotes] = useState("");
   const [photoUris, setPhotoUris] = useState<string[]>([]);
@@ -219,6 +287,8 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
   const [datesWithNoSlots, setDatesWithNoSlots] = useState<Set<string>>(
     () => new Set(),
   );
+  const [daysOffByDate, setDaysOffByDate] = useState<DaysOffByDate>({});
+  const [daysOffLoading, setDaysOffLoading] = useState(false);
 
   // ── Location state ──────────────────────────────────────────
   const [clientLat, setClientLat] = useState<number | null>(null);
@@ -227,17 +297,21 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
   const [locationAddress, setLocationAddress] = useState(
     "Loading your location…",
   );
+  const [locationLoading, setLocationLoading] = useState(true);
   const [locationPickerVisible, setLocationPickerVisible] = useState(false);
   const [pickerLat, setPickerLat] = useState<number>(36.75);
   const [pickerLng, setPickerLng] = useState<number>(3.06);
+  const [locatingOnMap, setLocatingOnMap] = useState(false);
   const pickerWebRef = useRef<WebView>(null);
 
   useEffect(() => {
     (async () => {
+      setLocationLoading(true);
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
-          setLocationAddress("Location permission not granted");
+          setLocationAddress("Tap Change to set your service location");
+          setLocationLabel("Location required");
           return;
         }
         const pos = await Location.getCurrentPositionAsync({
@@ -257,16 +331,67 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
           setLocationAddress("Location set");
         }
       } catch {
-        setLocationAddress("Could not get location");
+        setLocationAddress("Tap Change to set your service location");
+        setLocationLabel("Location required");
+      } finally {
+        setLocationLoading(false);
       }
     })();
   }, []);
+
+  const hasLocationSet = useMemo(
+    () =>
+      !locationLoading &&
+      clientLat !== null &&
+      clientLng !== null &&
+      Number.isFinite(clientLat) &&
+      Number.isFinite(clientLng),
+    [locationLoading, clientLat, clientLng],
+  );
 
   const openLocationPicker = useCallback(() => {
     setPickerLat(clientLat ?? 36.75);
     setPickerLng(clientLng ?? 3.06);
     setLocationPickerVisible(true);
   }, [clientLat, clientLng]);
+
+  const ensureLocationForBooking = useCallback(() => {
+    if (hasLocationSet) return true;
+    openLocationPicker();
+    return false;
+  }, [hasLocationSet, openLocationPicker]);
+
+  const goToMyLocationOnMap = useCallback(async () => {
+    if (locatingOnMap) return;
+    setLocatingOnMap(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location permission",
+          "Allow location access to center the map on your position.",
+        );
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      setPickerLat(lat);
+      setPickerLng(lng);
+      pickerWebRef.current?.injectJavaScript(
+        `window.setPickerPosition(${lat},${lng},true); true;`,
+      );
+    } catch {
+      Alert.alert(
+        "Could not get location",
+        "Check that location services are enabled and try again.",
+      );
+    } finally {
+      setLocatingOnMap(false);
+    }
+  }, [locatingOnMap]);
 
   const confirmPickerLocation = useCallback(async () => {
     setClientLat(pickerLat);
@@ -303,6 +428,44 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
     setSelectedTime(null);
   }, [selectedDate]);
 
+  useEffect(() => {
+    if (isCompanyAnyProvider || !providerId) {
+      setDaysOffByDate({});
+      setDaysOffLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const from = dateStrip[0];
+    const to = dateStrip[dateStrip.length - 1];
+    setDaysOffLoading(true);
+    void api
+      .getProviderDaysOff(providerId, { from, to })
+      .then((res) => {
+        if (cancelled) return;
+        const rows = Array.isArray(res.data) ? res.data : [];
+        const map: DaysOffByDate = {};
+        for (const row of rows) {
+          const key = normalizeDayOffApiDate(row.date);
+          if (key) map[key] = row.reason?.trim() || null;
+        }
+        setDaysOffByDate(map);
+      })
+      .catch(() => {
+        if (!cancelled) setDaysOffByDate({});
+      })
+      .finally(() => {
+        if (!cancelled) setDaysOffLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [providerId, isCompanyAnyProvider, dateStrip]);
+
+  const isSelectedDateDayOff = isDateDayOff(daysOffByDate, selectedDate);
+  const selectedDayOffReason = isSelectedDateDayOff
+    ? daysOffByDate[selectedDate]
+    : null;
+
   // Re-evaluate "past" slots while viewing today (e.g. user keeps screen open).
   const [nowCoarse, setNowCoarse] = useState(() => Date.now());
   useEffect(() => {
@@ -320,12 +483,30 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
   useEffect(() => {
     let cancelled = false;
     const dateToFetch = selectedDate;
+
+    // No concrete provider → offer generic slots (admin assigns later).
+    if (isCompanyAnyProvider || !providerId) {
+      setSlots(generateGenericSlots());
+      setSlotsLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (isDateDayOff(daysOffByDate, dateToFetch)) {
+      setSlots([]);
+      setSlotsLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     setSlotsLoading(true);
     void api
       .getAvailableSlots(providerId, dateToFetch, duration)
       .then((res) => {
         if (cancelled) return;
-        const list = Array.isArray(res.data) ? res.data : [];
+        const list = normalizeSlotsResponse(res.data);
         setSlots(list);
         setDatesWithNoSlots((prev) => {
           const next = new Set(prev);
@@ -343,12 +524,17 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [providerId, selectedDate, duration]);
+  }, [providerId, selectedDate, duration, isCompanyAnyProvider, daysOffByDate]);
 
   useEffect(() => {
     if (!selectedTime) return;
     const now = new Date();
-    if (isSlotStartInPast(selectedDate, selectedTime, now)) {
+    const selected = slots.find((slot) => slot.time === selectedTime);
+    if (
+      !selected ||
+      selected.status === "reserved" ||
+      isSlotStartInPast(selectedDate, selectedTime, now)
+    ) {
       setSelectedTime(null);
     }
   }, [selectedDate, selectedTime, slots, nowCoarse]);
@@ -356,7 +542,7 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
   // ── Formatted dates (unchanged logic) ────────────────────
   const formattedSectionDate = useMemo(() => {
     try {
-      return parseYmd(selectedDate).toLocaleDateString(undefined, {
+      return parseYmd(selectedDate).toLocaleDateString(BOOKING_DATE_LOCALE, {
         weekday: "long",
         month: "long",
         day: "numeric",
@@ -370,7 +556,7 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
     if (!selectedTime) return null;
     try {
       const d = parseYmd(selectedDate);
-      const datePart = d.toLocaleDateString(undefined, {
+      const datePart = d.toLocaleDateString(BOOKING_DATE_LOCALE, {
         month: "short",
         day: "numeric",
       });
@@ -414,6 +600,10 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
   // ── Submit (unchanged logic) ──────────────────────────────
   const onSubmit = useCallback(async () => {
     if (!selectedTime || submitting) return;
+    if (!hasLocationSet) {
+      openLocationPicker();
+      return;
+    }
     if (isSlotStartInPast(selectedDate, selectedTime, new Date())) {
       Alert.alert("Time passed", "Pick a time that has not started yet.");
       return;
@@ -440,7 +630,8 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
 
       const res = await api.createAppointment({
         givenServiceId,
-        providerId,
+        providerId: providerId ?? undefined,
+        companyId: companyId ?? undefined,
         scheduledDate: selectedDate,
         scheduledTime: selectedTime,
         notes: notes.trim() || undefined,
@@ -470,6 +661,7 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
   }, [
     givenServiceId,
     providerId,
+    companyId,
     providerName,
     serviceName,
     selectedDate,
@@ -479,18 +671,34 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
     submitting,
     navigation,
     user?.id,
+    clientLat,
+    clientLng,
+    hasLocationSet,
+    openLocationPicker,
   ]);
+
+  const onBottomBarPress = useCallback(() => {
+    if (submitting) return;
+    if (!hasLocationSet) {
+      openLocationPicker();
+      return;
+    }
+    if (!selectedTime) return;
+    void onSubmit();
+  }, [submitting, hasLocationSet, openLocationPicker, selectedTime, onSubmit]);
 
   // ── Derived ───────────────────────────────────────────────
   const selectedDateObj = useMemo(() => parseYmd(selectedDate), [selectedDate]);
   const nowForSlots = useMemo(() => new Date(nowCoarse), [nowCoarse]);
   const bookableSlotCount = useMemo(
     () =>
-      slots.filter((t) => !isSlotStartInPast(selectedDate, t, nowForSlots))
-        .length,
+      slots.filter(
+        (slot) =>
+          slot.status === "available" &&
+          !isSlotStartInPast(selectedDate, slot.time, nowForSlots),
+      ).length,
     [slots, selectedDate, nowForSlots],
   );
-  const slotsCount = slots.length;
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
@@ -525,27 +733,15 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Service card ── */}
-          <View style={s.serviceCard}>
-            <View style={s.serviceAvatar}>
-              <Text style={s.serviceAvatarText}>
-                {providerName.trim().charAt(0).toUpperCase()}
+          {isCompanyAnyProvider ? (
+            <View style={s.companyHint}>
+              <Ionicons name="information-circle" size={16} color={C.accent} />
+              <Text style={s.companyHintText}>
+                {providerName} will assign an available provider for your chosen
+                time.
               </Text>
             </View>
-            <View style={s.serviceInfo}>
-              <Text style={s.serviceTitle} numberOfLines={1}>
-                {serviceName}
-              </Text>
-              <View style={s.serviceTags}>
-                <View style={s.serviceTag}>
-                  <Text style={s.serviceTagText}>~{duration} min</Text>
-                </View>
-                <View style={s.serviceTag}>
-                  <Text style={s.serviceTagText}>{providerName}</Text>
-                </View>
-              </View>
-            </View>
-          </View>
+          ) : null}
 
           {/* ── Location card ── */}
           <View style={s.section}>
@@ -558,7 +754,12 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                 <Text style={s.sectionAction}>Change</Text>
               </TouchableOpacity>
             </View>
-            <View style={s.locationCard}>
+            <View
+              style={[
+                s.locationCard,
+                !hasLocationSet && !locationLoading && s.locationCardRequired,
+              ]}
+            >
               <View style={s.mapPreview}>
                 <Image
                   source={{
@@ -596,6 +797,7 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                 const d = parseYmd(ymd);
                 const isSelected = ymd === selectedDate;
                 const isToday = ymd === formatYmd(new Date());
+                const isDayOff = isDateDayOff(daysOffByDate, ymd);
                 const dow = isToday ? "Today" : WEEKDAY_SHORT[d.getDay()];
                 const dom = d.getDate();
                 const mon = MONTH_SHORT[d.getMonth()];
@@ -604,27 +806,115 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                   <TouchableOpacity
                     key={ymd}
                     onPress={() => setSelectedDate(ymd)}
-                    style={[s.dateCard, isSelected && s.dateCardActive]}
+                    style={[
+                      s.dateCard,
+                      isDayOff && !isSelected && s.dateCardDayOff,
+                      isDayOff && isSelected && s.dateCardDayOffActive,
+                      !isDayOff && isSelected && s.dateCardActive,
+                    ]}
                     activeOpacity={0.82}
                   >
-                    <Text style={[s.dateTop, isSelected && s.dateTopActive]}>
-                      {dow}
-                    </Text>
-                    <Text style={[s.dateDay, isSelected && s.dateDayActive]}>
-                      {dom}
-                    </Text>
-                    <Text
-                      style={[s.dateMonth, isSelected && s.dateMonthActive]}
+                    <View
+                      style={[
+                        s.dateCardBody,
+                        isDayOff && s.dateCardBodyDayOff,
+                      ]}
                     >
-                      {mon}
-                    </Text>
+                      {isDayOff ? (
+                        <Text
+                          style={[
+                            s.dateOffLabel,
+                            isSelected && s.dateOffLabelActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          Day off
+                        </Text>
+                      ) : null}
+                      <Text
+                        style={[
+                          s.dateTop,
+                          isDayOff && s.dateTopCompact,
+                          isSelected && !isDayOff && s.dateTopActive,
+                          isDayOff && !isSelected && s.dateTopDayOff,
+                          isDayOff && isSelected && s.dateTopDayOffActive,
+                        ]}
+                      >
+                        {dow}
+                      </Text>
+                      <Text
+                        style={[
+                          s.dateDay,
+                          isDayOff && s.dateDayCompact,
+                          isSelected && !isDayOff && s.dateDayActive,
+                          isDayOff && !isSelected && s.dateDayDayOff,
+                          isDayOff && isSelected && s.dateDayDayOffActive,
+                        ]}
+                      >
+                        {dom}
+                      </Text>
+                      <Text
+                        style={[
+                          s.dateMonth,
+                          isDayOff && s.dateMonthCompact,
+                          isSelected && !isDayOff && s.dateMonthActive,
+                          isDayOff && !isSelected && s.dateMonthDayOff,
+                          isDayOff && isSelected && s.dateMonthDayOffActive,
+                        ]}
+                      >
+                        {mon}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
 
+            {!hasLocationSet && !locationLoading ? (
+              <View style={s.locationRequiredBanner}>
+                <Ionicons name="location-outline" size={16} color={C.accent} />
+                <Text style={s.locationRequiredText}>
+                  Set your location above before choosing a time slot.
+                </Text>
+              </View>
+            ) : null}
+
             {/* ── Time slots grid ── */}
-            {slotsLoading ? (
+            {daysOffLoading && !isCompanyAnyProvider && providerId ? (
+              <View style={s.slotsLoading}>
+                <ActivityIndicator color={C.warning} size="small" />
+                <Text style={s.slotsLoadingText}>Loading schedule…</Text>
+              </View>
+            ) : isSelectedDateDayOff ? (
+              <View style={s.dayOffPanel}>
+                <View style={s.dayOffIconWrap}>
+                  <Ionicons
+                    name="calendar-clear-outline"
+                    size={28}
+                    color={C.warning}
+                  />
+                </View>
+                <Text style={s.dayOffTitle}>Provider day off</Text>
+                <Text style={s.dayOffSub}>
+                  {providerName} is not available on {formattedSectionDate}.
+                </Text>
+                {selectedDayOffReason ? (
+                  <View style={s.dayOffReasonBox}>
+                    <Text style={s.dayOffReasonLabel}>Reason</Text>
+                    <Text style={s.dayOffReasonText}>
+                      {selectedDayOffReason}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={s.dayOffNoReason}>
+                    No additional details were provided.
+                  </Text>
+                )}
+                <Text style={s.dayOffHint}>
+                  Please choose another date to continue booking.
+                </Text>
+              </View>
+            ) : slotsLoading ? (
               <View style={s.slotsLoading}>
                 <ActivityIndicator color={C.accent} size="small" />
                 <Text style={s.slotsLoadingText}>Checking availability…</Text>
@@ -644,97 +934,111 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                   {"\n"}Try another date.
                 </Text>
               </View>
-            ) : bookableSlotCount === 0 ? (
-              <View style={s.noSlotsWrap}>
-                <View style={s.noSlotsIconBox}>
-                  <Ionicons name="time-outline" size={24} color={C.textLight} />
-                </View>
-                <Text style={s.noSlotsTitle}>No times left today</Text>
-                <Text style={s.noSlotsSub}>
-                  All remaining slots are in the past.{"\n"}Choose another date.
-                </Text>
-              </View>
             ) : (
-              <View style={s.timeGrid}>
-                {slots.map((t) => {
-                  const past = isSlotStartInPast(selectedDate, t, nowForSlots);
-                  const sel = t === selectedTime;
-                  return (
-                    <TouchableOpacity
-                      key={t}
-                      style={[
-                        s.timeSlot,
-                        sel && s.timeSlotActive,
-                        past && s.timeSlotDisabled,
-                      ]}
-                      onPress={() => {
-                        if (!past) setSelectedTime(t);
-                      }}
-                      disabled={past}
-                      activeOpacity={0.85}
-                    >
-                      <Text
+              <>
+                {bookableSlotCount === 0 ? (
+                  <Text style={s.slotsHint}>
+                    {slots.some((slot) => slot.status === "reserved")
+                      ? "All open times are reserved or in the past."
+                      : "All remaining slots are in the past. Choose another date."}
+                  </Text>
+                ) : null}
+                <View style={s.timeGrid}>
+                  {slots.map((slot) => {
+                    const { time: t, status } = slot;
+                    const past = isSlotStartInPast(selectedDate, t, nowForSlots);
+                    const reserved = status === "reserved";
+                    const sel = t === selectedTime;
+                    const disabled = past || reserved;
+                    const blockedByLocation = !hasLocationSet;
+                    return (
+                      <TouchableOpacity
+                        key={t}
                         style={[
-                          s.timeSlotText,
-                          sel && s.timeSlotTextActive,
-                          past && s.timeSlotTextDisabled,
+                          s.timeSlot,
+                          sel && s.timeSlotActive,
+                          past && s.timeSlotDisabled,
+                          reserved && s.timeSlotReserved,
+                          blockedByLocation && s.timeSlotBlocked,
                         ]}
+                        onPress={() => {
+                          if (blockedByLocation) {
+                            ensureLocationForBooking();
+                            return;
+                          }
+                          if (!disabled) setSelectedTime(t);
+                        }}
+                        disabled={disabled}
+                        activeOpacity={0.85}
                       >
-                        {t}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                        <Text
+                          style={[
+                            s.timeSlotText,
+                            sel && s.timeSlotTextActive,
+                            past && s.timeSlotTextDisabled,
+                            reserved && s.timeSlotTextReserved,
+                          ]}
+                        >
+                          {t}
+                        </Text>
+                        {reserved ? (
+                          <Text style={s.reservedTag}>Reserved</Text>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
             )}
           </View>
 
-          {/* ── Notes ── */}
-          <View style={s.section}>
-            <SectionHeader label="Add Details" />
-            <View style={s.notesCard}>
-              <TextInput
-                style={s.notesInput}
-                placeholder="Add notes for the provider (e.g. bring ladder, key under mat)..."
-                placeholderTextColor={C.textLight}
-                multiline
-                value={notes}
-                onChangeText={(v) => setNotes(v.slice(0, NOTES_MAX))}
-                textAlignVertical="top"
-              />
-              <View style={s.photoRow}>
-                <TouchableOpacity
-                  style={[
-                    s.addPhotoBtn,
-                    photoUris.length >= MAX_PHOTOS && s.addPhotoBtnDisabled,
-                  ]}
-                  onPress={onAddPhotos}
-                  disabled={photoUris.length >= MAX_PHOTOS}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons
-                    name="camera-outline"
-                    size={16}
-                    color={
-                      photoUris.length >= MAX_PHOTOS ? C.textLight : C.textSub
-                    }
-                  />
-                  <Text style={s.addPhotoText}>
-                    {photoUris.length >= MAX_PHOTOS
-                      ? `${MAX_PHOTOS}/${MAX_PHOTOS}`
-                      : "Add Photo"}
-                  </Text>
-                </TouchableOpacity>
-                {photoUris.map((uri) => (
-                  <PhotoThumb
-                    key={uri}
-                    uri={uri}
-                    onRemove={() => onRemovePhoto(uri)}
-                  />
-                ))}
+          {!isSelectedDateDayOff ? (
+            <View style={s.section}>
+              <SectionHeader label="Add Details" />
+              <View style={s.notesCard}>
+                <TextInput
+                  style={s.notesInput}
+                  placeholder="Add notes for the provider (e.g. bring ladder, key under mat)..."
+                  placeholderTextColor={C.textLight}
+                  multiline
+                  value={notes}
+                  onChangeText={(v) => setNotes(v.slice(0, NOTES_MAX))}
+                  textAlignVertical="top"
+                />
+                <View style={s.photoRow}>
+                  <TouchableOpacity
+                    style={[
+                      s.addPhotoBtn,
+                      photoUris.length >= MAX_PHOTOS && s.addPhotoBtnDisabled,
+                    ]}
+                    onPress={onAddPhotos}
+                    disabled={photoUris.length >= MAX_PHOTOS}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons
+                      name="camera-outline"
+                      size={16}
+                      color={
+                        photoUris.length >= MAX_PHOTOS ? C.textLight : C.textSub
+                      }
+                    />
+                    <Text style={s.addPhotoText}>
+                      {photoUris.length >= MAX_PHOTOS
+                        ? `${MAX_PHOTOS}/${MAX_PHOTOS}`
+                        : "Add Photo"}
+                    </Text>
+                  </TouchableOpacity>
+                  {photoUris.map((uri) => (
+                    <PhotoThumb
+                      key={uri}
+                      uri={uri}
+                      onRemove={() => onRemovePhoto(uri)}
+                    />
+                  ))}
+                </View>
               </View>
             </View>
-          </View>
+          ) : null}
         </ScrollView>
 
         {/* ── Bottom sticky bar ── */}
@@ -745,10 +1049,15 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
             <TouchableOpacity
               style={[
                 s.confirmButton,
-                (!selectedTime || submitting) && s.confirmButtonDisabled,
+                submitting && s.confirmButtonDisabled,
+                !hasLocationSet && !submitting && s.confirmButtonLocation,
+                hasLocationSet &&
+                  !selectedTime &&
+                  !submitting &&
+                  s.confirmButtonDisabled,
               ]}
-              onPress={onSubmit}
-              disabled={!selectedTime || submitting}
+              onPress={onBottomBarPress}
+              disabled={submitting}
               activeOpacity={0.9}
             >
               {submitting ? (
@@ -760,7 +1069,15 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
                       ? `Confirm Booking · ${recapDateTime}`
                       : "Select a time slot"}
                   </Text>
-                  <Ionicons name="arrow-forward" size={14} color={C.white} />
+                  <Ionicons
+                    name={
+                      !hasLocationSet && !selectedTime
+                        ? "location-outline"
+                        : "arrow-forward"
+                    }
+                    size={14}
+                    color={C.white}
+                  />
                 </>
               )}
             </TouchableOpacity>
@@ -786,10 +1103,10 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
             <View style={{ width: 38 }} />
           </View>
 
-          <View style={{ flex: 1 }}>
+          <View style={s.pickerMapWrap}>
             <WebView
               ref={pickerWebRef}
-              style={{ flex: 1 }}
+              style={s.pickerMap}
               originWhitelist={["*"]}
               source={{
                 html: buildPickerMapHtml(pickerLat, pickerLng),
@@ -814,6 +1131,22 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
               mixedContentMode="always"
               setSupportMultipleWindows={false}
             />
+            <TouchableOpacity
+              style={s.locateMeBtn}
+              onPress={() => {
+                void goToMyLocationOnMap();
+              }}
+              disabled={locatingOnMap}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Center map on my location"
+            >
+              {locatingOnMap ? (
+                <ActivityIndicator size="small" color={C.accent} />
+              ) : (
+                <Ionicons name="locate" size={22} color={C.accent} />
+              )}
+            </TouchableOpacity>
           </View>
 
           <View style={s.pickerBottom}>
@@ -871,60 +1204,25 @@ const s = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: C.bg },
   scrollContent: { paddingBottom: 160 },
 
-  // ── Service card ─────────────────────────────────────────
-  serviceCard: {
+  // ── Company hint banner ──────────────────────────────────
+  companyHint: {
     marginTop: 20,
     marginHorizontal: 20,
-    padding: 16,
-    borderRadius: 20,
-    backgroundColor: C.white,
-    borderWidth: 1,
-    borderColor: C.borderLight,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  serviceAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+    padding: 12,
+    borderRadius: 14,
     backgroundColor: C.accentBg,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: C.accentBorder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  serviceAvatarText: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: C.accent,
-  },
-  serviceInfo: { flex: 1 },
-  serviceTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: C.text,
-  },
-  serviceTags: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 8,
-    marginTop: 8,
   },
-  serviceTag: {
-    backgroundColor: C.borderLight,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  serviceTagText: {
+  companyHintText: {
+    flex: 1,
     fontSize: 12,
-    color: C.textSub,
-    fontWeight: "500",
+    color: C.accent,
+    fontWeight: "600",
+    lineHeight: 17,
   },
 
   // ── Section ──────────────────────────────────────────────
@@ -952,6 +1250,29 @@ const s = StyleSheet.create({
   },
 
   // ── Location card ────────────────────────────────────────
+  locationCardRequired: {
+    borderColor: C.accentBorder,
+    backgroundColor: C.accentBg,
+  },
+  locationRequiredBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: C.accentBg,
+    borderWidth: 1,
+    borderColor: C.accentBorder,
+  },
+  locationRequiredText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
+    color: C.accent,
+    lineHeight: 17,
+  },
   locationCard: {
     backgroundColor: C.white,
     borderRadius: 20,
@@ -1028,7 +1349,7 @@ const s = StyleSheet.create({
   },
   dateCard: {
     width: 72,
-    height: 88,
+    minHeight: 88,
     borderRadius: 18,
     backgroundColor: C.white,
     borderWidth: 1,
@@ -1040,6 +1361,18 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
+    overflow: "hidden",
+  },
+  dateCardBody: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  dateCardBodyDayOff: {
+    paddingVertical: 8,
+    gap: 1,
   },
   dateCardActive: {
     backgroundColor: C.accent,
@@ -1055,11 +1388,19 @@ const s = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 4,
   },
+  dateTopCompact: {
+    marginBottom: 2,
+    fontSize: 9,
+  },
   dateTopActive: { color: C.white },
   dateDay: {
     fontSize: 22,
     fontWeight: "700",
     color: C.text,
+  },
+  dateDayCompact: {
+    fontSize: 18,
+    lineHeight: 22,
   },
   dateDayActive: { color: C.white },
   dateMonth: {
@@ -1068,7 +1409,110 @@ const s = StyleSheet.create({
     fontWeight: "500",
     marginTop: 4,
   },
+  dateMonthCompact: {
+    marginTop: 2,
+    fontSize: 9,
+  },
   dateMonthActive: { color: C.white },
+  dateCardDayOff: {
+    backgroundColor: C.warningBg,
+    borderColor: C.warningBorder,
+    minHeight: 96,
+  },
+  dateCardDayOffActive: {
+    backgroundColor: C.warning,
+    borderColor: C.warning,
+    shadowColor: C.warning,
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  dateOffLabel: {
+    fontSize: 8,
+    fontWeight: "800",
+    color: C.warning,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    marginBottom: 3,
+    maxWidth: "100%",
+    textAlign: "center",
+  },
+  dateOffLabelActive: {
+    color: "rgba(255,255,255,0.95)",
+  },
+  dateTopDayOff: { color: C.warning },
+  dateTopDayOffActive: { color: "rgba(255,255,255,0.9)" },
+  dateDayDayOff: { color: "#92400E" },
+  dateDayDayOffActive: { color: C.white },
+  dateMonthDayOff: { color: "#B45309" },
+  dateMonthDayOffActive: { color: "rgba(255,255,255,0.85)" },
+  dayOffPanel: {
+    marginTop: 8,
+    padding: 20,
+    borderRadius: 16,
+    backgroundColor: C.warningBg,
+    borderWidth: 1,
+    borderColor: C.warningBorder,
+    alignItems: "center",
+  },
+  dayOffIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: C.white,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  dayOffTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#92400E",
+    marginBottom: 6,
+  },
+  dayOffSub: {
+    fontSize: 13,
+    color: C.textSub,
+    textAlign: "center",
+    lineHeight: 19,
+    marginBottom: 14,
+  },
+  dayOffReasonBox: {
+    width: "100%",
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.warningBorder,
+    marginBottom: 10,
+  },
+  dayOffReasonLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: C.warning,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 4,
+  },
+  dayOffReasonText: {
+    fontSize: 14,
+    color: C.text,
+    lineHeight: 20,
+    fontWeight: "500",
+  },
+  dayOffNoReason: {
+    fontSize: 12,
+    color: C.textLight,
+    fontStyle: "italic",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  dayOffHint: {
+    fontSize: 12,
+    color: "#B45309",
+    fontWeight: "600",
+    textAlign: "center",
+  },
 
   // ── Time slots grid ──────────────────────────────────────
   timeGrid: {
@@ -1076,16 +1520,40 @@ const s = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
   },
+  slotsHint: {
+    fontSize: 12,
+    color: C.textSub,
+    fontWeight: "500",
+    marginBottom: 10,
+    lineHeight: 17,
+  },
   timeSlot: {
     width: "30%" as unknown as number,
     minWidth: 92,
-    paddingVertical: 13,
+    paddingVertical: 11,
+    paddingHorizontal: 4,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.white,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 52,
+  },
+  timeSlotReserved: {
+    backgroundColor: "rgba(254, 226, 226, 0.72)",
+    borderColor: "#FECACA",
+  },
+  timeSlotBlocked: {
+    opacity: 0.45,
+  },
+  reservedTag: {
+    marginTop: 3,
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#DC2626",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   timeSlotActive: {
     backgroundColor: C.accentBg,
@@ -1110,6 +1578,10 @@ const s = StyleSheet.create({
   timeSlotTextDisabled: {
     color: C.textLight,
     fontWeight: "500",
+  },
+  timeSlotTextReserved: {
+    color: "#B91C1C",
+    fontWeight: "600",
   },
 
   // ── Slots loading / empty ────────────────────────────────
@@ -1255,6 +1727,9 @@ const s = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
+  confirmButtonLocation: {
+    backgroundColor: C.accent,
+  },
   confirmButtonText: {
     color: C.white,
     fontWeight: "700",
@@ -1284,6 +1759,31 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: C.text,
+  },
+  pickerMapWrap: {
+    flex: 1,
+    position: "relative",
+  },
+  pickerMap: {
+    flex: 1,
+  },
+  locateMeBtn: {
+    position: "absolute",
+    right: 16,
+    bottom: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: C.white,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
   },
   pickerPinWrap: {
     ...StyleSheet.absoluteFillObject,

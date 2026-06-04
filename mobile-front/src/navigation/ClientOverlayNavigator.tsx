@@ -20,6 +20,7 @@ import { ClientHomeSearchScreen } from "../screens/client/home/ClientHomeSearchS
 import { ListOfServicesScreen } from "../screens/client/category-services/ListOfServicesScreen";
 import { ClientSearchProviderScreen } from "../screens/client/search";
 import { ClientProviderProfileScreen } from "../screens/client/provider/ClientProviderProfileScreen";
+import { ClientCompanyProfileScreen } from "../screens/client/provider/ClientCompanyProfileScreen";
 import { PublicProviderReviewsScreen } from "../screens/client/provider/PublicProviderReviewsScreen";
 import { ClientSlotPickerScreen } from "../screens/client/appointments/ClientSlotPickerScreen";
 import { ClientBookingConfirmationScreen } from "../screens/client/appointments/ClientBookingConfirmationScreen";
@@ -32,6 +33,10 @@ import { ClientFileComplaintScreen } from "../screens/client/appointments/Client
 import { ClientComplaintSuccessScreen } from "../screens/client/appointments/ClientComplaintSuccessScreen";
 import { ClientMyComplaintsScreen } from "../screens/client/complaints/ClientMyComplaintsScreen";
 import { ClientComplaintDetailScreen } from "../screens/client/complaints/ClientComplaintDetailScreen";
+import {
+  ClientMyReviewsScreen,
+  ClientReviewDetailScreen,
+} from "../screens/client/reviews";
 import { ClientFavoritesScreen } from "../screens/client/favorite/ClientFavoritesScreen";
 import { ClientFavoritesListScreen } from "../screens/client/favorite/ClientFavoritesListScreen";
 import { NotificationsScreen } from "../screens/shared/NotificationsScreen";
@@ -47,6 +52,8 @@ import {
 } from "../screens/client/setting";
 import { TermsScreen } from "../screens/auth/TermsScreen";
 import { PrivacyScreen } from "../screens/auth/PrivacyScreen";
+import { FaqScreen } from "../screens/shared/FaqScreen";
+import { ContactUsScreen } from "../screens/shared/ContactUsScreen";
 
 const Stack = createNativeStackNavigator<ClientStackParamList>();
 
@@ -93,6 +100,7 @@ export const ClientOverlayNavigator: React.FC = () => {
             route.name !== "ClientCategoryServices" &&
             route.name !== "ClientSearchProvider" &&
             route.name !== "ClientProviderProfile" &&
+            route.name !== "ClientCompanyProfile" &&
             route.name !== "ClientSlotPicker" &&
             route.name !== "ClientBookingConfirmation" &&
             route.name !== "ClientComplaintSuccess" &&
@@ -157,6 +165,10 @@ export const ClientOverlayNavigator: React.FC = () => {
           component={ClientProviderProfileScreen}
         />
         <Stack.Screen
+          name="ClientCompanyProfile"
+          component={ClientCompanyProfileScreen}
+        />
+        <Stack.Screen
           name="PublicProviderReviews"
           component={PublicProviderReviewsScreen}
         />
@@ -214,6 +226,14 @@ export const ClientOverlayNavigator: React.FC = () => {
           component={ClientComplaintDetailScreen}
         />
         <Stack.Screen
+          name="ClientMyReviews"
+          component={ClientMyReviewsScreen}
+        />
+        <Stack.Screen
+          name="ClientReviewDetail"
+          component={ClientReviewDetailScreen}
+        />
+        <Stack.Screen
           name="ClientFavorites"
           component={ClientFavoritesScreen}
         />
@@ -254,6 +274,8 @@ export const ClientOverlayNavigator: React.FC = () => {
         />
         <Stack.Screen name="ClientTerms" component={TermsScreen} />
         <Stack.Screen name="ClientPrivacy" component={PrivacyScreen} />
+        <Stack.Screen name="ClientFaq" component={FaqScreen} />
+        <Stack.Screen name="ClientContactUs" component={ContactUsScreen} />
       </Stack.Navigator>
 
       {/** Backdrop */}

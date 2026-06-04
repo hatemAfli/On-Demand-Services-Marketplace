@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -13,6 +14,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { UpdateProviderGivenServiceDto } from './dto/update-provider-given-service.dto';
+import { RemoveProviderGalleryImageDto } from './dto/remove-provider-gallery-image.dto';
 import { UpdateProviderServiceGalleryDto } from './dto/update-provider-service-gallery.dto';
 import { GivenServiceService } from './given-service.service';
 
@@ -62,6 +64,19 @@ export class GivenServiceController {
     @Body() dto: UpdateProviderServiceGalleryDto,
   ) {
     return this.givenServiceService.updateProviderServiceGallery(
+      user.id,
+      serviceId,
+      dto,
+    );
+  }
+
+  @Delete(':serviceId/gallery')
+  removeProviderGalleryImage(
+    @CurrentUser() user: { id: string },
+    @Param('serviceId', new ParseUUIDPipe()) serviceId: string,
+    @Body() dto: RemoveProviderGalleryImageDto,
+  ) {
+    return this.givenServiceService.removeProviderGalleryImage(
       user.id,
       serviceId,
       dto,

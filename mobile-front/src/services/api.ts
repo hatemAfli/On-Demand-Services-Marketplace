@@ -79,6 +79,9 @@ export type ComplaintStatus =
   | "DISMISSED"
   | "WITHDRAWN";
 
+/** Where a client routes a complaint about a company employee. */
+export type ComplaintForwardTarget = "PLATFORM" | "COMPANY" | "BOTH";
+
 /** Matches Prisma `ComplaintDecision`. */
 export type ComplaintDecision =
   | "WARNING_ISSUED"
@@ -163,6 +166,24 @@ export type ClientComplaintRow = {
   provider: { firstName: string; lastName: string; photoUrl: string | null };
 };
 
+export type ClientReviewListItem = {
+  id: string;
+  appointmentId: string;
+  providerId: string;
+  givenServiceId: string;
+  rating: number;
+  comment: string | null;
+  providerReply: string | null;
+  repliedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  providerName: string;
+  providerPhotoUrl: string | null;
+  serviceName: string;
+  scheduledDate: string;
+  scheduledTime: string;
+};
+
 export type NotificationType =
   | "APPOINTMENT_NEW_REQUEST"
   | "APPOINTMENT_CONFIRMED"
@@ -174,6 +195,7 @@ export type NotificationType =
   | "APPOINTMENT_CANCELLED_PROVIDER"
   | "APPOINTMENT_REMINDER_24H"
   | "APPOINTMENT_REMINDER_1H"
+  | "APPOINTMENT_START_DUE"
   | "APPOINTMENT_EN_ROUTE"
   | "APPOINTMENT_STARTED"
   | "APPOINTMENT_PROVIDER_ENDED"
@@ -194,13 +216,23 @@ export type NotificationType =
   | "EMPLOYEE_INVITATION_CANCELLED"
   | "EMPLOYEE_REMOVED_FROM_COMPANY";
 
-/** A pending employee invitation received by a provider (GET /provider/invitations). */
+export type InvitationFilter = "all" | "pending" | "cancelled";
+
+export type ReceivedInvitationStatus =
+  | "PENDING"
+  | "ACCEPTED"
+  | "DECLINED"
+  | "CANCELLED"
+  | "EXPIRED";
+
+/** Employee invitation received by a provider (GET /provider/invitations). */
 export type ReceivedInvitation = {
   id: string;
-  status: "PENDING";
+  status: ReceivedInvitationStatus;
   message: string | null;
   expiresAt: string;
   createdAt: string;
+  respondedAt?: string | null;
   company: {
     id: string;
     companyName: string;
@@ -544,6 +576,16 @@ export const api = {
       params: { from, to },
     }),
 
+  /** Provider reschedule modal — own calendar with pending holds. */
+  getMyProviderDaySlots: (
+    date: string,
+    duration: number,
+    excludeAppointmentId?: string,
+  ) =>
+    apiClient.get("/availability/me/slots", {
+      params: { date, duration, excludeAppointmentId },
+    }),
+
   createDayOff: (payload: { date: string; reason?: string }) =>
     apiClient.post<ProviderDayOffItem>("/availability/days-off", payload),
 
@@ -560,6 +602,11 @@ export const api = {
 
   getMyAppointmentsAsClient: (status?: AppointmentStatus) =>
     apiClient.get<unknown[]>("/appointments/me/client", {
+      params: status ? { status } : {},
+    }),
+
+  getMyAppointmentsAsProvider: (status?: AppointmentStatus) =>
+    apiClient.get<unknown[]>("/appointments/me/provider", {
       params: status ? { status } : {},
     }),
 
@@ -655,6 +702,14 @@ export const api = {
     data: { imageUrls: string[] },
   ) => apiClient.patch(`/providers/me/given-services/${serviceId}/gallery`, data),
 
+  removeProviderGalleryImage: (
+    serviceId: string,
+    data: { imageUrl: string; galleryId?: string },
+  ) =>
+    apiClient.delete(`/providers/me/given-services/${serviceId}/gallery`, {
+      data,
+    }),
+
   // Company endpoints
   getCompanyProfile: () => apiClient.get("/companies/me"),
   updateCompanyProfile: (data: any) => apiClient.put("/companies/me", data),
@@ -710,14 +765,39 @@ export const api = {
   getGivenServiceDetails: (givenServiceId: string, params?: { locale?: string }) =>
     apiClient.get(`/given-services/${givenServiceId}`, { params }),
 
+  /** Public company profile + its providers offering `serviceId` (marketplace). */
+  getClientCompanyProfile: (
+    companyId: string,
+    params?: { serviceId?: string; locale?: string },
+  ) =>
+    apiClient.get(`/companies/${companyId}/profile`, {
+      params: {
+        ...params,
+        locale:
+          params?.locale ?? (i18n.language?.startsWith("ar") ? "AR" : "EN"),
+      },
+    }),
+
   getAvailableSlots: (providerId: string, date: string, duration: number) =>
-    apiClient.get<string[]>(`/availability/${providerId}/slots`, {
+    apiClient.get(`/availability/${providerId}/slots`, {
       params: { date, duration },
     }),
 
+  getProviderDaysOff: (
+    providerId: string,
+    params: { from: string; to: string },
+  ) =>
+    apiClient.get<ProviderDayOffItem[]>(
+      `/availability/${providerId}/days-off`,
+      { params },
+    ),
+
   createAppointment: (payload: {
     givenServiceId: string;
-    providerId: string;
+    /** Omit for "any available provider" company bookings. */
+    providerId?: string;
+    /** Set when booking with a company (admin manages the request). */
+    companyId?: string;
     scheduledDate: string;
     scheduledTime: string;
     notes?: string;
@@ -800,6 +880,39 @@ export const api = {
       },
     }),
 
+  getMyClientReviewsCount: () =>
+    apiClient.get<{ count: number }>("/reviews/me/count"),
+
+  getMyClientReviews: () =>
+    apiClient.get<{ items: ClientReviewListItem[]; total: number }>(
+      "/reviews/me",
+      {
+        params: {
+          lang: i18n.language?.startsWith("ar") ? "ar" : "en",
+        },
+      },
+    ),
+
+  getMyClientReview: (reviewId: string) =>
+    apiClient.get<ClientReviewListItem>(`/reviews/me/${reviewId}`, {
+      params: {
+        lang: i18n.language?.startsWith("ar") ? "ar" : "en",
+      },
+    }),
+
+  updateMyClientReview: (
+    reviewId: string,
+    payload: { rating: number; comment?: string },
+  ) =>
+    apiClient.patch<ClientReviewListItem>(`/reviews/me/${reviewId}`, payload, {
+      params: {
+        lang: i18n.language?.startsWith("ar") ? "ar" : "en",
+      },
+    }),
+
+  deleteMyClientReview: (reviewId: string) =>
+    apiClient.delete<{ deleted: boolean }>(`/reviews/me/${reviewId}`),
+
   checkCanReview: (appointmentId: string) =>
     apiClient.get<{
       canReview: boolean;
@@ -847,6 +960,7 @@ export const api = {
     category: ComplaintCategory;
     description: string;
     evidenceUrls?: string[];
+    forwardTarget?: ComplaintForwardTarget;
   }) => apiClient.post<unknown>("/complaints", payload),
 
   getMyComplaints: () => apiClient.get<unknown[]>("/complaints/me"),
@@ -889,11 +1003,34 @@ export const api = {
     ),
 
   // Employee invitations (role PROVIDER)
-  getMyReceivedInvitations: () =>
-    apiClient.get<ReceivedInvitation[]>("/provider/invitations"),
+  getMyReceivedInvitations: (filter: InvitationFilter = "pending") =>
+    apiClient.get<ReceivedInvitation[]>("/provider/invitations", {
+      params: { filter },
+    }),
 
   respondToInvitation: (id: string, payload: RespondInvitationPayload) =>
     apiClient.patch<unknown>(`/provider/invitations/${id}/respond`, payload),
+
+  getFaq: () =>
+    apiClient.get<
+      Array<{
+        id: string;
+        audience: string;
+        sortOrder: number;
+        locale: string;
+        question: string;
+        answer: string;
+      }>
+    >("/faq", {
+      params: { lang: i18n.language?.startsWith("ar") ? "ar" : "en" },
+    }),
+
+  submitSupportMessage: (payload: {
+    name: string;
+    email: string;
+    subject: string;
+    message: string;
+  }) => apiClient.post("/support/messages", payload),
 };
 
 export default apiClient;

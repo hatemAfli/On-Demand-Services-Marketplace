@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,8 @@ import {
   ToastAndroid,
   TouchableOpacity,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -20,7 +22,9 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { COLORS } from "../../../constants";
+import { useAuth } from "../../../context/AuthContext";
 import type { ProviderStackParamList } from "../../../navigation/types";
+import { isEmployeeProvider } from "../../../utils/providerEmployment";
 import {
   api,
   type ProviderAvailabilityDay,
@@ -79,6 +83,10 @@ const HOURS = Array.from({ length: 24 }, (_, i) =>
 
 const MINUTES = ["00", "15", "30", "45"];
 
+/** Wheel shows exactly three rows; center row is the selected value. */
+const PICKER_ROW_HEIGHT = 52;
+const PICKER_WHEEL_HEIGHT = PICKER_ROW_HEIGHT * 3;
+
 function padHHmm(hour: string, minute: string): string {
   return `${hour}:${minute}`;
 }
@@ -128,8 +136,112 @@ function showSuccessToast(message: string) {
 
 type PickerTarget = { dayIndex: number; field: "start" | "end" };
 
+function WheelPicker({
+  label,
+  values,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  values: string[];
+  selected: string;
+  onSelect: (value: string) => void;
+}) {
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    const idx = values.indexOf(selected);
+    if (idx < 0) return;
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollTo({
+        y: idx * PICKER_ROW_HEIGHT,
+        animated: false,
+      });
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [selected, values]);
+
+  const syncFromOffset = (y: number) => {
+    const idx = Math.round(y / PICKER_ROW_HEIGHT);
+    const clamped = Math.max(0, Math.min(values.length - 1, idx));
+    const next = values[clamped];
+    if (next !== selected) onSelect(next);
+  };
+
+  const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    syncFromOffset(e.nativeEvent.contentOffset.y);
+  };
+
+  return (
+    <View style={styles.pickerColWrap}>
+      <Text style={styles.pickerColLabel}>{label}</Text>
+      <View style={[styles.pickerWheelFrame, { height: PICKER_WHEEL_HEIGHT }]}>
+        <View
+          style={[
+            styles.pickerWheelHighlight,
+            {
+              height: PICKER_ROW_HEIGHT,
+              top: PICKER_ROW_HEIGHT,
+            },
+          ]}
+          pointerEvents="none"
+        />
+        <ScrollView
+          ref={scrollRef}
+          style={{ height: PICKER_WHEEL_HEIGHT }}
+          showsVerticalScrollIndicator={false}
+          snapToInterval={PICKER_ROW_HEIGHT}
+          decelerationRate="fast"
+          nestedScrollEnabled
+          contentContainerStyle={{
+            paddingVertical: PICKER_ROW_HEIGHT,
+          }}
+          onMomentumScrollEnd={onScrollEnd}
+          onScrollEndDrag={onScrollEnd}
+        >
+          {values.map((value) => {
+            const isActive = value === selected;
+            return (
+              <TouchableOpacity
+                key={value}
+                style={[
+                  styles.pickerWheelRow,
+                  { height: PICKER_ROW_HEIGHT },
+                  isActive && styles.pickerWheelRowActive,
+                ]}
+                onPress={() => {
+                  onSelect(value);
+                  const idx = values.indexOf(value);
+                  if (idx >= 0) {
+                    scrollRef.current?.scrollTo({
+                      y: idx * PICKER_ROW_HEIGHT,
+                      animated: true,
+                    });
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.pickerItemText,
+                    isActive && styles.pickerItemTextActive,
+                  ]}
+                >
+                  {value}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
 export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const isEmployee = isEmployeeProvider(user);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleDay[]>(DEFAULT_SCHEDULE);
@@ -210,6 +322,13 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
   }, [schedule]);
 
   const handleSave = useCallback(async () => {
+    if (isEmployee) {
+      Alert.alert(
+        "Schedule managed by company",
+        "Your company admin manages your working hours.",
+      );
+      return;
+    }
     if (!validateWorkingRanges()) return;
     setSaving(true);
     try {
@@ -230,7 +349,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
     } finally {
       setSaving(false);
     }
-  }, [schedule, validateWorkingRanges]);
+  }, [schedule, validateWorkingRanges, isEmployee]);
 
   const pickerTitle = useMemo(() => {
     if (!picker) return "";
@@ -264,14 +383,16 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
       {/* ── Subtitle + working count badge ── */}
       <View style={styles.subtitleRow}>
         <Text style={styles.subtitle}>
-          Set your weekly hours. Clients only see slots inside these windows.
+          {isEmployee
+            ? "Your working hours are set by your company admin. You can view them below."
+            : "Set your weekly hours. Clients only see slots inside these windows."}
         </Text>
         <View style={styles.workingBadge}>
           <Text style={styles.workingBadgeText}>{workingCount} days on</Text>
         </View>
       </View>
 
-      {/* ── Days-off shortcut ── */}
+      {!isEmployee ? (
       <TouchableOpacity
         style={styles.manageDaysOffBtn}
         onPress={() => navigation.navigate("ProviderDaysOff")}
@@ -287,6 +408,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
         </View>
         <Ionicons name="chevron-forward" size={16} color="#C4C4C4" />
       </TouchableOpacity>
+      ) : null}
 
       {loading ? (
         <View style={styles.loaderWrap}>
@@ -360,6 +482,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
                     <Switch
                       value={day.isWorking}
                       onValueChange={() => toggleWorking(index)}
+                      disabled={isEmployee}
                       trackColor={{ false: "#E8E8F0", true: "#C4B5FD" }}
                       thumbColor={day.isWorking ? "#7C5CFC" : "#F4F4F8"}
                       ios_backgroundColor="#E8E8F0"
@@ -377,8 +500,9 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
                         <TouchableOpacity
                           key={field}
                           style={styles.timeBtn}
-                          onPress={() => openPicker(index, field)}
-                          activeOpacity={0.8}
+                          onPress={() => !isEmployee && openPicker(index, field)}
+                          activeOpacity={isEmployee ? 1 : 0.8}
+                          disabled={isEmployee}
                         >
                           <Text style={styles.timeBtnLabel}>
                             {field === "start" ? "Start" : "End"}
@@ -411,7 +535,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
         </ScrollView>
       )}
 
-      {/* ── Sticky footer ── */}
+      {!isEmployee ? (
       <View
         style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}
       >
@@ -434,12 +558,13 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
           )}
         </TouchableOpacity>
       </View>
+      ) : null}
 
       {/* ── Time picker modal ── */}
       <Modal
         visible={picker !== null}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setPicker(null)}
       >
         <TouchableOpacity
@@ -447,7 +572,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
           activeOpacity={1}
           onPress={() => setPicker(null)}
         >
-          <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
+          <View style={styles.modalCard}>
             {/* Handle */}
             <View style={styles.modalHandle} />
 
@@ -461,69 +586,23 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
               </Text>
             </View>
 
-            {/* Columns */}
+            {/* Hour / minute wheels (3 visible rows each) */}
             <View style={styles.pickerColumns}>
-              {/* Hours */}
-              <View style={styles.pickerColWrap}>
-                <Text style={styles.pickerColLabel}>Hour</Text>
-                <ScrollView
-                  style={styles.pickerCol}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {HOURS.map((h) => (
-                    <TouchableOpacity
-                      key={h}
-                      style={[
-                        styles.pickerItem,
-                        pickHour === h && styles.pickerItemActive,
-                      ]}
-                      onPress={() => setPickHour(h)}
-                    >
-                      <Text
-                        style={[
-                          styles.pickerItemText,
-                          pickHour === h && styles.pickerItemTextActive,
-                        ]}
-                      >
-                        {h}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
+              <WheelPicker
+                label="Hour"
+                values={HOURS}
+                selected={pickHour}
+                onSelect={setPickHour}
+              />
               <View style={styles.pickerColSep}>
                 <Text style={styles.pickerColSepText}>:</Text>
               </View>
-
-              {/* Minutes */}
-              <View style={styles.pickerColWrap}>
-                <Text style={styles.pickerColLabel}>Min</Text>
-                <ScrollView
-                  style={styles.pickerCol}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {MINUTES.map((m) => (
-                    <TouchableOpacity
-                      key={m}
-                      style={[
-                        styles.pickerItem,
-                        pickMinute === m && styles.pickerItemActive,
-                      ]}
-                      onPress={() => setPickMinute(m)}
-                    >
-                      <Text
-                        style={[
-                          styles.pickerItemText,
-                          pickMinute === m && styles.pickerItemTextActive,
-                        ]}
-                      >
-                        {m}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+              <WheelPicker
+                label="Min"
+                values={MINUTES}
+                selected={pickMinute}
+                onSelect={setPickMinute}
+              />
             </View>
 
             {/* Actions */}
@@ -541,7 +620,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={styles.modalConfirmText}>Confirm</Text>
               </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          </View>
         </TouchableOpacity>
       </Modal>
     </SafeAreaView>
@@ -873,8 +952,9 @@ const styles = StyleSheet.create({
   modalCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 28,
-    padding: 20,
+    paddingHorizontal: 20,
     paddingTop: 16,
+    paddingBottom: 24,
     borderWidth: 1,
     borderColor: "#EBEBF5",
     shadowColor: "#1A1A2E",
@@ -918,11 +998,12 @@ const styles = StyleSheet.create({
   },
   pickerColumns: {
     flexDirection: "row",
-    gap: 0,
-    maxHeight: 200,
-    alignItems: "center",
+    alignItems: "flex-end",
+    marginTop: 4,
   },
-  pickerColWrap: { flex: 1 },
+  pickerColWrap: {
+    flex: 1,
+  },
   pickerColLabel: {
     textAlign: "center",
     fontSize: 10,
@@ -930,38 +1011,52 @@ const styles = StyleSheet.create({
     color: "#C4C4C4",
     textTransform: "uppercase",
     letterSpacing: 0.8,
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  pickerCol: { flex: 1 },
-  pickerColSep: {
-    width: 24,
+  pickerWheelFrame: {
+    overflow: "hidden",
+    borderRadius: 16,
+    backgroundColor: "#F9F8FF",
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+  },
+  pickerWheelHighlight: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    borderRadius: 12,
+    backgroundColor: "#EDE9FE",
+    borderWidth: 1.5,
+    borderColor: "#C4B5FD",
+    zIndex: 0,
+  },
+  pickerWheelRow: {
     alignItems: "center",
-    paddingTop: 24,
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  pickerWheelRowActive: {},
+  pickerColSep: {
+    width: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    height: PICKER_WHEEL_HEIGHT,
+    marginBottom: 0,
   },
   pickerColSepText: {
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: "800",
     color: "#C4B5FD",
-  },
-  pickerItem: {
-    paddingVertical: 11,
-    alignItems: "center",
-    borderRadius: 12,
-    marginVertical: 1,
-    marginHorizontal: 6,
-  },
-  pickerItemActive: {
-    backgroundColor: "#EDE9FE",
-    borderWidth: 1,
-    borderColor: "#C4B5FD",
+    marginTop: 22,
   },
   pickerItemText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
-    color: "#C4C4C4",
+    color: "#9B9BB0",
     fontVariant: ["tabular-nums"],
   },
   pickerItemTextActive: {
+    fontSize: 22,
     color: "#7C5CFC",
     fontWeight: "800",
   },

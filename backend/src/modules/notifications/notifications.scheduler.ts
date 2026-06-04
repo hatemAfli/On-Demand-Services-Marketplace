@@ -20,6 +20,78 @@ export class NotificationsScheduler {
     await this.employeesService.expireStaleInvitations();
   }
 
+  /** Every minute — notify provider when visit start time passes without service start. */
+  @Cron('* * * * *')
+  async sendAppointmentStartDueAlerts(): Promise<void> {
+    const now = new Date();
+    const lookbackMs = 6 * 60 * 60 * 1000;
+
+    const candidates = await this.prisma.appointment.findMany({
+      where: {
+        providerId: { not: null },
+        status: { in: [AppointmentStatus.CONFIRMED, AppointmentStatus.EN_ROUTE] },
+        startedAt: null,
+      },
+      include: {
+        client: { include: { user: true } },
+      },
+    });
+
+    for (const appt of candidates) {
+      if (!appt.providerId) continue;
+      const startAt = this.toAppointmentDateTime(
+        appt.scheduledDate,
+        appt.scheduledTime,
+      );
+      if (!startAt) continue;
+      const startMs = startAt.getTime();
+      if (startMs > now.getTime() || startMs < now.getTime() - lookbackMs) {
+        continue;
+      }
+
+      const alreadySent = await this.hasStartDueNotification(
+        appt.providerId,
+        appt.id,
+      );
+      if (alreadySent) continue;
+
+      const clientName =
+        `${appt.client.user.firstName ?? ''} ${appt.client.user.lastName ?? ''}`.trim() ||
+        'your client';
+
+      void this.notificationsService.send({
+        userId: appt.providerId,
+        type: NotificationType.APPOINTMENT_START_DUE,
+        title: '⏰ Appointment time',
+        body: `It's time to start with ${clientName} (${appt.scheduledTime}). Open the job to go en route or start the service.`,
+        data: {
+          appointmentId: appt.id,
+          screen: 'ProviderAppointmentDetail',
+        },
+      });
+    }
+  }
+
+  private async hasStartDueNotification(
+    providerId: string,
+    appointmentId: string,
+  ): Promise<boolean> {
+    const recent = await this.prisma.notification.findMany({
+      where: {
+        userId: providerId,
+        type: NotificationType.APPOINTMENT_START_DUE,
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+      select: { data: true },
+      take: 100,
+    });
+    return recent.some((row) => {
+      const data = row.data;
+      if (!data || typeof data !== 'object') return false;
+      return (data as Record<string, unknown>).appointmentId === appointmentId;
+    });
+  }
+
   // Runs every 15 minutes
   @Cron('0 */15 * * * *')
   async sendAppointmentReminders(): Promise<void> {
@@ -51,6 +123,7 @@ export class NotificationsScheduler {
       );
       if (!appointmentDateTime) continue;
       if (!this.isWithinWindow(appointmentDateTime, windowStart24, windowEnd24)) continue;
+      if (!appt.providerId || !appt.provider) continue;
 
       const formattedDate = this.formatDateForNotification(appt.scheduledDate);
       void this.notificationsService.send({
@@ -95,6 +168,7 @@ export class NotificationsScheduler {
       );
       if (!appointmentDateTime) continue;
       if (!this.isWithinWindow(appointmentDateTime, windowStart1h, windowEnd1h)) continue;
+      if (!appt.providerId || !appt.provider) continue;
 
       void this.notificationsService.send({
         userId: appt.clientId,

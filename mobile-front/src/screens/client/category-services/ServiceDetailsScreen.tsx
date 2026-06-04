@@ -22,6 +22,18 @@ import type { ClientStackParamList } from "../../../navigation/types";
 import type { CategoryServicesStyles } from "./ListOfServicesScreen";
 import type { MarketplaceServiceItem } from "./types";
 
+const DESCRIPTION_PREVIEW_CHARS = 160;
+
+function truncateDescription(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const slice = text.slice(0, maxChars);
+  const lastSpace = slice.lastIndexOf(" ");
+  if (lastSpace > maxChars * 0.6) {
+    return `${slice.slice(0, lastSpace).trimEnd()}…`;
+  }
+  return `${slice.trimEnd()}…`;
+}
+
 // ─── Design tokens (matches app white theme) ──────────────────────
 const C = {
   bg: "#F7F8FC",
@@ -98,6 +110,7 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
   const [heroImageFailed, setHeroImageFailed] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   const trimmedUri = imageUri.trim();
   const showHeroImage = trimmedUri.length > 0 && !heroImageFailed;
@@ -106,6 +119,10 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
   useEffect(() => {
     setHeroImageFailed(false);
   }, [visible, trimmedUri, service?.id]);
+
+  useEffect(() => {
+    if (visible) setDescriptionExpanded(false);
+  }, [visible, service?.id]);
 
   useEffect(() => {
     if (!visible || !service?.id) {
@@ -169,9 +186,17 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
 
   if (!service) return null;
 
-  const desc =
-    service.description?.trim() ||
-    t("client.categoryServices.noDescription");
+  const noDescriptionText = t("client.categoryServices.noDescription");
+  const fullDescription =
+    service.description?.trim() || noDescriptionText;
+  const hasCustomDescription = Boolean(service.description?.trim());
+  const canExpandDescription =
+    hasCustomDescription &&
+    fullDescription.length > DESCRIPTION_PREVIEW_CHARS;
+  const displayedDescription =
+    descriptionExpanded || !canExpandDescription
+      ? fullDescription
+      : truncateDescription(fullDescription, DESCRIPTION_PREVIEW_CHARS);
   const sheetSubtitle = t("client.categoryServices.sheetSubtitle", {
     name: service.name,
   });
@@ -336,12 +361,25 @@ export const ServiceDetailsScreen: React.FC<Props> = ({
             <Text style={s.sectionLabel}>
               {t("client.categoryServices.aboutSection")}
             </Text>
-            <Text style={s.desc}>{desc}</Text>
-            <TouchableOpacity activeOpacity={0.7}>
-              <Text style={s.readMore}>
-                {t("client.categoryServices.readMore")}
-              </Text>
-            </TouchableOpacity>
+            <Text style={s.desc}>{displayedDescription}</Text>
+            {canExpandDescription ? (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setDescriptionExpanded((prev) => !prev)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  descriptionExpanded
+                    ? t("client.categoryServices.readLess")
+                    : t("client.categoryServices.readMore")
+                }
+              >
+                <Text style={s.readMore}>
+                  {descriptionExpanded
+                    ? t("client.categoryServices.readLess")
+                    : t("client.categoryServices.readMore")}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
 
             {/* Divider */}
             <View style={s.divider} />

@@ -19,10 +19,12 @@ import {
   AuthNoticeModal,
   Input,
 } from "../../components/common";
-import { COLORS } from "../../constants";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { AuthStackParamList } from "../../navigation/types";
+
+const ACCENT = "#EA580C";
+const SCREEN_BG = "#F1F5F9";
 
 type LoginMode = "email" | "phone";
 
@@ -235,7 +237,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             </View>
 
             <TouchableOpacity
-              style={styles.loginButton}
+              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
               onPress={handleLogin}
               activeOpacity={0.9}
               disabled={isLoading}
@@ -244,8 +246,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <View style={styles.loginButtonContent}>
-                  <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
                   <Text style={styles.loginButtonText}>{t("common.login")}</Text>
+                  <View style={styles.loginButtonIconWrap}>
+                    <Ionicons name="log-in-outline" size={18} color="#FFFFFF" />
+                  </View>
                 </View>
               )}
             </TouchableOpacity>
@@ -275,7 +279,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: SCREEN_BG,
   },
   topBackContainer: {
     position: "absolute",
@@ -286,24 +290,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   panel: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    marginTop: 8,
     width: "100%",
-    maxWidth: 420,
-    alignSelf: "center",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 1,
+    alignSelf: "stretch",
+    backgroundColor: SCREEN_BG,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+    marginTop: 8,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 0,
     justifyContent: "center",
   },
   backButton: {
@@ -313,13 +310,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   backText: {
-    color: "#4F46E5",
+    color: ACCENT,
     fontSize: 16,
     fontWeight: "600",
   },
   modeToggle: {
     flexDirection: "row",
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#E2E8F0",
     borderRadius: 12,
     padding: 4,
     marginBottom: 20,
@@ -339,7 +336,7 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
   modeTextActive: {
-    color: "#4F46E5",
+    color: ACCENT,
   },
   form: {
     marginBottom: 20,
@@ -352,22 +349,24 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 13,
-    color: "#4F46E5",
+    color: ACCENT,
     fontWeight: "600",
   },
   loginButton: {
-    alignSelf: "center",
-    minWidth: 170,
-    height: 48,
-    borderRadius: 999,
-    backgroundColor: "#6366F1",
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#4338CA",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
     shadowRadius: 10,
     elevation: 3,
+  },
+  loginButtonDisabled: {
+    opacity: 0.65,
   },
   loginButtonContent: {
     flexDirection: "row",
@@ -376,14 +375,23 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
     letterSpacing: 0.2,
+  },
+  loginButtonIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
     marginTop: 24,
+    paddingHorizontal: 20,
   },
   footerText: {
     fontSize: 13,
@@ -391,7 +399,7 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 13,
-    color: "#4F46E5",
+    color: ACCENT,
     fontWeight: "600",
   },
 });

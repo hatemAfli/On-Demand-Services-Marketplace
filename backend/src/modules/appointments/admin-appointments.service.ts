@@ -12,6 +12,8 @@ import { PrismaService } from '../../config/prisma.config';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GetAdminAppointmentsDto } from './dto/get-admin-appointments.dto';
 import { InterveneAppointmentDto } from './dto/intervene-appointment.dto';
+import { incrementGivenServiceCompletedJobs } from './helpers/increment-given-service-completed-jobs';
+import { recomputeProviderTopProviderStatus } from './helpers/top-provider-status';
 
 const DEFAULT_TAKE = 20;
 const DEFAULT_SKIP = 0;
@@ -187,13 +189,15 @@ export class AdminAppointmentsService {
       body,
       data: { appointmentId: id, screen: 'ClientAppointmentDetail' },
     });
-    void this.notificationsService.send({
-      userId: existing.provider.user.id,
-      type: NotificationType.SYSTEM_ANNOUNCEMENT,
-      title: 'Appointment under dispute review',
-      body,
-      data: { appointmentId: id, screen: 'ProviderAppointmentDetail' },
-    });
+    if (existing.provider) {
+      void this.notificationsService.send({
+        userId: existing.provider.user.id,
+        type: NotificationType.SYSTEM_ANNOUNCEMENT,
+        title: 'Appointment under dispute review',
+        body,
+        data: { appointmentId: id, screen: 'ProviderAppointmentDetail' },
+      });
+    }
 
     return updated;
   }
@@ -240,15 +244,35 @@ export class AdminAppointmentsService {
             )
           : existing.durationMinutes;
 
-      const updated = await this.prisma.appointment.update({
-        where: { id },
-        data: {
-          status: AppointmentStatus.COMPLETED,
-          completedAt: now,
-          durationMinutes: durationMinutes ?? undefined,
-          notes: this.appendAdminNote(existing.notes, adminNote),
-        },
-        include: ADMIN_APPOINTMENT_INCLUDE,
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const incremented = await incrementGivenServiceCompletedJobs(tx, {
+          givenServiceId: existing.givenServiceId,
+          providerId: existing.providerId,
+          status: existing.status,
+        });
+        if (incremented.length === 0) {
+          throw new BadRequestException(
+            'Could not update completed jobs for this service offering',
+          );
+        }
+
+        const row = await tx.appointment.update({
+          where: { id },
+          data: {
+            status: AppointmentStatus.COMPLETED,
+            completedAt: now,
+            durationMinutes: durationMinutes ?? undefined,
+            completedJobsCounted: true,
+            notes: this.appendAdminNote(existing.notes, adminNote),
+          },
+          include: ADMIN_APPOINTMENT_INCLUDE,
+        });
+
+        if (existing.providerId) {
+          await recomputeProviderTopProviderStatus(tx, existing.providerId);
+        }
+
+        return row;
       });
 
       const body = `An administrator completed your appointment on ${dateLabel}. Reason: ${dto.reason.trim()}`;
@@ -259,13 +283,15 @@ export class AdminAppointmentsService {
         body,
         data: { appointmentId: id, screen: 'ClientAppointmentDetail' },
       });
-      void this.notificationsService.send({
-        userId: existing.provider.user.id,
-        type: NotificationType.APPOINTMENT_COMPLETED,
-        title: 'Appointment completed by admin',
-        body: `Your appointment on ${dateLabel} was marked completed by an administrator. Reason: ${dto.reason.trim()}`,
-        data: { appointmentId: id, screen: 'ProviderAppointmentDetail' },
-      });
+      if (existing.provider) {
+        void this.notificationsService.send({
+          userId: existing.provider.user.id,
+          type: NotificationType.APPOINTMENT_COMPLETED,
+          title: 'Appointment completed by admin',
+          body: `Your appointment on ${dateLabel} was marked completed by an administrator. Reason: ${dto.reason.trim()}`,
+          data: { appointmentId: id, screen: 'ProviderAppointmentDetail' },
+        });
+      }
 
       return updated;
     }
@@ -289,13 +315,15 @@ export class AdminAppointmentsService {
       body: `Your appointment on ${dateLabel} was cancelled by an administrator. ${dto.reason.trim()}`,
       data: { appointmentId: id, screen: 'ClientAppointmentDetail' },
     });
-    void this.notificationsService.send({
-      userId: existing.provider.user.id,
-      type: NotificationType.SYSTEM_ANNOUNCEMENT,
-      title: 'Appointment cancelled by platform',
-      body: `Your appointment on ${dateLabel} was cancelled by an administrator. ${dto.reason.trim()}`,
-      data: { appointmentId: id, screen: 'ProviderAppointmentDetail' },
-    });
+    if (existing.provider) {
+      void this.notificationsService.send({
+        userId: existing.provider.user.id,
+        type: NotificationType.SYSTEM_ANNOUNCEMENT,
+        title: 'Appointment cancelled by platform',
+        body: `Your appointment on ${dateLabel} was cancelled by an administrator. ${dto.reason.trim()}`,
+        data: { appointmentId: id, screen: 'ProviderAppointmentDetail' },
+      });
+    }
 
     return updated;
   }

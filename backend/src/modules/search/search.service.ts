@@ -34,10 +34,12 @@ export class SearchService {
   async search(dto: SearchGivenServicesDto): Promise<SearchResponse> {
     const locale: Locale = dto.locale?.toUpperCase() === 'AR' ? 'AR' : 'EN';
 
+    // Note: we do NOT filter by ownerType at the DB level. Employee providers are
+    // hidden as individuals and surfaced through their company instead, so the
+    // owner-type decision is made after grouping (see below).
     const where: Prisma.GivenServiceWhereInput = {
       active: true,
       serviceId: dto.serviceId,
-      ...(dto.ownerType ? { ownerType: dto.ownerType } : {}),
       ...(dto.pricingType ? { pricingType: dto.pricingType } : {}),
       ...(dto.maxPrice !== undefined ? { price: { lte: dto.maxPrice } } : {}),
       ...(dto.minRating !== undefined
@@ -71,35 +73,74 @@ export class SearchService {
       },
     });
 
-    const itemsWithOwner = await Promise.all(
-      givenServices.map(async (gs) => {
-        if (gs.ownerType === OwnerType.PROVIDER) {
-          const provider = await this.prisma.provider.findUnique({
-            where: { id: gs.ownerId },
-            include: {
-              user: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                },
-              },
-            },
-          });
-          return { gs, owner: provider };
-        }
-
-        const company = await this.prisma.company.findUnique({
-          where: { id: gs.ownerId },
-        });
-        return { gs, owner: company };
-      }),
+    // Batch-load all provider owners (polymorphic — no FK), with full scalar fields.
+    const providerOwnerIds = Array.from(
+      new Set(
+        givenServices
+          .filter((gs) => gs.ownerType === OwnerType.PROVIDER)
+          .map((gs) => gs.ownerId),
+      ),
     );
+    const providers = providerOwnerIds.length
+      ? await this.prisma.provider.findMany({
+          where: { id: { in: providerOwnerIds } },
+          include: { user: { select: { firstName: true, lastName: true } } },
+        })
+      : [];
+    const providerMap = new Map(providers.map((p) => [p.id, p]));
 
-    const mapped = itemsWithOwner
-      .map(({ gs, owner }) => this.mapToSearchResultItem(gs, owner, dto))
-      .filter((v): v is SearchResultItem => v !== null);
+    // Independent providers are shown individually. Employee providers and any
+    // company-owned offerings are grouped per company into a single entry.
+    const independentItems: SearchResultItem[] = [];
+    const companyEntries = new Map<
+      string,
+      { gs: GivenServiceWithRelations }[]
+    >();
+
+    for (const gs of givenServices) {
+      if (gs.ownerType === OwnerType.COMPANY) {
+        const list = companyEntries.get(gs.ownerId) ?? [];
+        list.push({ gs });
+        companyEntries.set(gs.ownerId, list);
+        continue;
+      }
+
+      const provider = providerMap.get(gs.ownerId);
+      if (!provider) continue;
+
+      if (provider.companyId) {
+        // Employee provider → fold into the company group.
+        const list = companyEntries.get(provider.companyId) ?? [];
+        list.push({ gs });
+        companyEntries.set(provider.companyId, list);
+      } else {
+        const item = this.mapToSearchResultItem(gs, provider, dto);
+        if (item) independentItems.push(item);
+      }
+    }
+
+    // Synthesize one COMPANY item per company group.
+    const companyItems: SearchResultItem[] = [];
+    if (companyEntries.size > 0) {
+      const companies = await this.prisma.company.findMany({
+        where: { id: { in: Array.from(companyEntries.keys()) } },
+      });
+      const companyMap = new Map(companies.map((c) => [c.id, c]));
+      for (const [companyId, entries] of companyEntries) {
+        const company = companyMap.get(companyId);
+        if (!company) continue;
+        const item = this.synthesizeCompanyItem(company, entries, dto);
+        if (item) companyItems.push(item);
+      }
+    }
+
+    const mapped = [...independentItems, ...companyItems];
 
     const filtered = mapped.filter((item) => {
+      if (dto.ownerType && item.owner.type !== dto.ownerType) {
+        return false;
+      }
+
       if (dto.city && item.owner.city.toLowerCase() !== dto.city.toLowerCase()) {
         return false;
       }
@@ -224,8 +265,12 @@ export class SearchService {
           isTopProvider: false,
           yearsOfExperience: null,
           tagline: null,
-          cancellationRate: 0,
-          averageResponseTime: null,
+          cancellationRate: Number(owner.cancellationRate ?? 0),
+          averageResponseTime:
+            owner.averageResponseTime !== undefined &&
+            owner.averageResponseTime !== null
+              ? Number(owner.averageResponseTime)
+              : null,
           gender: null,
           languagesSpoken: [],
           paymentMethodsAccepted: [],
@@ -255,6 +300,91 @@ export class SearchService {
         imageUrl: g.imageUrl,
       })),
       owner: ownerSnapshot,
+      _score: 0,
+    };
+  }
+
+  /**
+   * Builds a single COMPANY search entry from all of a company's offerings for
+   * the searched service. Price is the lowest active offering ("from X"),
+   * jobs are summed, and the company's own rating/logo are used.
+   */
+  private synthesizeCompanyItem(
+    company: {
+      id: string;
+      companyName: string;
+      logo: string | null;
+      city: string;
+      latitude: number | null;
+      longitude: number | null;
+      averageRating: Prisma.Decimal | number | null;
+      totalReviews: number;
+      cancellationRate: Prisma.Decimal | number | null;
+      averageResponseTime: Prisma.Decimal | number | null;
+    },
+    entries: { gs: GivenServiceWithRelations }[],
+    _dto: SearchGivenServicesDto,
+  ): SearchResultItem | null {
+    if (entries.length === 0) return null;
+
+    // Representative offering = the cheapest active one (drives "from" price + copy).
+    const sorted = [...entries].sort((a, b) => a.gs.price - b.gs.price);
+    const rep = sorted[0].gs;
+
+    const totalCompletedJobs = entries.reduce(
+      (sum, e) => sum + Number(e.gs.totalCompletedJobs ?? 0),
+      0,
+    );
+    const isAvailableImmediately = entries.some(
+      (e) => e.gs.isAvailableImmediately === true,
+    );
+
+    const ownerSnapshot: OwnerSnapshot = {
+      id: company.id,
+      type: 'COMPANY',
+      displayName: company.companyName || 'Company',
+      photoUrl: company.logo ?? null,
+      city: company.city ?? '',
+      latitude: company.latitude ?? null,
+      longitude: company.longitude ?? null,
+      averageRating: Number(company.averageRating ?? 0),
+      totalReviews: Number(company.totalReviews ?? 0),
+      isTopProvider: false,
+      yearsOfExperience: null,
+      tagline: null,
+      cancellationRate: Number(company.cancellationRate ?? 0),
+      averageResponseTime:
+        company.averageResponseTime !== null &&
+        company.averageResponseTime !== undefined
+          ? Number(company.averageResponseTime)
+          : null,
+      gender: null,
+      languagesSpoken: [],
+      paymentMethodsAccepted: [],
+    };
+
+    return {
+      givenServiceId: rep.id,
+      createdAt: rep.createdAt,
+      serviceId: rep.serviceId,
+      serviceName: rep.service.translations[0]?.name ?? '',
+      categoryName: rep.service.category.translations[0]?.name ?? '',
+      pricingType: rep.pricingType,
+      price: rep.price,
+      minimumHours: rep.minimumHours ?? null,
+      estimatedDurationMinutes: rep.estimatedDurationMinutes ?? null,
+      description: rep.description ?? null,
+      whatIsIncluded: rep.whatIsIncluded ?? null,
+      whatIsNotIncluded: rep.whatIsNotIncluded ?? null,
+      toolsProvidedByProvider: rep.toolsProvidedByProvider ?? null,
+      isAvailableImmediately,
+      averageRating: Number(company.averageRating ?? 0),
+      totalReviews: Number(company.totalReviews ?? 0),
+      totalCompletedJobs,
+      serviceRadiusKm: rep.serviceRadiusKm ?? null,
+      galleries: [],
+      owner: ownerSnapshot,
+      providerCount: entries.length,
       _score: 0,
     };
   }

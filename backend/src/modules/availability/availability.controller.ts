@@ -67,6 +67,36 @@ export class AvailabilityController {
     return this.availabilityService.getMyDaysOff(user.id, from, to);
   }
 
+  /** Provider reschedule: real calendar slots (includes pending holds). */
+  @Get('me/slots')
+  @Roles(UserRole.PROVIDER)
+  getMyDaySlots(
+    @CurrentUser() user: AuthUser,
+    @Query('date') date: string,
+    @Query('duration', ParseIntPipe) duration: number,
+    @Query('excludeAppointmentId') excludeAppointmentId?: string,
+  ) {
+    return this.availabilityService.getProviderDaySlots(
+      user.id,
+      date,
+      duration,
+      {
+        excludeAppointmentId,
+        includePendingHolds: true,
+      },
+    );
+  }
+
+  @Get(':providerId/days-off')
+  @Roles(UserRole.CLIENT)
+  getProviderDaysOff(
+    @Param('providerId', ParseUUIDPipe) providerId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.availabilityService.getProviderDaysOff(providerId, from, to);
+  }
+
   @Get(':providerId/slots')
   @Roles(UserRole.CLIENT)
   getAvailableSlots(
@@ -74,7 +104,11 @@ export class AvailabilityController {
     @Query('date') date: string,
     @Query('duration', ParseIntPipe) duration: number,
   ) {
-    return this.availabilityService.getAvailableSlots(providerId, date, duration);
+    return this.availabilityService.getProviderDaySlots(
+      providerId,
+      date,
+      duration,
+    );
   }
 
   @Get(':providerId')

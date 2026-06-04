@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { NotificationType, Prisma, ReviewVisibility } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { NotificationsService } from '../notifications/notifications.service';
+import { recomputeProviderTopProviderStatus } from '../appointments/helpers/top-provider-status';
+import { recomputeCompanyRating } from './helpers/recompute-company-rating';
 import { GetAdminReviewsDto } from './dto/get-admin-reviews.dto';
 import { HideReviewDto } from './dto/hide-review.dto';
 
@@ -269,9 +271,9 @@ export class AdminReviewsService {
       data: {
         averageRating: new Prisma.Decimal(providerAvg.toFixed(2)),
         totalReviews: providerTotal,
-        isTopProvider: providerAvg >= 4.5 && providerTotal >= 10,
       },
     });
+    await recomputeProviderTopProviderStatus(tx, providerId);
 
     const serviceRatings = await tx.review.findMany({
       where: { givenServiceId, ...publicWhere },
@@ -290,5 +292,13 @@ export class AdminReviewsService {
         totalReviews: serviceTotal,
       },
     });
+
+    const provider = await tx.provider.findUnique({
+      where: { id: providerId },
+      select: { companyId: true },
+    });
+    if (provider?.companyId) {
+      await recomputeCompanyRating(tx, provider.companyId);
+    }
   }
 }

@@ -52,6 +52,8 @@ export type AdminVerificationDocument = {
   fichierUrl: string
   uploadedAt: string
   validatedAt: string | null
+  isAccepted: boolean | null
+  rejectionReason: string | null
 }
 
 export type AdminVerificationRequestItem = {

@@ -1,6 +1,7 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -25,6 +26,8 @@ import { CATEGORY_OPTIONS, getCategoryOption } from "../../client/complaints/cat
 
 type Props = NativeStackScreenProps<ProviderStackParamList, "ProviderComplaints">;
 
+// ─── Helpers (unchanged) ──────────────────────────────────────────────────────
+
 function parseYmdLocal(ymd: string): Date {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(y, m - 1, d);
@@ -44,18 +47,23 @@ function formatAppointmentLine(scheduledDate: string, scheduledTime: string): st
   }
 }
 
-function statusPillStyle(status: ComplaintStatus): { bg: string; text: string } {
+function statusPillStyle(status: ComplaintStatus): {
+  bg: string;
+  text: string;
+  dot: string;
+  border: string;
+} {
   switch (status) {
     case "OPEN":
-      return { bg: "#FEF2F2", text: "#B91C1C" };
+      return { bg: "#FEF2F2", text: "#B91C1C", dot: "#EF4444", border: "#FECACA" };
     case "UNDER_REVIEW":
-      return { bg: "#FFFBEB", text: "#B45309" };
+      return { bg: "#FFFBEB", text: "#B45309", dot: "#F59E0B", border: "#FDE68A" };
     case "RESOLVED":
-      return { bg: "#ECFDF5", text: "#047857" };
+      return { bg: "#ECFDF5", text: "#047857", dot: "#10B981", border: "#A7F3D0" };
     case "DISMISSED":
     case "WITHDRAWN":
     default:
-      return { bg: COLORS.gray[100], text: COLORS.gray[600] };
+      return { bg: "#F8FAFC", text: "#64748B", dot: "#94A3B8", border: "#E2E8F0" };
   }
 }
 
@@ -66,19 +74,38 @@ function statusLabel(status: ComplaintStatus): string {
 function decisionLabel(decision: ComplaintDecision): string {
   switch (decision) {
     case "WARNING_ISSUED":
-      return "⚠️ Warning issued";
+      return "Warning issued";
     case "ACCOUNT_SUSPENDED":
-      return "🔒 Account suspended";
+      return "Account suspended";
     case "ACCOUNT_BANNED":
-      return "⛔ Account banned";
+      return "Account banned";
     case "REFUND_ISSUED":
-      return "✓ Refund issued";
+      return "Refund issued";
     case "NO_ACTION":
-      return "✓ No action taken";
+      return "No action taken";
     case "FORWARDED_TO_COMPANY":
-      return "↪ Forwarded to company";
+      return "Forwarded to company";
     default:
       return decision;
+  }
+}
+
+function decisionIcon(decision: ComplaintDecision): { name: React.ComponentProps<typeof Ionicons>["name"]; color: string } {
+  switch (decision) {
+    case "WARNING_ISSUED":
+      return { name: "warning-outline", color: "#D97706" };
+    case "ACCOUNT_SUSPENDED":
+      return { name: "lock-closed-outline", color: "#7C3AED" };
+    case "ACCOUNT_BANNED":
+      return { name: "ban-outline", color: "#DC2626" };
+    case "REFUND_ISSUED":
+      return { name: "checkmark-circle-outline", color: "#059669" };
+    case "NO_ACTION":
+      return { name: "checkmark-done-outline", color: "#059669" };
+    case "FORWARDED_TO_COMPANY":
+      return { name: "arrow-redo-outline", color: "#2563EB" };
+    default:
+      return { name: "ellipse-outline", color: "#64748B" };
   }
 }
 
@@ -109,6 +136,42 @@ function parseItem(raw: unknown): ProviderComplaintSummaryItem | null {
     },
   };
 }
+
+// ─── Animated card wrapper ────────────────────────────────────────────────────
+
+const AnimatedCard: React.FC<{ children: React.ReactNode; index: number }> = ({
+  children,
+  index,
+}) => {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(16)).current;
+
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 320,
+        delay: index * 60,
+        useNativeDriver: true,
+      }),
+      Animated.spring(translateY, {
+        toValue: 0,
+        delay: index * 60,
+        useNativeDriver: true,
+        speed: 20,
+        bounciness: 4,
+      }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      {children}
+    </Animated.View>
+  );
+};
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export const ProviderComplaintsScreen: React.FC<Props> = ({ navigation }) => {
   const { t } = useAppTranslation();
@@ -183,7 +246,7 @@ export const ProviderComplaintsScreen: React.FC<Props> = ({ navigation }) => {
       : `You have ${n} open complaints under review.`;
   }, [activeComplaints]);
 
-  const renderItem = ({ item }: { item: ProviderComplaintSummaryItem }) => {
+  const renderItem = ({ item, index }: { item: ProviderComplaintSummaryItem; index: number }) => {
     const cat =
       getCategoryOption(item.category) ??
       CATEGORY_OPTIONS[CATEGORY_OPTIONS.length - 1];
@@ -192,39 +255,77 @@ export const ProviderComplaintsScreen: React.FC<Props> = ({ navigation }) => {
       item.appointment.scheduledDate,
       item.appointment.scheduledTime,
     );
-    const decision =
-      item.decision != null ? decisionLabel(item.decision) : null;
+    const decision = item.decision != null ? decisionLabel(item.decision) : null;
+    const decIcon = item.decision != null ? decisionIcon(item.decision) : null;
 
     return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.catRow}>
-            <Ionicons name={cat.icon} size={22} color={COLORS.primary} />
-            <Text style={styles.catLabel}>{cat.label}</Text>
-          </View>
-          <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
-            <Text style={[styles.statusPillText, { color: pill.text }]}>
-              {statusLabel(item.status)}
-            </Text>
+      <AnimatedCard index={index}>
+        <View style={styles.card}>
+          {/* Left accent bar keyed to status color */}
+          <View style={[styles.cardAccent, { backgroundColor: pill.dot }]} />
+
+          <View style={styles.cardBody}>
+            {/* Header row */}
+            <View style={styles.cardHeader}>
+              <View style={styles.catRow}>
+                <View style={[styles.catIconWrap, { backgroundColor: pill.bg }]}>
+                  <Ionicons name={cat.icon} size={16} color={pill.dot} />
+                </View>
+                <Text style={styles.catLabel} numberOfLines={1}>
+                  {cat.label}
+                </Text>
+              </View>
+              {/* Status pill */}
+              <View
+                style={[
+                  styles.statusPill,
+                  { backgroundColor: pill.bg, borderColor: pill.border },
+                ]}
+              >
+                <View style={[styles.statusDot, { backgroundColor: pill.dot }]} />
+                <Text style={[styles.statusPillText, { color: pill.text }]}>
+                  {statusLabel(item.status)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Appointment meta */}
+            <View style={styles.apptRow}>
+              <Ionicons name="calendar-outline" size={12} color="#94A3B8" />
+              <Text style={styles.apptMeta} numberOfLines={1}>
+                {item.appointment.serviceName}
+              </Text>
+              <Text style={styles.apptDot}>·</Text>
+              <Text style={styles.apptMeta} numberOfLines={1}>
+                {apptLine}
+              </Text>
+            </View>
+
+            {/* Decision chip */}
+            {decision && decIcon ? (
+              <View style={styles.decisionChip}>
+                <Ionicons name={decIcon.name} size={13} color={decIcon.color} />
+                <Text style={[styles.decisionChipText, { color: decIcon.color }]}>
+                  {decision}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Admin response */}
+            {item.adminResponse ? (
+              <View style={styles.adminCard}>
+                <View style={styles.adminCardHeader}>
+                  <View style={styles.adminIconWrap}>
+                    <Ionicons name="shield-half-outline" size={12} color="#2563EB" />
+                  </View>
+                  <Text style={styles.adminCardTitle}>Admin response</Text>
+                </View>
+                <Text style={styles.adminCardBody}>{item.adminResponse}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
-        <Text style={styles.apptMeta} numberOfLines={2}>
-          {item.appointment.serviceName}
-          {" · "}
-          {apptLine}
-        </Text>
-        {decision ? (
-          <View style={styles.decisionChip}>
-            <Text style={styles.decisionChipText}>{decision}</Text>
-          </View>
-        ) : null}
-        {item.adminResponse ? (
-          <View style={styles.adminCard}>
-            <Text style={styles.adminCardTitle}>Message from admin:</Text>
-            <Text style={styles.adminCardBody}>{item.adminResponse}</Text>
-          </View>
-        ) : null}
-      </View>
+      </AnimatedCard>
     );
   };
 
@@ -232,45 +333,89 @@ export const ProviderComplaintsScreen: React.FC<Props> = ({ navigation }) => {
     <View style={[styles.root, { paddingBottom: insets.bottom }]}>
       {loading && items.length === 0 ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="large" color="#DC2626" />
+            <Text style={styles.loadingText}>Loading complaints…</Text>
+          </View>
         </View>
       ) : (
         <FlatList
           data={items}
           keyExtractor={(it) => it.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            items.length === 0 && styles.listContentEmpty,
+          ]}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#DC2626"
+            />
           }
+          showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <View style={styles.summaryBlock}>
+              {/* Stats row */}
               <View style={styles.summaryRow}>
                 <View style={styles.summaryChip}>
                   <Text style={styles.summaryChipLabel}>Total</Text>
                   <Text style={styles.summaryChipValue}>{totalComplaints}</Text>
+                  <View style={styles.summaryChipBar}>
+                    <View style={[styles.summaryChipBarFill, { backgroundColor: "#CBD5E1", width: "100%" }]} />
+                  </View>
                 </View>
                 <View style={[styles.summaryChip, styles.summaryChipActive]}>
-                  <Text style={styles.summaryChipLabel}>Active</Text>
-                  <Text style={styles.summaryChipValue}>{activeComplaints}</Text>
+                  <Text style={[styles.summaryChipLabel, { color: "#B45309" }]}>Active</Text>
+                  <Text style={[styles.summaryChipValue, { color: "#B45309" }]}>{activeComplaints}</Text>
+                  <View style={styles.summaryChipBar}>
+                    <View
+                      style={[
+                        styles.summaryChipBarFill,
+                        {
+                          backgroundColor: "#F59E0B",
+                          width: totalComplaints > 0
+                            ? `${Math.round((activeComplaints / totalComplaints) * 100)}%`
+                            : "0%",
+                        },
+                      ]}
+                    />
+                  </View>
                 </View>
               </View>
+
+              {/* Warning banner */}
               {openBannerText ? (
                 <View style={styles.warnBanner}>
-                  <Ionicons name="alert-circle" size={20} color="#B45309" />
+                  <View style={styles.warnBannerIconWrap}>
+                    <Ionicons name="alert-circle" size={18} color="#B45309" />
+                  </View>
                   <Text style={styles.warnBannerText}>{openBannerText}</Text>
                 </View>
               ) : null}
+
+              {/* Section heading */}
+              {items.length > 0 && (
+                <View style={styles.sectionHeadRow}>
+                  <Text style={styles.sectionHeadText}>All Complaints</Text>
+                  <View style={styles.sectionHeadBadge}>
+                    <Text style={styles.sectionHeadBadgeText}>{items.length}</Text>
+                  </View>
+                </View>
+              )}
             </View>
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Ionicons name="shield-checkmark" size={52} color={COLORS.success} />
-              <Text style={styles.emptyTitle}>No complaints on record</Text>
-              <Text style={styles.emptySub}>Keep up the great work!</Text>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons name="shield-checkmark" size={36} color="#059669" />
+              </View>
+              <Text style={styles.emptyTitle}>All clear</Text>
+              <Text style={styles.emptySub}>No complaints on record. Keep up the great work!</Text>
             </View>
           }
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         />
       )}
     </View>
@@ -278,60 +423,154 @@ export const ProviderComplaintsScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.white },
+  // ── Root ────────────────────────────────────────────────────────────────────
+  root: { flex: 1, backgroundColor: "#F7F6FB" },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  listContent: { padding: 16, paddingBottom: 32, flexGrow: 1 },
-  summaryBlock: { marginBottom: 16 },
+  loadingCard: {
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 32,
+    shadowColor: "#DC2626",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#94A3B8",
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  listContent: { padding: 16, paddingBottom: 40 },
+  listContentEmpty: { flexGrow: 1 },
+
+  // ── Summary block ────────────────────────────────────────────────────────────
+  summaryBlock: { marginBottom: 18, gap: 10 },
   summaryRow: { flexDirection: "row", gap: 10 },
   summaryChip: {
     flex: 1,
-    backgroundColor: COLORS.gray[50],
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#E8EAF0",
+    gap: 2,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   summaryChipActive: {
-    backgroundColor: "#FFFBEB",
-    borderColor: "#FCD34D",
+    backgroundColor: "#FFFDF5",
+    borderColor: "#FDE68A",
+    shadowColor: "#F59E0B",
+    shadowOpacity: 0.08,
   },
   summaryChipLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.gray[500],
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94A3B8",
     textTransform: "uppercase",
+    letterSpacing: 0.8,
   },
   summaryChipValue: {
-    marginTop: 4,
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: "800",
-    color: COLORS.text.primary,
+    color: "#0F172A",
+    letterSpacing: -1,
+    marginBottom: 6,
   },
+  summaryChipBar: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#F1F5F9",
+    overflow: "hidden",
+  },
+  summaryChipBarFill: {
+    height: 3,
+    borderRadius: 2,
+  },
+
+  // ── Warning banner ────────────────────────────────────────────────────────────
   warnBanner: {
-    marginTop: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     backgroundColor: "#FFFBEB",
     borderWidth: 1,
     borderColor: "#FDE68A",
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 12,
+  },
+  warnBannerIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
   },
   warnBannerText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: "#92400E",
-    lineHeight: 20,
+    lineHeight: 19,
   },
+
+  // ── Section heading ────────────────────────────────────────────────────────
+  sectionHeadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  sectionHeadText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#94A3B8",
+    textTransform: "uppercase",
+    letterSpacing: 0.9,
+  },
+  sectionHeadBadge: {
+    backgroundColor: "#E2E8F0",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  sectionHeadBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+
+  // ── Card ─────────────────────────────────────────────────────────────────────
   card: {
-    backgroundColor: COLORS.white,
-    borderRadius: 14,
-    padding: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#EDEDF5",
+    flexDirection: "row",
+    overflow: "hidden",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardAccent: {
+    width: 4,
+    alignSelf: "stretch",
+  },
+  cardBody: {
+    flex: 1,
+    padding: 14,
+    gap: 10,
   },
   cardHeader: {
     flexDirection: "row",
@@ -339,63 +578,153 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
   },
-  catRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
-  catLabel: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: COLORS.text.primary,
+  catRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     flex: 1,
   },
+  catIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  catLabel: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+    flex: 1,
+    letterSpacing: -0.2,
+  },
+
+  // ── Status pill ───────────────────────────────────────────────────────────────
   statusPill: {
-    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 10,
-  },
-  statusPillText: { fontSize: 11, fontWeight: "700" },
-  apptMeta: {
-    marginTop: 10,
-    fontSize: 13,
-    color: COLORS.gray[600],
-    lineHeight: 18,
-  },
-  decisionChip: {
-    alignSelf: "flex-start",
-    marginTop: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: COLORS.gray[50],
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
-  decisionChipText: { fontSize: 12, fontWeight: "700", color: COLORS.text.primary },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.1,
+    textTransform: "capitalize",
+  },
+
+  // ── Appointment meta ───────────────────────────────────────────────────────────
+  apptRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    flexWrap: "wrap",
+  },
+  apptMeta: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+    flexShrink: 1,
+  },
+  apptDot: {
+    fontSize: 12,
+    color: "#CBD5E1",
+  },
+
+  // ── Decision chip ─────────────────────────────────────────────────────────────
+  decisionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  decisionChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.1,
+  },
+
+  // ── Admin card ────────────────────────────────────────────────────────────────
   adminCard: {
-    marginTop: 12,
-    padding: 12,
     borderRadius: 12,
     backgroundColor: "#EFF6FF",
     borderWidth: 1,
     borderColor: "#BFDBFE",
+    padding: 12,
+    gap: 6,
+  },
+  adminCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  adminIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    backgroundColor: "#DBEAFE",
+    alignItems: "center",
+    justifyContent: "center",
   },
   adminCardTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
-    color: COLORS.info,
-    marginBottom: 6,
+    color: "#1D4ED8",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
   },
-  adminCardBody: { fontSize: 14, color: COLORS.text.primary, lineHeight: 20 },
-  empty: { alignItems: "center", paddingTop: 40, paddingHorizontal: 24 },
+  adminCardBody: {
+    fontSize: 13,
+    color: "#1E3A8A",
+    lineHeight: 19,
+    fontWeight: "400",
+  },
+
+  // ── Empty state ───────────────────────────────────────────────────────────────
+  empty: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 60,
+    paddingHorizontal: 32,
+    gap: 10,
+  },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: "#ECFDF5",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#A7F3D0",
+    marginBottom: 4,
+  },
   emptyTitle: {
-    marginTop: 14,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "800",
-    color: COLORS.text.primary,
-    textAlign: "center",
+    color: "#0F172A",
+    letterSpacing: -0.4,
   },
   emptySub: {
-    marginTop: 8,
-    fontSize: 15,
-    color: COLORS.gray[500],
+    fontSize: 14,
+    color: "#94A3B8",
     textAlign: "center",
+    lineHeight: 20,
+    fontWeight: "500",
   },
 });

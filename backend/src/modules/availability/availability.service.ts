@@ -1,17 +1,43 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AppointmentStatus, DayOfWeek } from '@prisma/client';
+import { AppointmentStatus, DayOfWeek, ProviderType } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { CreateDayOffDto } from './dto/day-off.dto';
+import {
+  ProviderDaySlotsResponse,
+  ProviderSlotItem,
+} from './dto/provider-day-slots.dto';
 import { UpsertAvailabilityBulkDto } from './dto/upsert-availability.dto';
 
 const DEFAULT_START = '08:00';
 const DEFAULT_END = '18:00';
 const SLOT_STEP_MINUTES = 30;
+const DEFAULT_APPOINTMENT_DURATION_MINUTES = 60;
+
+/** Statuses that occupy the provider calendar for client booking. */
+const SLOT_BLOCKING_STATUSES: AppointmentStatus[] = [
+  AppointmentStatus.CONFIRMED,
+  AppointmentStatus.EN_ROUTE,
+  AppointmentStatus.IN_PROGRESS,
+];
+
+/** Provider reschedule UI also treats open requests as busy. */
+const RESCHEDULE_SLOT_BLOCKING_STATUSES: AppointmentStatus[] = [
+  ...SLOT_BLOCKING_STATUSES,
+  AppointmentStatus.PENDING,
+  AppointmentStatus.RESCHEDULED,
+];
+
+export type ProviderDaySlotsOptions = {
+  excludeAppointmentId?: string;
+  /** When true, pending/rescheduled requests count as reserved (provider reschedule). */
+  includePendingHolds?: boolean;
+};
 
 const DAYS_ORDER: DayOfWeek[] = [
   DayOfWeek.MONDAY,
@@ -28,7 +54,23 @@ export class AvailabilityService {
   constructor(private readonly prisma: PrismaService) {}
 
   async upsertAvailability(providerId: string, dto: UpsertAvailabilityBulkDto) {
+    await this.assertIndependentProvider(providerId);
+    return this.upsertAvailabilityInternal(providerId, dto);
+  }
+
+  /** Company admin manages employee schedules — skips the independent-only guard. */
+  async upsertAvailabilityForEmployee(
+    providerId: string,
+    dto: UpsertAvailabilityBulkDto,
+  ) {
     await this.assertProviderExists(providerId);
+    return this.upsertAvailabilityInternal(providerId, dto);
+  }
+
+  private async upsertAvailabilityInternal(
+    providerId: string,
+    dto: UpsertAvailabilityBulkDto,
+  ) {
 
     for (const day of dto.days) {
       this.assertValidTimeRange(day.startTime, day.endTime);
@@ -101,7 +143,16 @@ export class AvailabilityService {
   }
 
   async createDayOff(providerId: string, dto: CreateDayOffDto) {
+    await this.assertIndependentProvider(providerId);
+    return this.createDayOffInternal(providerId, dto);
+  }
+
+  async createDayOffForEmployee(providerId: string, dto: CreateDayOffDto) {
     await this.assertProviderExists(providerId);
+    return this.createDayOffInternal(providerId, dto);
+  }
+
+  private async createDayOffInternal(providerId: string, dto: CreateDayOffDto) {
 
     try {
       return await this.prisma.providerDayOff.create({
@@ -120,7 +171,16 @@ export class AvailabilityService {
   }
 
   async deleteDayOff(providerId: string, dayOffId: string) {
+    await this.assertIndependentProvider(providerId);
+    return this.deleteDayOffInternal(providerId, dayOffId);
+  }
+
+  async deleteDayOffForEmployee(providerId: string, dayOffId: string) {
     await this.assertProviderExists(providerId);
+    return this.deleteDayOffInternal(providerId, dayOffId);
+  }
+
+  private async deleteDayOffInternal(providerId: string, dayOffId: string) {
     const existing = await this.prisma.providerDayOff.findUnique({
       where: { id: dayOffId },
       select: { id: true, providerId: true },
@@ -135,6 +195,11 @@ export class AvailabilityService {
 
     await this.prisma.providerDayOff.delete({ where: { id: dayOffId } });
     return { deleted: true };
+  }
+
+  /** Days off in a date range (for client booking UI). */
+  async getProviderDaysOff(providerId: string, from?: string, to?: string) {
+    return this.getMyDaysOff(providerId, from, to);
   }
 
   async getMyDaysOff(providerId: string, from?: string, to?: string) {
@@ -155,11 +220,31 @@ export class AvailabilityService {
     });
   }
 
+  /** Times the client can book (excludes reserved overlaps). */
   async getAvailableSlots(
     providerId: string,
     date: string,
     durationMinutes: number,
+    options?: ProviderDaySlotsOptions,
   ): Promise<string[]> {
+    const day = await this.getProviderDaySlots(
+      providerId,
+      date,
+      durationMinutes,
+      options,
+    );
+    return day.slots
+      .filter((slot) => slot.status === 'available')
+      .map((slot) => slot.time);
+  }
+
+  /** Full day grid: available + reserved slots for the slot picker UI. */
+  async getProviderDaySlots(
+    providerId: string,
+    date: string,
+    durationMinutes: number,
+    options?: ProviderDaySlotsOptions,
+  ): Promise<ProviderDaySlotsResponse> {
     await this.assertProviderExists(providerId);
     if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
       throw new BadRequestException('duration must be a positive number');
@@ -173,7 +258,7 @@ export class AvailabilityService {
     const template = this.defaultRow(providerId, dayOfWeek);
     const effective = availability ?? template;
 
-    if (!effective.isWorking) return [];
+    if (!effective.isWorking) return { slots: [] };
 
     const isBlocked = await this.prisma.providerDayOff.findUnique({
       where: {
@@ -184,33 +269,43 @@ export class AvailabilityService {
       },
       select: { id: true },
     });
-    if (isBlocked) return [];
+    if (isBlocked) return { slots: [] };
+
+    const blockingStatuses = options?.includePendingHolds
+      ? RESCHEDULE_SLOT_BLOCKING_STATUSES
+      : SLOT_BLOCKING_STATUSES;
 
     const appointments = await this.prisma.appointment.findMany({
       where: {
         providerId,
         scheduledDate: new Date(date),
-        status: { in: [AppointmentStatus.CONFIRMED, AppointmentStatus.IN_PROGRESS] },
+        status: { in: blockingStatuses },
+        ...(options?.excludeAppointmentId
+          ? { id: { not: options.excludeAppointmentId } }
+          : {}),
       },
       select: {
         scheduledTime: true,
         durationMinutes: true,
+        givenService: {
+          select: { estimatedDurationMinutes: true },
+        },
       },
     });
 
     const dayStart = this.toMinutes(effective.startTime);
     const dayEnd = this.toMinutes(effective.endTime);
-    if (dayEnd <= dayStart) return [];
+    if (dayEnd <= dayStart) return { slots: [] };
 
     const busyIntervals = appointments
       .map((a) => {
         const start = this.toMinutes(a.scheduledTime);
-        const dur = a.durationMinutes ?? durationMinutes;
+        const dur = this.resolveAppointmentBlockMinutes(a);
         return { start, end: start + dur };
       })
       .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end));
 
-    const slots: string[] = [];
+    const slots: ProviderSlotItem[] = [];
     for (
       let slotStart = dayStart;
       slotStart + durationMinutes <= dayEnd;
@@ -220,11 +315,12 @@ export class AvailabilityService {
       const overlaps = busyIntervals.some(
         (busy) => slotStart < busy.end && slotEnd > busy.start,
       );
-      if (!overlaps) {
-        slots.push(this.toHHmm(slotStart));
-      }
+      slots.push({
+        time: this.toHHmm(slotStart),
+        status: overlaps ? 'reserved' : 'available',
+      });
     }
-    return slots;
+    return { slots };
   }
 
   private withTemplateFallback(
@@ -283,6 +379,21 @@ export class AvailabilityService {
     }
   }
 
+  /**
+   * Block length for an existing booking. Uses actual completed duration when set,
+   * otherwise the booked service estimate — never the slot-search caller's duration.
+   */
+  private resolveAppointmentBlockMinutes(appointment: {
+    durationMinutes: number | null;
+    givenService: { estimatedDurationMinutes: number | null } | null;
+  }): number {
+    const resolved =
+      appointment.durationMinutes ??
+      appointment.givenService?.estimatedDurationMinutes ??
+      DEFAULT_APPOINTMENT_DURATION_MINUTES;
+    return Math.max(1, resolved);
+  }
+
   private toMinutes(hhmm: string): number {
     const [hh, mm] = hhmm.split(':').map((x) => Number(x));
     if (
@@ -321,6 +432,22 @@ export class AvailabilityService {
     });
     if (!provider) {
       throw new NotFoundException('Provider not found');
+    }
+  }
+
+  /** Employee schedules are managed by the company admin, not self-service. */
+  private async assertIndependentProvider(providerId: string) {
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: providerId },
+      select: { id: true, type: true },
+    });
+    if (!provider) {
+      throw new NotFoundException('Provider not found');
+    }
+    if (provider.type === ProviderType.EMPLOYEE) {
+      throw new ForbiddenException(
+        'Employee schedules are managed by your company admin.',
+      );
     }
   }
 }

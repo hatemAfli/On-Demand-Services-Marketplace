@@ -8,17 +8,25 @@ import {
   OwnerType,
   PricingType,
   Prisma,
+  ProviderType,
   UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
+import { SupabaseService } from '../../config/supabase.config';
+import { RemoveProviderGalleryImageDto } from './dto/remove-provider-gallery-image.dto';
 import { UpdateProviderGivenServiceDto } from './dto/update-provider-given-service.dto';
 import { UpdateProviderServiceGalleryDto } from './dto/update-provider-service-gallery.dto';
 
 type TxClient = Prisma.TransactionClient;
 
+const GALLERY_BUCKET = 'gallery';
+
 @Injectable()
 export class GivenServiceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly supabase: SupabaseService,
+  ) {}
 
   async createPendingForOwner(
     input: { ownerType: OwnerType; ownerId: string; serviceId: string },
@@ -81,6 +89,39 @@ export class GivenServiceService {
       );
     }
     return user;
+  }
+
+  private assertGalleryUrlForGivenService(
+    givenServiceId: string,
+    imageUrl: string,
+  ): void {
+    const objectPath = this.supabase.parsePublicObjectPath(
+      GALLERY_BUCKET,
+      imageUrl,
+    );
+    if (!objectPath || !objectPath.startsWith(`${givenServiceId}/`)) {
+      throw new BadRequestException('Invalid gallery image URL for this service.');
+    }
+  }
+
+  private async findProviderGivenServiceId(
+    userId: string,
+    serviceId: string,
+  ): Promise<string> {
+    const given = await this.prisma.givenService.findFirst({
+      where: {
+        ownerType: OwnerType.PROVIDER,
+        ownerId: userId,
+        serviceId,
+      },
+      select: { id: true },
+    });
+    if (!given) {
+      throw new NotFoundException(
+        'No given service found for this catalog service.',
+      );
+    }
+    return given.id;
   }
 
   async getProviderGivenService(userId: string, serviceId: string) {
@@ -146,6 +187,11 @@ export class GivenServiceService {
 
       if (!provider) throw new NotFoundException('Provider not found.');
 
+      const bookingCompanyId =
+        provider.type === ProviderType.EMPLOYEE && provider.companyId
+          ? provider.companyId
+          : null;
+
       return {
         givenServiceId: given.id,
         serviceId: given.serviceId,
@@ -165,6 +211,7 @@ export class GivenServiceService {
         totalCompletedJobs: Number(given.totalCompletedJobs ?? 0),
         galleries: given.galleries,
         bookingProviderId: provider.id,
+        bookingCompanyId,
         owner: {
           id: provider.id,
           /** Same as `User.id` (Provider PK === User PK). For messaging `counterpartId`. */
@@ -181,8 +228,16 @@ export class GivenServiceService {
           averageRating: Number(given.averageRating ?? 0),
           totalReviews: Number(provider.totalReviews ?? 0),
           cancellationRate: Number(provider.cancellationRate ?? 0),
+          averageResponseTime:
+            provider.averageResponseTime !== null &&
+            provider.averageResponseTime !== undefined
+              ? Number(provider.averageResponseTime)
+              : null,
+          totalComplaints: provider.totalComplaints ?? 0,
           gender: provider.gender ?? null,
           isTopProvider: provider.isTopProvider ?? false,
+          city: provider.city,
+          address: provider.address ?? null,
         },
       };
     }
@@ -217,6 +272,7 @@ export class GivenServiceService {
       totalCompletedJobs: Number(given.totalCompletedJobs ?? 0),
       galleries: given.galleries,
       bookingProviderId: companyProvider?.id ?? null,
+      bookingCompanyId: company.id,
       owner: {
         id: company.id,
         /** First company provider's `User.id` (same as `Provider.id`), or null if none. */
@@ -231,9 +287,16 @@ export class GivenServiceService {
         paymentMethodsAccepted: [],
         averageRating: Number(company.averageRating ?? 0),
         totalReviews: Number(company.totalReviews ?? 0),
-        cancellationRate: 0,
+        cancellationRate: Number(company.cancellationRate ?? 0),
+        averageResponseTime:
+          company.averageResponseTime !== null &&
+          company.averageResponseTime !== undefined
+            ? Number(company.averageResponseTime)
+            : null,
         gender: null,
         isTopProvider: false,
+        city: company.city,
+        address: company.address ?? null,
       },
     };
   }
@@ -272,19 +335,16 @@ export class GivenServiceService {
     dto: UpdateProviderServiceGalleryDto,
   ) {
     await this.assertProviderUser(userId);
-    const given = await this.prisma.givenService.findFirst({
-      where: {
-        ownerType: OwnerType.PROVIDER,
-        ownerId: userId,
-        serviceId,
-      },
-      select: { id: true },
+    const givenServiceId = await this.findProviderGivenServiceId(
+      userId,
+      serviceId,
+    );
+
+    const existingRows = await this.prisma.serviceGallery.findMany({
+      where: { givenServiceId },
+      select: { imageUrl: true },
     });
-    if (!given) {
-      throw new NotFoundException(
-        'No given service found for this catalog service.',
-      );
-    }
+    const previousUrls = new Set(existingRows.map((r) => r.imageUrl));
 
     const imageUrls = Array.from(
       new Set((dto.imageUrls ?? []).map((u) => u.trim()).filter(Boolean)),
@@ -293,24 +353,71 @@ export class GivenServiceService {
       throw new BadRequestException('Maximum 40 gallery images');
     }
 
+    for (const url of imageUrls) {
+      this.assertGalleryUrlForGivenService(givenServiceId, url);
+    }
+
     const rows = imageUrls.map((imageUrl) => ({
-      givenServiceId: given.id,
+      givenServiceId,
       imageUrl,
     }));
 
     await this.prisma.$transaction(async (tx) => {
       await tx.serviceGallery.deleteMany({
-        where: { givenServiceId: given.id },
+        where: { givenServiceId },
       });
       if (rows.length > 0) {
         await tx.serviceGallery.createMany({
-          // Prisma client types can be stale before `prisma generate` after schema edits.
           data: rows as Prisma.ServiceGalleryCreateManyInput[],
         });
       }
     });
 
+    const nextUrlSet = new Set(imageUrls);
+    const removedUrls = [...previousUrls].filter((url) => !nextUrlSet.has(url));
+    await Promise.all(
+      removedUrls.map((url) =>
+        this.supabase.removeStorageObjectByPublicUrl(GALLERY_BUCKET, url),
+      ),
+    );
+
     return this.getProviderServiceGallery(userId, serviceId);
+  }
+
+  async removeProviderGalleryImage(
+    userId: string,
+    serviceId: string,
+    dto: RemoveProviderGalleryImageDto,
+  ) {
+    await this.assertProviderUser(userId);
+    const givenServiceId = await this.findProviderGivenServiceId(
+      userId,
+      serviceId,
+    );
+
+    const imageUrl = dto.imageUrl.trim();
+    if (!imageUrl) {
+      throw new BadRequestException('imageUrl is required');
+    }
+    this.assertGalleryUrlForGivenService(givenServiceId, imageUrl);
+
+    if (dto.galleryId) {
+      const row = await this.prisma.serviceGallery.findFirst({
+        where: { id: dto.galleryId, givenServiceId },
+      });
+      if (!row) {
+        throw new NotFoundException('Gallery image not found');
+      }
+      await this.prisma.serviceGallery.delete({ where: { id: row.id } });
+    } else {
+      await this.prisma.serviceGallery.deleteMany({
+        where: { givenServiceId, imageUrl },
+      });
+    }
+
+    await this.supabase.removeStorageObjectByPublicUrl(GALLERY_BUCKET, imageUrl);
+
+    return { deleted: true };
   }
 
   async updateProviderGivenService(

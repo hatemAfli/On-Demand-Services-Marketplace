@@ -9,6 +9,7 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   Linking,
   ScrollView,
@@ -16,13 +17,20 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { ProviderStackParamList } from "../../../navigation/types";
+import { useAuth } from "../../../context/AuthContext";
+import {
+  isAppointmentVisibleToEmployeeProvider,
+  isEmployeeProvider,
+} from "../../../utils/providerEmployment";
 import { useNotificationsRealtime } from "../../../context/NotificationsRealtimeContext";
 import {
   api,
@@ -42,11 +50,14 @@ const JOB_EXCLUDED_FROM_DAY_COUNT: AppointmentStatus[] = [
 function countScheduledJobsOnDate(
   rows: ProviderCalendarAppointment[],
   dateKey: string,
+  hidePendingForEmployee = false,
 ): number {
   return rows.filter(
     (a) =>
       a.scheduledDate === dateKey &&
-      !JOB_EXCLUDED_FROM_DAY_COUNT.includes(a.status),
+      !JOB_EXCLUDED_FROM_DAY_COUNT.includes(a.status) &&
+      (!hidePendingForEmployee ||
+        isAppointmentVisibleToEmployeeProvider(a.status)),
   ).length;
 }
 
@@ -93,6 +104,11 @@ type HomeActiveJobsScreenProps = {
   jobsVsYesterdayTrend: "up" | "down" | "same";
   completedTodayCount: number;
   restJobsCount: number;
+  performanceLoading: boolean;
+  performanceRating: string;
+  performanceAcceptPct: number;
+  performanceCompletePct: number;
+  performanceBadgeLabel: string;
 };
 
 function initialsFromName(name: string): string {
@@ -127,11 +143,40 @@ function slotDurationMinutes(duration: number | null): number {
   return duration && duration > 0 ? duration : 60;
 }
 
+function slotStartDate(a: ProviderCalendarAppointment): Date {
+  return combineLocalDateTime(a.scheduledDate, a.scheduledTime);
+}
+
 function slotEndDate(a: ProviderCalendarAppointment): Date {
-  const start = combineLocalDateTime(a.scheduledDate, a.scheduledTime);
+  const start = slotStartDate(a);
   return new Date(
     start.getTime() + slotDurationMinutes(a.durationMinutes) * 60 * 1000,
   );
+}
+
+/** Scheduled visit window has fully ended (local time). */
+function isAppointmentSlotPassed(
+  a: ProviderCalendarAppointment,
+  now: Date,
+): boolean {
+  return now.getTime() >= slotEndDate(a).getTime();
+}
+
+const ACTIVE_JOB_STATUSES: AppointmentStatus[] = [
+  "IN_PROGRESS",
+  "EN_ROUTE",
+  "CONFIRMED",
+];
+
+/** Live or upcoming confirmed visit — never a slot that already ended. */
+function isActiveJobCandidate(
+  a: ProviderCalendarAppointment,
+  now: Date,
+): boolean {
+  if (!ACTIVE_JOB_STATUSES.includes(a.status)) return false;
+  if (a.status === "IN_PROGRESS") return true;
+  if (isAppointmentSlotPassed(a, now)) return false;
+  return true;
 }
 
 function parseIsoDate(d: string | null): Date | null {
@@ -154,18 +199,21 @@ function pickHighlightAppointment(
   rows: ProviderCalendarAppointment[],
   now: Date,
 ): ProviderCalendarAppointment | null {
-  const sorted = [...rows].sort(sortBySchedule);
+  const sorted = [...rows]
+    .filter((a) => isActiveJobCandidate(a, now))
+    .sort(sortBySchedule);
+  if (!sorted.length) return null;
+
   const inProgress = sorted.filter((a) => a.status === "IN_PROGRESS");
   if (inProgress.length) return inProgress[0];
+
   const enRoute = sorted.filter((a) => a.status === "EN_ROUTE");
-  const enRouteOk = enRoute.filter(
-    (a) => now.getTime() <= slotEndDate(a).getTime(),
-  );
-  if (enRouteOk.length) return enRouteOk[0];
+  if (enRoute.length) return enRoute[0];
+
   const confirmed = sorted.filter((a) => a.status === "CONFIRMED");
   const windows = confirmed.map((a) => ({
     a,
-    start: combineLocalDateTime(a.scheduledDate, a.scheduledTime),
+    start: slotStartDate(a),
     end: slotEndDate(a),
   }));
   const inside = windows.find(({ start, end }) => now >= start && now < end);
@@ -175,47 +223,29 @@ function pickHighlightAppointment(
   return null;
 }
 
-const NEXT_SCHEDULE_EXCLUDED: AppointmentStatus[] = [
-  "CANCELLED_CLIENT",
-  "CANCELLED_PROVIDER",
-  "REFUSED",
-  "COMPLETED",
-  "DISPUTED",
-];
-
-function isNextScheduleCandidate(a: ProviderCalendarAppointment): boolean {
-  return !NEXT_SCHEDULE_EXCLUDED.includes(a.status);
-}
+/** Next visit after the current job — confirmed bookings only, still in the future. */
+const NEXT_SCHEDULE_STATUSES: AppointmentStatus[] = ["CONFIRMED", "RESCHEDULED"];
 
 function pickNextScheduledAfterActive(
   rows: ProviderCalendarAppointment[],
   active: ProviderCalendarAppointment | null,
   now: Date,
 ): ProviderCalendarAppointment | null {
-  const candidates = rows.filter(isNextScheduleCandidate);
-  if (!candidates.length) return null;
-  const sorted = [...candidates].sort(sortBySchedule);
-  if (active) {
-    const t0 = combineLocalDateTime(
-      active.scheduledDate,
-      active.scheduledTime,
-    ).getTime();
-    return (
-      sorted.find(
-        (a) =>
-          a.id !== active.id &&
-          combineLocalDateTime(a.scheduledDate, a.scheduledTime).getTime() > t0,
-      ) ?? null
-    );
-  }
   const nowMs = now.getTime();
-  return (
-    sorted.find(
-      (a) =>
-        combineLocalDateTime(a.scheduledDate, a.scheduledTime).getTime() >
-        nowMs,
-    ) ?? null
-  );
+  const minStartMs = active
+    ? Math.max(nowMs, slotEndDate(active).getTime())
+    : nowMs;
+
+  const sorted = [...rows]
+    .filter((a) => {
+      if (active && a.id === active.id) return false;
+      if (!NEXT_SCHEDULE_STATUSES.includes(a.status)) return false;
+      if (isAppointmentSlotPassed(a, now)) return false;
+      return slotStartDate(a).getTime() >= minStartMs;
+    })
+    .sort(sortBySchedule);
+
+  return sorted[0] ?? null;
 }
 
 function formatClockSeconds(totalSeconds: number): string {
@@ -228,20 +258,90 @@ function formatClockSeconds(totalSeconds: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+/** Negative prefix for delay display, e.g. `-05:32` = 5m 32s late. */
+function formatDelayClock(lateSeconds: number): string {
+  const sec = Math.max(0, lateSeconds);
+  return `-${formatClockSeconds(sec)}`;
+}
+
+function isServiceNotStarted(a: ProviderCalendarAppointment): boolean {
+  if (a.status === "IN_PROGRESS") return false;
+  if (parseIsoDate(a.startedAt)) return false;
+  return true;
+}
+
+function clampPct(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function formatRating(value: unknown): string {
+  const rating = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(rating) || rating <= 0) return "0.0";
+  return rating.toFixed(1);
+}
+
+function performanceBadgeFromScore(score: number): string {
+  if (score >= 90) return "Excellent";
+  if (score >= 75) return "Great";
+  if (score >= 60) return "Good";
+  return "Needs attention";
+}
+
+type ActiveJobTimerVariant = "startsIn" | "delay" | "elapsed" | "remaining";
+
 type ActiveJobTimer = {
   main: string;
   label: string;
   progressPct: number;
   footerStatus: string;
+  variant: ActiveJobTimerVariant;
 };
+
+function buildStartsInTimer(
+  start: Date,
+  now: Date,
+  footerStatus: string,
+): ActiveJobTimer {
+  const remain = Math.max(
+    0,
+    Math.floor((start.getTime() - now.getTime()) / 1000),
+  );
+  return {
+    main: formatClockSeconds(remain),
+    label: "STARTS IN",
+    progressPct: Math.min(95, Math.max(8, 100 - remain / 60)),
+    footerStatus,
+    variant: "startsIn",
+  };
+}
+
+function buildDelayTimer(
+  start: Date,
+  now: Date,
+  footerStatus: string,
+): ActiveJobTimer {
+  const lateSec = Math.max(
+    0,
+    Math.floor((now.getTime() - start.getTime()) / 1000),
+  );
+  return {
+    main: formatDelayClock(lateSec),
+    label: "DELAY",
+    progressPct: 100,
+    footerStatus,
+    variant: "delay",
+  };
+}
 
 function buildActiveJobTimer(
   a: ProviderCalendarAppointment,
   now: Date,
 ): ActiveJobTimer {
-  const start = combineLocalDateTime(a.scheduledDate, a.scheduledTime);
+  const start = slotStartDate(a);
   const durMs = slotDurationMinutes(a.durationMinutes) * 60 * 1000;
   const end = new Date(start.getTime() + durMs);
+
   if (a.status === "IN_PROGRESS") {
     const started = parseIsoDate(a.startedAt) ?? start;
     const elapsedSec = Math.max(
@@ -254,21 +354,22 @@ function buildActiveJobTimer(
       label: "TIME ELAPSED",
       progressPct: Math.min(100, (elapsedSec / totalSec) * 100),
       footerStatus: "In progress",
+      variant: "elapsed",
     };
   }
-  if (a.status === "EN_ROUTE") {
-    if (now < start) {
-      const remain = Math.max(
-        0,
-        Math.floor((start.getTime() - now.getTime()) / 1000),
-      );
-      return {
-        main: formatClockSeconds(remain),
-        label: "STARTS IN",
-        progressPct: 12,
-        footerStatus: "En route",
-      };
-    }
+
+  const footer =
+    a.status === "EN_ROUTE" ? "En route — start service" : "Confirmed — start now";
+
+  if (now.getTime() < start.getTime()) {
+    return buildStartsInTimer(start, now, footer);
+  }
+
+  if (isServiceNotStarted(a)) {
+    return buildDelayTimer(start, now, footer);
+  }
+
+  if (now < end) {
     const remain = Math.max(
       0,
       Math.floor((end.getTime() - now.getTime()) / 1000),
@@ -280,37 +381,18 @@ function buildActiveJobTimer(
         100,
         ((now.getTime() - start.getTime()) / durMs) * 100,
       ),
-      footerStatus: "En route",
+      footerStatus: footer,
+      variant: "remaining",
     };
   }
-  if (now < start) {
-    const remain = Math.max(
-      0,
-      Math.floor((start.getTime() - now.getTime()) / 1000),
-    );
-    return {
-      main: formatClockSeconds(remain),
-      label: "STARTS IN",
-      progressPct: 10,
-      footerStatus: "Confirmed",
-    };
-  }
-  if (now >= start && now < end) {
-    const remain = Math.max(
-      0,
-      Math.floor((end.getTime() - now.getTime()) / 1000),
-    );
-    return {
-      main: formatClockSeconds(remain),
-      label: "TIME REMAINING",
-      progressPct: Math.min(
-        100,
-        ((now.getTime() - start.getTime()) / durMs) * 100,
-      ),
-      footerStatus: "Confirmed",
-    };
-  }
-  return { main: "—", label: "", progressPct: 0, footerStatus: "Confirmed" };
+
+  return {
+    main: "—",
+    label: "",
+    progressPct: 0,
+    footerStatus: footer,
+    variant: "remaining",
+  };
 }
 
 function formatClientLocationLine(a: ProviderCalendarAppointment): string {
@@ -375,6 +457,250 @@ const C = {
   purple: "#8B5CF6",
 };
 
+const TIPS_CAROUSEL_GAP = 14;
+const TIPS_HORIZONTAL_PAD = 20;
+
+type ProviderTipItem = {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  sub: string;
+  gradient: [string, string];
+  iconColor: string;
+  accent: string;
+};
+
+const PROVIDER_TIPS: ProviderTipItem[] = [
+  {
+    icon: "camera-outline",
+    title: "Take Photos",
+    sub: "Capture before & after shots on every job to prevent disputes.",
+    gradient: ["#EFF6FF", "#FFFFFF"],
+    iconColor: C.blue,
+    accent: "#3B82F6",
+  },
+  {
+    icon: "shield-checkmark-outline",
+    title: "Safety First",
+    sub: "Wear safety gear and your ID badge so clients feel confident.",
+    gradient: ["#F5F3FF", "#FFFFFF"],
+    iconColor: C.purple,
+    accent: "#8B5CF6",
+  },
+  {
+    icon: "time-outline",
+    title: "Arrive On Time",
+    sub: "Punctuality boosts ratings and helps you win repeat bookings.",
+    gradient: ["#FFF7ED", "#FFFFFF"],
+    iconColor: C.amber,
+    accent: C.amber,
+  },
+  {
+    icon: "chatbox-ellipses-outline",
+    title: "Communicate Clearly",
+    sub: "Message the client if you're delayed or need extra materials.",
+    gradient: ["#ECFDF5", "#FFFFFF"],
+    iconColor: C.success,
+    accent: "#059669",
+  },
+  {
+    icon: "checkmark-done-outline",
+    title: "Confirm Completion",
+    sub: "End the job only after the client confirms the work is done.",
+    gradient: ["#E0F2FE", "#FFFFFF"],
+    iconColor: "#0284C7",
+    accent: "#0284C7",
+  },
+  {
+    icon: "star-outline",
+    title: "Ask For Feedback",
+    sub: "A polite review request improves trust and profile visibility.",
+    gradient: ["#FEF3C7", "#FFFFFF"],
+    iconColor: "#EA580C",
+    accent: "#EA580C",
+  },
+];
+
+function ProviderTipsCarousel() {
+  const { width: windowWidth } = useWindowDimensions();
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const cardWidth = Math.round(windowWidth - TIPS_HORIZONTAL_PAD * 2 - 36);
+  const snapInterval = cardWidth + TIPS_CAROUSEL_GAP;
+
+  return (
+    <View style={tipsCarouselStyles.wrap}>
+      <FlatList
+        data={PROVIDER_TIPS}
+        keyExtractor={(item) => item.title}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        snapToInterval={snapInterval}
+        snapToAlignment="start"
+        disableIntervalMomentum
+        contentContainerStyle={tipsCarouselStyles.listContent}
+        ItemSeparatorComponent={() => (
+          <View style={{ width: TIPS_CAROUSEL_GAP }} />
+        )}
+        onMomentumScrollEnd={(e) => {
+          const idx = Math.round(
+            e.nativeEvent.contentOffset.x / snapInterval,
+          );
+          setActiveIndex(
+            Math.min(PROVIDER_TIPS.length - 1, Math.max(0, idx)),
+          );
+        }}
+        renderItem={({ item, index }) => (
+          <View style={[tipsCarouselStyles.cardShell, { width: cardWidth }]}>
+            <LinearGradient
+              colors={item.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={tipsCarouselStyles.cardGradient}
+            >
+              <View
+                style={[
+                  tipsCarouselStyles.cardAccent,
+                  { backgroundColor: item.accent },
+                ]}
+              />
+              <View style={tipsCarouselStyles.cardTopRow}>
+                <View
+                  style={[
+                    tipsCarouselStyles.iconOrb,
+                    {
+                      backgroundColor: `${item.accent}18`,
+                      borderColor: `${item.accent}33`,
+                    },
+                  ]}
+                >
+                  <Ionicons name={item.icon} size={22} color={item.iconColor} />
+                </View>
+                <Text style={tipsCarouselStyles.indexLabel}>
+                  {String(index + 1).padStart(2, "0")} /{" "}
+                  {String(PROVIDER_TIPS.length).padStart(2, "0")}
+                </Text>
+              </View>
+              <Text style={tipsCarouselStyles.cardTitle}>{item.title}</Text>
+              <Text style={tipsCarouselStyles.cardSub}>{item.sub}</Text>
+            </LinearGradient>
+          </View>
+        )}
+      />
+
+      <View style={tipsCarouselStyles.dotsRow}>
+        {PROVIDER_TIPS.map((tip, i) => (
+          <View
+            key={tip.title}
+            style={[
+              tipsCarouselStyles.dot,
+              i === activeIndex && [
+                tipsCarouselStyles.dotActive,
+                { backgroundColor: tip.accent },
+              ],
+            ]}
+          />
+        ))}
+      </View>
+
+      <Text style={tipsCarouselStyles.swipeHint}>Swipe for more tips</Text>
+    </View>
+  );
+}
+
+const tipsCarouselStyles = StyleSheet.create({
+  wrap: {
+    marginHorizontal: -TIPS_HORIZONTAL_PAD,
+  },
+  listContent: {
+    paddingHorizontal: TIPS_HORIZONTAL_PAD,
+    paddingVertical: 6,
+  },
+  cardShell: {
+    borderRadius: 22,
+    shadowColor: "#1A1608",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  cardGradient: {
+    borderRadius: 22,
+    padding: 18,
+    minHeight: 168,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.9)",
+    overflow: "hidden",
+  },
+  cardAccent: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+  },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  iconOrb: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  indexLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: C.muted,
+    letterSpacing: 0.5,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: C.text,
+    letterSpacing: -0.3,
+    marginBottom: 8,
+  },
+  cardSub: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: C.sub,
+    lineHeight: 20,
+  },
+  dotsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 14,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#D6D3D1",
+  },
+  dotActive: {
+    width: 20,
+    borderRadius: 999,
+  },
+  swipeHint: {
+    marginTop: 8,
+    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "700",
+    color: C.muted,
+    letterSpacing: 0.3,
+  },
+});
+
 // ─── Presentation component ─────────────────────────────────────────────────
 function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
   const activeJobTimer = useMemo(() => {
@@ -419,6 +745,12 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                 <View
                   style={[
                     styles.progressFill,
+                    activeJobTimer.variant === "startsIn" &&
+                      styles.progressFillStartsIn,
+                    activeJobTimer.variant === "delay" &&
+                      styles.progressFillDelay,
+                    activeJobTimer.variant === "elapsed" &&
+                      styles.progressFillElapsed,
                     { width: `${Math.max(4, activeJobTimer.progressPct)}%` },
                   ]}
                 />
@@ -462,9 +794,27 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                   </View>
 
                   <View style={styles.timerBlock}>
-                    <Text style={styles.timerText}>{activeJobTimer.main}</Text>
+                    <Text
+                      style={[
+                        styles.timerText,
+                        activeJobTimer.variant === "startsIn" &&
+                          styles.timerTextStartsIn,
+                        activeJobTimer.variant === "delay" &&
+                          styles.timerTextDelay,
+                      ]}
+                    >
+                      {activeJobTimer.main}
+                    </Text>
                     {activeJobTimer.label ? (
-                      <Text style={styles.timerLabel}>
+                      <Text
+                        style={[
+                          styles.timerLabel,
+                          activeJobTimer.variant === "startsIn" &&
+                            styles.timerLabelStartsIn,
+                          activeJobTimer.variant === "delay" &&
+                            styles.timerLabelDelay,
+                        ]}
+                      >
                         {activeJobTimer.label}
                       </Text>
                     ) : null}
@@ -586,7 +936,8 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                   No active booking
                 </Text>
                 <Text style={styles.activeJobEmptySub}>
-                  Jobs in progress and your next confirmed visit will show here.
+                  When you are en route, in progress, or within a confirmed visit
+                  window, it appears here. Past bookings are not shown.
                 </Text>
               </View>
               <TouchableOpacity
@@ -726,7 +1077,8 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
           ) : (
             <View style={[styles.scheduledCard, styles.scheduledCardEmpty]}>
               <Text style={styles.scheduledEmptyText}>
-                No other visits scheduled after this one in the loaded period.
+                No upcoming confirmed visits after your current job. Open the
+                schedule to see later bookings.
               </Text>
             </View>
           )}
@@ -756,30 +1108,56 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                   size={13}
                   color={C.success}
                 />
-                <Text style={styles.performanceBadgeText}>Excellent</Text>
+                <Text style={styles.performanceBadgeText}>
+                  {props.performanceBadgeLabel}
+                </Text>
               </View>
             </View>
 
-            <View style={styles.performanceGrid}>
-              {[
-                { value: "4.9", label: "RATING", pct: 98, color: C.success },
-                { value: "92%", label: "ACCEPT", pct: 92, color: C.amber },
-                { value: "100%", label: "COMPLETE", pct: 100, color: C.blue },
-              ].map((m) => (
-                <View key={m.label} style={styles.performanceMetric}>
-                  <Text style={styles.metricValue}>{m.value}</Text>
-                  <View style={styles.metricTrack}>
-                    <View
-                      style={[
-                        styles.metricFill,
-                        { width: `${m.pct}%`, backgroundColor: m.color },
-                      ]}
-                    />
+            {props.performanceLoading ? (
+              <View style={styles.performanceLoading}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.performanceLoadingText}>
+                  Loading performance…
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.performanceGrid}>
+                {[
+                  {
+                    value: props.performanceRating,
+                    label: "RATING",
+                    pct: clampPct((Number(props.performanceRating) / 5) * 100),
+                    color: C.success,
+                  },
+                  {
+                    value: `${props.performanceAcceptPct}%`,
+                    label: "ACCEPT",
+                    pct: props.performanceAcceptPct,
+                    color: C.amber,
+                  },
+                  {
+                    value: `${props.performanceCompletePct}%`,
+                    label: "COMPLETE",
+                    pct: props.performanceCompletePct,
+                    color: C.blue,
+                  },
+                ].map((m) => (
+                  <View key={m.label} style={styles.performanceMetric}>
+                    <Text style={styles.metricValue}>{m.value}</Text>
+                    <View style={styles.metricTrack}>
+                      <View
+                        style={[
+                          styles.metricFill,
+                          { width: `${m.pct}%`, backgroundColor: m.color },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.metricLabel}>{m.label}</Text>
                   </View>
-                  <Text style={styles.metricLabel}>{m.label}</Text>
-                </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            )}
           </View>
         </View>
 
@@ -793,47 +1171,7 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
               <Text style={styles.sectionTitle}>Provider Tips</Text>
             </View>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tipsRow}
-          >
-            {[
-              {
-                icon: "camera-outline",
-                title: "Take Photos",
-                sub: "Always take before & after photos to avoid disputes.",
-                iconBg: "#EFF6FF",
-                iconColor: C.blue,
-              },
-              {
-                icon: "shield-checkmark-outline",
-                title: "Safety First",
-                sub: "Wear your safety gear and ID badge at all times.",
-                iconBg: "#F5F3FF",
-                iconColor: C.purple,
-              },
-            ].map((tip) => (
-              <View key={tip.title} style={styles.tipCard}>
-                <View
-                  style={[
-                    styles.tipIconCircle,
-                    { backgroundColor: tip.iconBg },
-                  ]}
-                >
-                  <Ionicons
-                    name={tip.icon as any}
-                    size={18}
-                    color={tip.iconColor}
-                  />
-                </View>
-                <View style={styles.tipTextBlock}>
-                  <Text style={styles.tipTitle}>{tip.title}</Text>
-                  <Text style={styles.tipSub}>{tip.sub}</Text>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
+          <ProviderTipsCarousel />
         </View>
 
         <View style={{ height: 32 }} />
@@ -846,8 +1184,11 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
 export const ProviderHomeScreen: React.FC = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<ProviderStackParamList>>();
+  const { user } = useAuth();
+  const isEmployee = isEmployeeProvider(user);
   const { unreadCount, refreshUnreadCount, addNewNotificationListener } =
     useNotificationsRealtime();
+  const avatarUri = user?.provider?.photoUrl?.trim();
   const [activeJob, setActiveJob] =
     useState<ProviderCalendarAppointment | null>(null);
   const [activeJobLoading, setActiveJobLoading] = useState(true);
@@ -860,6 +1201,12 @@ export const ProviderHomeScreen: React.FC = () => {
     todayJobs: 0,
     yesterdayJobs: 0,
     completedToday: 0,
+  });
+  const [performanceLoading, setPerformanceLoading] = useState(true);
+  const [performanceStats, setPerformanceStats] = useState({
+    rating: "0.0",
+    acceptPct: 0,
+    completePct: 0,
   });
 
   useEffect(() => {
@@ -894,48 +1241,130 @@ export const ProviderHomeScreen: React.FC = () => {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
-          style={styles.notificationButton}
-          onPress={() => navigation.navigate("Notifications")}
-          activeOpacity={0.85}
-          accessibilityLabel="Notifications"
-        >
-          <Ionicons name="notifications-outline" size={20} color="#1A1A2E" />
-          {unreadCount > 0 ? (
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText} numberOfLines={1}>
-                {unreadCount > 99 ? "99+" : String(unreadCount)}
+        <View style={styles.navHeaderActions}>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => navigation.navigate("Notifications")}
+            activeOpacity={0.85}
+            accessibilityLabel="Notifications"
+          >
+            <Ionicons name="notifications-outline" size={20} color="#1A1A2E" />
+            {unreadCount > 0 ? (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText} numberOfLines={1}>
+                  {unreadCount > 99 ? "99+" : String(unreadCount)}
+                </Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.avatarContainer}
+            onPress={() => navigation.navigate("ProviderSettings")}
+            activeOpacity={0.8}
+            accessibilityLabel="Provider settings"
+          >
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            ) : (
+              <Text style={styles.avatarInitialText}>
+                {(user?.firstName?.[0] ?? "?").toUpperCase()}
               </Text>
-            </View>
-          ) : null}
-        </TouchableOpacity>
+            )}
+          </TouchableOpacity>
+        </View>
       ),
     });
-  }, [navigation, unreadCount]);
+  }, [navigation, unreadCount, avatarUri, user?.firstName]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       void (async () => {
         setActiveJobLoading(true);
+        setPerformanceLoading(true);
         try {
           const from = toYyyyMmDd(addDays(new Date(), -1));
           const to = toYyyyMmDd(addDays(new Date(), 14));
-          const res = await api.getProviderCalendar(from, to);
-          const rows = Array.isArray(res.data) ? res.data : [];
+          const [calendarRes, profileRes, appointmentsRes] = await Promise.all([
+            api.getProviderCalendar(from, to),
+            api.getProviderProfile(),
+            api.getMyAppointmentsAsProvider(),
+          ]);
+          const rows = Array.isArray(calendarRes.data) ? calendarRes.data : [];
           const mapped = rows
             .map((row) => mapProviderCalendarAppointmentRow(row))
-            .filter((x): x is ProviderCalendarAppointment => x !== null);
+            .filter((x): x is ProviderCalendarAppointment => x !== null)
+            .filter(
+              (a) =>
+                !isEmployee ||
+                isAppointmentVisibleToEmployeeProvider(a.status),
+            );
+          const profile = profileRes.data as {
+            provider?: { averageRating?: number | string | null };
+          };
+          const allAppointments = Array.isArray(appointmentsRes.data)
+            ? appointmentsRes.data
+            : [];
+          const now = new Date();
+          const weekStart = addDays(now, -6);
+          weekStart.setHours(0, 0, 0, 0);
+          const weeklyStatuses = allAppointments
+            .filter((raw) => {
+              if (!raw || typeof raw !== "object") return false;
+              const r = raw as Record<string, unknown>;
+              const d = new Date(
+                typeof r.scheduledDate === "string"
+                  ? r.scheduledDate
+                  : typeof r.createdAt === "string"
+                    ? r.createdAt
+                    : "",
+              );
+              if (Number.isNaN(d.getTime())) return false;
+              return d >= weekStart && d <= now;
+            })
+            .map((raw) => {
+              if (!raw || typeof raw !== "object") return null;
+              const st = (raw as Record<string, unknown>).status;
+              return typeof st === "string" ? (st as AppointmentStatus) : null;
+            })
+            .filter((s): s is AppointmentStatus => s !== null);
+          const acceptedStatuses = new Set<AppointmentStatus>([
+            "CONFIRMED",
+            "RESCHEDULED",
+            "EN_ROUTE",
+            "IN_PROGRESS",
+            "COMPLETED",
+          ]);
+          const decisionStatuses = new Set<AppointmentStatus>([
+            ...acceptedStatuses,
+            "REFUSED",
+            "CANCELLED_PROVIDER",
+          ]);
+          const decided = weeklyStatuses.filter((s) => decisionStatuses.has(s)).length;
+          const accepted = weeklyStatuses.filter((s) => acceptedStatuses.has(s)).length;
+          const completed = weeklyStatuses.filter((s) => s === "COMPLETED").length;
+          const acceptPct = decided > 0 ? clampPct((accepted / decided) * 100) : 0;
+          const completePct = accepted > 0 ? clampPct((completed / accepted) * 100) : 0;
+          const rating = formatRating(profile?.provider?.averageRating);
           if (!cancelled) {
             calendarRowsRef.current = mapped;
             setCalendarRows(mapped);
             const todayKey = toYyyyMmDd(new Date());
             const yesterdayKey = toYyyyMmDd(addDays(new Date(), -1));
             setCalendarStats({
-              todayJobs: countScheduledJobsOnDate(mapped, todayKey),
-              yesterdayJobs: countScheduledJobsOnDate(mapped, yesterdayKey),
+              todayJobs: countScheduledJobsOnDate(
+                mapped,
+                todayKey,
+                isEmployee,
+              ),
+              yesterdayJobs: countScheduledJobsOnDate(
+                mapped,
+                yesterdayKey,
+                isEmployee,
+              ),
               completedToday: countCompletedJobsOnDate(mapped, todayKey),
             });
+            setPerformanceStats({ rating, acceptPct, completePct });
             setActiveJob(pickHighlightAppointment(mapped, new Date()));
           }
         } catch {
@@ -948,15 +1377,23 @@ export const ProviderHomeScreen: React.FC = () => {
               yesterdayJobs: 0,
               completedToday: 0,
             });
+            setPerformanceStats({
+              rating: "0.0",
+              acceptPct: 0,
+              completePct: 0,
+            });
           }
         } finally {
-          if (!cancelled) setActiveJobLoading(false);
+          if (!cancelled) {
+            setActiveJobLoading(false);
+            setPerformanceLoading(false);
+          }
         }
       })();
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [isEmployee]),
   );
 
   const onCallClient = useCallback(async (appointmentId: string) => {
@@ -996,12 +1433,23 @@ export const ProviderHomeScreen: React.FC = () => {
     [calendarStats.todayJobs, calendarStats.completedToday],
   );
 
-  const nextScheduledAppointment = useMemo(
-    () => pickNextScheduledAfterActive(calendarRows, activeJob, new Date()),
-    [calendarRows, activeJob, timerTick],
-  );
+  const nextScheduledAppointment = useMemo(() => {
+    void timerTick;
+    return pickNextScheduledAfterActive(calendarRows, activeJob, new Date());
+  }, [calendarRows, activeJob, timerTick]);
 
   const todayYmd = useMemo(() => toYyyyMmDd(new Date()), [timerTick]);
+  const performanceBadgeLabel = useMemo(() => {
+    const score =
+      (Number(performanceStats.rating) / 5) * 40 +
+      performanceStats.acceptPct * 0.3 +
+      performanceStats.completePct * 0.3;
+    return performanceBadgeFromScore(score);
+  }, [
+    performanceStats.acceptPct,
+    performanceStats.completePct,
+    performanceStats.rating,
+  ]);
 
   return (
     <HomeActiveJobsScreen
@@ -1019,6 +1467,11 @@ export const ProviderHomeScreen: React.FC = () => {
       jobsVsYesterdayTrend={jobsVsYesterday.trend}
       completedTodayCount={calendarStats.completedToday}
       restJobsCount={restJobsCount}
+      performanceLoading={performanceLoading}
+      performanceRating={performanceStats.rating}
+      performanceAcceptPct={performanceStats.acceptPct}
+      performanceCompletePct={performanceStats.completePct}
+      performanceBadgeLabel={performanceBadgeLabel}
     />
   );
 };
@@ -1027,6 +1480,12 @@ export const ProviderHomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: C.bg },
 
+  navHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 4,
+    gap: 8,
+  },
   notificationButton: {
     width: 38,
     height: 38,
@@ -1037,7 +1496,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "visible",
-    marginRight: 4,
+  },
+  avatarContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: C.amberLight,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: C.amberBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatar: { width: "100%", height: "100%" },
+  avatarInitialText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: C.amberDark,
   },
   notificationBadge: {
     position: "absolute",
@@ -1119,6 +1594,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 999,
     borderBottomRightRadius: 999,
   },
+  progressFillStartsIn: { backgroundColor: "#EA580C" },
+  progressFillDelay: { backgroundColor: C.error },
+  progressFillElapsed: { backgroundColor: C.amber },
 
   activeJobLoadingCard: {
     flexDirection: "row",
@@ -1219,6 +1697,8 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
     fontVariant: ["tabular-nums"],
   },
+  timerTextStartsIn: { color: "#EA580C" },
+  timerTextDelay: { color: C.error },
   timerLabel: {
     marginTop: 2,
     fontSize: 9,
@@ -1226,6 +1706,8 @@ const styles = StyleSheet.create({
     color: C.muted,
     letterSpacing: 1,
   },
+  timerLabelStartsIn: { color: "#EA580C" },
+  timerLabelDelay: { color: C.error },
 
   detailsBox: {
     backgroundColor: C.borderLight,
@@ -1470,6 +1952,17 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   performanceBadgeText: { color: C.success, fontSize: 11, fontWeight: "800" },
+  performanceLoading: {
+    minHeight: 90,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  performanceLoadingText: {
+    color: "#A39A80",
+    fontSize: 12,
+    fontWeight: "600",
+  },
   performanceGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1498,32 +1991,4 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  /* Tips */
-  tipsRow: { gap: 12, paddingVertical: 4 },
-  tipCard: {
-    width: 252,
-    backgroundColor: C.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.border,
-    padding: 14,
-    flexDirection: "row",
-    gap: 12,
-    shadowColor: C.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  tipIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  tipTextBlock: { flex: 1 },
-  tipTitle: { fontSize: 13, fontWeight: "800", color: C.text, marginBottom: 5 },
-  tipSub: { fontSize: 12, fontWeight: "500", color: C.sub, lineHeight: 17 },
 });

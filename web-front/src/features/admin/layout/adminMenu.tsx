@@ -127,8 +127,7 @@ export function buildAdminMenuItems(c: MenuCountProps): MenuProps['items'] {
       label: 'Content Management',
       children: [
         { key: '/admin/content/legal-documents', label: 'Terms & Privacy' },
-        { key: '/admin/content/pages', label: 'Pages' },
-        { key: '/admin/content/media', label: 'Media' },
+        { key: '/admin/content/faq', label: 'FAQ' },
       ],
     },
     {

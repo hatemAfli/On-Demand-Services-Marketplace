@@ -25,6 +25,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { COLORS } from "../../../constants";
@@ -479,6 +480,26 @@ function timelineStatusKey(status: AppointmentStatus): AppointmentStatus {
   return "PENDING";
 }
 
+type TimelineConfirmationFlags = {
+  hasProviderStart: boolean;
+  hasClientStart: boolean;
+  hasProviderEnd: boolean;
+  hasClientEnd: boolean;
+};
+
+function getTimelineConfirmationFlags(
+  confirmations: Array<{ role: string; type: string }>,
+): TimelineConfirmationFlags {
+  const has = (role: string, type: string) =>
+    confirmations.some((c) => c.role === role && c.type === type);
+  return {
+    hasProviderStart: has("PROVIDER", "START"),
+    hasClientStart: has("CLIENT", "START"),
+    hasProviderEnd: has("PROVIDER", "END"),
+    hasClientEnd: has("CLIENT", "END"),
+  };
+}
+
 type TimelineProgress = {
   doneThrough: number;
   activeIdx: number;
@@ -489,7 +510,7 @@ type TimelineProgress = {
  * The green line runs to `activeIdx`; that step shows the active green circle.
  * COMPLETED: all checkmarks and a full green track.
  */
-function getTimelineProgress(status: AppointmentStatus): TimelineProgress {
+function getTimelineProgressFromStatus(status: AppointmentStatus): TimelineProgress {
   const idx = STATUS_ORDER.indexOf(timelineStatusKey(status));
   const lastIdx = STATUS_STEPS.length - 1;
 
@@ -502,6 +523,39 @@ function getTimelineProgress(status: AppointmentStatus): TimelineProgress {
   }
 
   return { doneThrough: idx, activeIdx: idx + 1 };
+}
+
+function getTimelineProgress(
+  status: AppointmentStatus,
+  flags: TimelineConfirmationFlags,
+): TimelineProgress {
+  const lastIdx = STATUS_STEPS.length - 1;
+  const enRouteIdx = STATUS_ORDER.indexOf("EN_ROUTE");
+  const inProgressIdx = STATUS_ORDER.indexOf("IN_PROGRESS");
+  const completedIdx = STATUS_ORDER.indexOf("COMPLETED");
+
+  if (status === "COMPLETED" || flags.hasClientEnd) {
+    return { doneThrough: lastIdx, activeIdx: -1 };
+  }
+
+  if (flags.hasProviderEnd && !flags.hasClientEnd) {
+    return { doneThrough: inProgressIdx, activeIdx: completedIdx };
+  }
+
+  if (
+    status === "IN_PROGRESS" ||
+    flags.hasClientStart ||
+    flags.hasProviderStart
+  ) {
+    if (flags.hasClientStart) {
+      return { doneThrough: enRouteIdx, activeIdx: inProgressIdx };
+    }
+    if (flags.hasProviderStart) {
+      return { doneThrough: enRouteIdx, activeIdx: inProgressIdx };
+    }
+  }
+
+  return getTimelineProgressFromStatus(status);
 }
 
 function getStepState(
@@ -526,6 +580,7 @@ function getTimelineStepMeta(
   state: "done" | "active" | "pending",
   status: AppointmentStatus,
   times: TimelineTimestamps,
+  flags: TimelineConfirmationFlags,
 ): string | null {
   switch (stepKey) {
     case "PENDING":
@@ -544,10 +599,24 @@ function getTimelineStepMeta(
         ? `Departed at ${formatDateTime(times.enRouteAt)}`
         : null;
     case "IN_PROGRESS":
+      if (
+        state === "active" &&
+        flags.hasProviderStart &&
+        !flags.hasClientStart
+      ) {
+        return "Provider arrived — confirm to start";
+      }
       return times.startedAt && state !== "pending"
         ? `Started at ${formatDateTime(times.startedAt)}`
         : null;
     case "COMPLETED":
+      if (
+        state === "active" &&
+        flags.hasProviderEnd &&
+        !flags.hasClientEnd
+      ) {
+        return "Provider ended — confirm completion";
+      }
       return times.completedAt && status === "COMPLETED"
         ? `Completed at ${formatDateTime(times.completedAt)}`
         : null;
@@ -721,11 +790,14 @@ function DetailRow({
 function StatusTimeline({
   status,
   timestamps,
+  confirmations,
 }: {
   status: AppointmentStatus;
   timestamps: TimelineTimestamps;
+  confirmations: Array<{ role: string; type: string; confirmedAt: string }>;
 }) {
-  const progress = getTimelineProgress(status);
+  const flags = getTimelineConfirmationFlags(confirmations);
+  const progress = getTimelineProgress(status, flags);
   const totalSegments = STATUS_STEPS.length - 1;
   const lineTargetIdx =
     progress.activeIdx >= 0 ? progress.activeIdx : progress.doneThrough;
@@ -752,6 +824,7 @@ function StatusTimeline({
             state,
             status,
             timestamps,
+            flags,
           );
           return (
             <View key={step.key} style={detailUi.timelineStep}>
@@ -1132,10 +1205,27 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
 
   useAppointmentRealtime(
     appointmentId,
-    useCallback((raw) => {
-      const parsed = normalizeDetail(unwrapAppointmentApiPayload(raw));
-      if (parsed) setAppointment(parsed);
-    }, []),
+    useCallback(
+      (raw) => {
+        try {
+          const parsed = normalizeDetail(unwrapAppointmentApiPayload(raw));
+          if (parsed.id) {
+            setAppointment(parsed);
+            return;
+          }
+        } catch {
+          /* fall through to refetch */
+        }
+        void loadAppointment({ silent: true });
+      },
+      [loadAppointment],
+    ),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadAppointment({ silent: true });
+    }, [loadAppointment]),
   );
 
   const hasClientStart = appointment
@@ -1443,6 +1533,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
                 <SectionHeader icon="list-outline" title="Order Status" />
                 <StatusTimeline
                   status={appointment.status}
+                  confirmations={appointment.confirmations}
                   timestamps={{
                     createdAt: appointment.createdAt,
                     confirmedAt: appointment.confirmedAt,

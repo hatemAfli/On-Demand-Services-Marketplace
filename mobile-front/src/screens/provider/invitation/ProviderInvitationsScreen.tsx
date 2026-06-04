@@ -1,4 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+
+
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,7 +22,14 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ProviderStackParamList } from "../../../navigation/types";
 import { COLORS } from "../../../constants";
-import { api, type ReceivedInvitation } from "../../../services/api";
+import { useAuth } from "../../../context/AuthContext";
+import { useAppTranslation } from "../../../hooks/useAppTranslation";
+import {
+  api,
+  type InvitationFilter,
+  type ReceivedInvitation,
+  type ReceivedInvitationStatus,
+} from "../../../services/api";
 
 type Nav = NativeStackNavigationProp<ProviderStackParamList, "ProviderInvitations">;
 
@@ -51,6 +61,31 @@ function formatDate(iso: string): string {
 }
 
 /** Returns expiry descriptor: amber warning if < 24h, otherwise gray. */
+function isInvitationActionable(invitation: ReceivedInvitation): boolean {
+  if (invitation.status !== "PENDING") return false;
+  return new Date(invitation.expiresAt).getTime() > Date.now();
+}
+
+function statusPillColors(status: ReceivedInvitationStatus): {
+  bg: string;
+  text: string;
+  border: string;
+} {
+  switch (status) {
+    case "PENDING":
+      return { bg: "#FFFBEB", text: "#B45309", border: "#FDE68A" };
+    case "CANCELLED":
+      return { bg: "#F8FAFC", text: "#64748B", border: "#E2E8F0" };
+    case "DECLINED":
+      return { bg: "#FEF2F2", text: "#B91C1C", border: "#FECACA" };
+    case "ACCEPTED":
+      return { bg: "#ECFDF5", text: "#047857", border: "#A7F3D0" };
+    case "EXPIRED":
+    default:
+      return { bg: "#F8FAFC", text: "#64748B", border: "#E2E8F0" };
+  }
+}
+
 function expiryInfo(expiresAt: string): { text: string; urgent: boolean } {
   const ms = new Date(expiresAt).getTime() - Date.now();
   const hours = ms / (1000 * 60 * 60);
@@ -66,6 +101,7 @@ function expiryInfo(expiresAt: string): { text: string; urgent: boolean } {
 
 type CardProps = {
   invitation: ReceivedInvitation;
+  statusLabel: string;
   responding: "ACCEPTED" | "DECLINED" | null;
   removing: boolean;
   onRespond: (action: "ACCEPTED" | "DECLINED") => void;
@@ -74,6 +110,7 @@ type CardProps = {
 
 const InvitationCard: React.FC<CardProps> = ({
   invitation,
+  statusLabel,
   responding,
   removing,
   onRespond,
@@ -96,6 +133,8 @@ const InvitationCard: React.FC<CardProps> = ({
     `${invitation.sentByAdmin.user.firstName} ${invitation.sentByAdmin.user.lastName}`.trim();
   const expiry = expiryInfo(invitation.expiresAt);
   const isBusy = responding !== null;
+  const actionable = isInvitationActionable(invitation);
+  const pill = statusPillColors(invitation.status);
 
   return (
     <Animated.View
@@ -127,9 +166,23 @@ const InvitationCard: React.FC<CardProps> = ({
         )}
 
         <View style={styles.headerText}>
-          <Text style={styles.companyName} numberOfLines={1}>
-            {company.companyName}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.companyName} numberOfLines={1}>
+              {company.companyName}
+            </Text>
+            {!actionable ? (
+              <View
+                style={[
+                  styles.statusPill,
+                  { backgroundColor: pill.bg, borderColor: pill.border },
+                ]}
+              >
+                <Text style={[styles.statusPillText, { color: pill.text }]}>
+                  {statusLabel}
+                </Text>
+              </View>
+            ) : null}
+          </View>
           <View style={styles.metaRow}>
             <Ionicons name="location-outline" size={13} color={COLORS.text.tertiary} />
             <Text style={styles.metaText} numberOfLines={1}>
@@ -190,47 +243,54 @@ const InvitationCard: React.FC<CardProps> = ({
       ) : null}
 
       {/* Actions */}
-      <View style={styles.actionsRow}>
-        <TouchableOpacity
-          style={[styles.btn, styles.declineBtn, isBusy && styles.btnDisabled]}
-          activeOpacity={0.85}
-          disabled={isBusy}
-          onPress={() => onRespond("DECLINED")}
-        >
-          {responding === "DECLINED" ? (
-            <ActivityIndicator size="small" color={COLORS.error} />
-          ) : (
-            <>
-              <Ionicons name="close" size={16} color={COLORS.error} />
-              <Text style={styles.declineText}>Decline</Text>
-            </>
-          )}
-        </TouchableOpacity>
+      {actionable ? (
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.btn, styles.declineBtn, isBusy && styles.btnDisabled]}
+            activeOpacity={0.85}
+            disabled={isBusy}
+            onPress={() => onRespond("DECLINED")}
+          >
+            {responding === "DECLINED" ? (
+              <ActivityIndicator size="small" color={COLORS.error} />
+            ) : (
+              <>
+                <Ionicons name="close" size={16} color={COLORS.error} />
+                <Text style={styles.declineText}>Decline</Text>
+              </>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.btn, styles.acceptBtn, isBusy && styles.btnDisabled]}
-          activeOpacity={0.85}
-          disabled={isBusy}
-          onPress={() => onRespond("ACCEPTED")}
-        >
-          {responding === "ACCEPTED" ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
-          ) : (
-            <>
-              <Ionicons name="checkmark" size={16} color={COLORS.white} />
-              <Text style={styles.acceptText}>Accept</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.btn, styles.acceptBtn, isBusy && styles.btnDisabled]}
+            activeOpacity={0.85}
+            disabled={isBusy}
+            onPress={() => onRespond("ACCEPTED")}
+          >
+            {responding === "ACCEPTED" ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={16} color={COLORS.white} />
+                <Text style={styles.acceptText}>Accept</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </Animated.View>
   );
 };
 
+const FILTER_OPTIONS: InvitationFilter[] = ["all", "pending", "cancelled"];
+
 export const ProviderInvitationsScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
+  const { t } = useAppTranslation();
+  const { refreshUser } = useAuth();
 
+  const [filter, setFilter] = useState<InvitationFilter>("pending");
   const [invitations, setInvitations] = useState<ReceivedInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -240,24 +300,60 @@ export const ProviderInvitationsScreen: React.FC = () => {
   >(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
-  const load = useCallback(async (mode: "initial" | "refresh") => {
-    if (mode === "initial") setLoading(true);
-    else setRefreshing(true);
-    try {
-      const res = await api.getMyReceivedInvitations();
-      setInvitations(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      setInvitations([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (mode: "initial" | "refresh") => {
+      if (mode === "initial") setLoading(true);
+      else setRefreshing(true);
+      try {
+        const res = await api.getMyReceivedInvitations(filter);
+        setInvitations(Array.isArray(res.data) ? res.data : []);
+      } catch {
+        setInvitations([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [filter],
+  );
 
   useFocusEffect(
     useCallback(() => {
       void load("initial");
     }, [load]),
+  );
+
+  const invitationStatusLabel = useCallback(
+    (status: ReceivedInvitationStatus): string => {
+      switch (status) {
+        case "PENDING":
+          return t("provider.invitations.statusPending");
+        case "CANCELLED":
+          return t("provider.invitations.statusCancelled");
+        case "DECLINED":
+          return t("provider.invitations.statusDeclined");
+        case "ACCEPTED":
+          return t("provider.invitations.statusAccepted");
+        case "EXPIRED":
+        default:
+          return t("provider.invitations.statusExpired");
+      }
+    },
+    [t],
+  );
+
+  const filterLabel = useCallback(
+    (key: InvitationFilter): string => {
+      switch (key) {
+        case "all":
+          return t("provider.invitations.filterAll");
+        case "pending":
+          return t("provider.invitations.filterPending");
+        case "cancelled":
+          return t("provider.invitations.filterCancelled");
+      }
+    },
+    [t],
   );
 
   const handleRespond = useCallback(
@@ -267,6 +363,9 @@ export const ProviderInvitationsScreen: React.FC = () => {
       setRespondingAction(action);
       try {
         await api.respondToInvitation(id, { action });
+        if (action === "ACCEPTED") {
+          await refreshUser();
+        }
         showToast(
           action === "ACCEPTED"
             ? "Invitation accepted — welcome to the team!"
@@ -283,13 +382,34 @@ export const ProviderInvitationsScreen: React.FC = () => {
         setRespondingAction(null);
       }
     },
-    [respondingId],
+    [respondingId, refreshUser],
   );
 
   const handleRemoved = useCallback((id: string) => {
     setInvitations((prev) => prev.filter((i) => i.id !== id));
     setRemovingId(null);
   }, []);
+
+  const emptyCopy = useMemo(() => {
+    switch (filter) {
+      case "all":
+        return {
+          title: t("provider.invitations.emptyAllTitle"),
+          subtitle: t("provider.invitations.emptyAllSubtitle"),
+        };
+      case "cancelled":
+        return {
+          title: t("provider.invitations.emptyCancelledTitle"),
+          subtitle: t("provider.invitations.emptyCancelledSubtitle"),
+        };
+      case "pending":
+      default:
+        return {
+          title: t("provider.invitations.emptyPendingTitle"),
+          subtitle: t("provider.invitations.emptyPendingSubtitle"),
+        };
+    }
+  }, [filter, t]);
 
   const renderEmpty = () => {
     if (loading) return null;
@@ -298,10 +418,8 @@ export const ProviderInvitationsScreen: React.FC = () => {
         <View style={styles.emptyIconCircle}>
           <Ionicons name="briefcase-outline" size={40} color={COLORS.primary} />
         </View>
-        <Text style={styles.emptyTitle}>No pending invitations</Text>
-        <Text style={styles.emptySubtitle}>
-          When a company invites you to join their team, it will appear here.
-        </Text>
+        <Text style={styles.emptyTitle}>{emptyCopy.title}</Text>
+        <Text style={styles.emptySubtitle}>{emptyCopy.subtitle}</Text>
       </View>
     );
   };
@@ -317,7 +435,9 @@ export const ProviderInvitationsScreen: React.FC = () => {
         >
           <Ionicons name="chevron-back" size={24} color={COLORS.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Job Invitations</Text>
+        <Text style={styles.headerTitle}>
+          {t("provider.screenTitles.ProviderInvitations")}
+        </Text>
         <View style={styles.headerRight}>
           {invitations.length > 0 ? (
             <View style={styles.countBadge}>
@@ -325,6 +445,29 @@ export const ProviderInvitationsScreen: React.FC = () => {
             </View>
           ) : null}
         </View>
+      </View>
+
+      <View style={styles.filterBar}>
+        {FILTER_OPTIONS.map((key) => {
+          const active = filter === key;
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[styles.filterChip, active && styles.filterChipActive]}
+              activeOpacity={0.85}
+              onPress={() => setFilter(key)}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  active && styles.filterChipTextActive,
+                ]}
+              >
+                {filterLabel(key)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {loading ? (
@@ -352,6 +495,7 @@ export const ProviderInvitationsScreen: React.FC = () => {
           renderItem={({ item }) => (
             <InvitationCard
               invitation={item}
+              statusLabel={invitationStatusLabel(item.status)}
               responding={respondingId === item.id ? respondingAction : null}
               removing={removingId === item.id}
               onRespond={(action) => void handleRespond(item.id, action)}
@@ -406,6 +550,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  filterBar: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  filterChip: {
+    flex: 1,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.gray[50],
+    borderWidth: 1,
+    borderColor: COLORS.gray[100],
+  },
+  filterChipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.text.secondary,
+  },
+  filterChipTextActive: {
+    color: COLORS.white,
+  },
   loadingWrap: {
     flex: 1,
     alignItems: "center",
@@ -455,10 +630,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 2,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   companyName: {
+    flex: 1,
     fontSize: 16,
     fontWeight: "800",
     color: COLORS.text.primary,
+  },
+  statusPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
   metaRow: {
     flexDirection: "row",

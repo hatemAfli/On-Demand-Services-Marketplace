@@ -1,9 +1,10 @@
 import React, { useCallback, useLayoutEffect, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Image,
   ScrollView,
   StatusBar,
+  StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
@@ -22,6 +23,7 @@ import type { ClientStackParamList } from "../../../navigation/types";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import { useAuth } from "../../../context/AuthContext";
 import { AuthNoticeModal } from "../../../components/common";
+import { api } from "../../../services/api";
 import { SettingsRow } from "./SettingsRow";
 import { styles } from "./styles";
 
@@ -29,6 +31,31 @@ type Nav = NativeStackNavigationProp<ClientStackParamList>;
 
 const APP_VERSION =
   Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "1.0.0";
+
+function StatValue({
+  loading,
+  children,
+}: {
+  loading: boolean;
+  children: React.ReactNode;
+}) {
+  if (loading) {
+    return (
+      <View style={statStyles.valueWrap}>
+        <ActivityIndicator size="small" color="#4F46E5" />
+      </View>
+    );
+  }
+  return <Text style={styles.statValue}>{children}</Text>;
+}
+
+const statStyles = StyleSheet.create({
+  valueWrap: {
+    minHeight: 22,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+});
 
 export const ClientSettingsScreen: React.FC = () => {
   const { t, language, setLanguage } = useAppTranslation();
@@ -40,6 +67,10 @@ export const ClientSettingsScreen: React.FC = () => {
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] =
     useState(true);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [ordersCount, setOrdersCount] = useState(0);
+  const [reviewsCount, setReviewsCount] = useState(0);
+  const [savedCount, setSavedCount] = useState(0);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -59,6 +90,51 @@ export const ClientSettingsScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       void refreshUser();
+
+      let alive = true;
+
+      const loadStats = async () => {
+        setStatsLoading(true);
+        try {
+          const [appointmentsRes, favoritesRes, reviewsRes] = await Promise.all([
+            api.getMyAppointmentsAsClient(),
+            api.getClientFavorites(),
+            api.getMyClientReviewsCount(),
+          ]);
+
+          if (!alive) return;
+
+          const appointments = Array.isArray(appointmentsRes.data)
+            ? appointmentsRes.data
+            : [];
+          setOrdersCount(appointments.length);
+
+          const favoriteItems = favoritesRes.data?.items;
+          setSavedCount(
+            Array.isArray(favoriteItems) ? favoriteItems.length : 0,
+          );
+
+          const reviewTotal = reviewsRes.data?.count;
+          setReviewsCount(
+            typeof reviewTotal === "number" && Number.isFinite(reviewTotal)
+              ? reviewTotal
+              : 0,
+          );
+        } catch {
+          if (!alive) return;
+          setOrdersCount(0);
+          setReviewsCount(0);
+          setSavedCount(0);
+        } finally {
+          if (alive) setStatsLoading(false);
+        }
+      };
+
+      void loadStats();
+
+      return () => {
+        alive = false;
+      };
     }, [refreshUser]),
   );
 
@@ -79,11 +155,8 @@ export const ClientSettingsScreen: React.FC = () => {
 
   const onLogout = () => setLogoutModalVisible(true);
 
-  const comingSoon = (message: string) => () =>
-    Alert.alert(t("client.settings.comingSoonTitle"), message);
-
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+    <SafeAreaView style={styles.safeArea} edges={[ "left", "right"]}>
       <StatusBar barStyle="dark-content" />
 
       <ScrollView
@@ -151,19 +224,19 @@ export const ClientSettingsScreen: React.FC = () => {
               <Text style={styles.statLabel}>
                 {t("client.settings.statOrders")}
               </Text>
-              <Text style={styles.statValue}>0</Text>
+              <StatValue loading={statsLoading}>{ordersCount}</StatValue>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>
                 {t("client.settings.statReviews")}
               </Text>
-              <Text style={styles.statValue}>0</Text>
+              <StatValue loading={statsLoading}>{reviewsCount}</StatValue>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>
                 {t("client.settings.statSaved")}
               </Text>
-              <Text style={styles.statValue}>0</Text>
+              <StatValue loading={statsLoading}>{savedCount}</StatValue>
             </View>
           </View>
         </View>
@@ -367,6 +440,24 @@ export const ClientSettingsScreen: React.FC = () => {
               subtitle={t("client.settings.menuPrivacyHint")}
               onPress={() => navigation.navigate("ClientPrivacy")}
             />
+            <View style={styles.cardDivider} />
+            <SettingsRow
+              icon="circle-question"
+              iconBackground="#EEF2FF"
+              iconColor="#4F46E5"
+              title={t("support.menuFaq")}
+              subtitle={t("support.menuFaqHint")}
+              onPress={() => navigation.navigate("ClientFaq")}
+            />
+            <View style={styles.cardDivider} />
+            <SettingsRow
+              icon="envelope-open-text"
+              iconBackground="#F0FDFA"
+              iconColor="#0F766E"
+              title={t("support.menuContact")}
+              subtitle={t("support.menuContactHint")}
+              onPress={() => navigation.navigate("ClientContactUs")}
+            />
           </View>
         </View>
 
@@ -375,15 +466,6 @@ export const ClientSettingsScreen: React.FC = () => {
             {t("client.settings.sectionActions")}
           </Text>
           <View style={styles.card}>
-            <SettingsRow
-              icon="headset"
-              iconBackground="#F0FDFA"
-              iconColor="#0F766E"
-              title={t("client.settings.helpCenter")}
-              subtitle={t("client.settings.helpCenterHint")}
-              onPress={() => navigation.navigate("ClientMyComplaints")}
-            />
-            <View style={styles.cardDivider} />
             <SettingsRow
               icon="user-slash"
               iconBackground="#FEF2F2"

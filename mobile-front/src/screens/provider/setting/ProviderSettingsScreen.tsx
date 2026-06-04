@@ -1,5 +1,6 @@
 import React, { useCallback, useLayoutEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   ScrollView,
   StatusBar,
@@ -32,21 +33,35 @@ type Nav = NativeStackNavigationProp<ProviderStackParamList>;
 const APP_VERSION =
   Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "1.0.0";
 
-const inviteBadgeStyles = StyleSheet.create({
-  badge: {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#4F46E5",
-    alignItems: "center",
+function formatProviderRating(value: unknown): string {
+  const rating = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(rating) || rating <= 0) return "0.0";
+  return rating.toFixed(1);
+}
+
+function StatValue({
+  loading,
+  children,
+}: {
+  loading: boolean;
+  children: React.ReactNode;
+}) {
+  if (loading) {
+    return (
+      <View style={statStyles.valueWrap}>
+        <ActivityIndicator size="small" color="#4F46E5" />
+      </View>
+    );
+  }
+
+  return <Text style={styles.statValue}>{children}</Text>;
+}
+
+const statStyles = StyleSheet.create({
+  valueWrap: {
+    minHeight: 22,
     justifyContent: "center",
-    paddingHorizontal: 6,
-    marginRight: 4,
-  },
-  badgeText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "800",
+    alignItems: "flex-start",
   },
 });
 
@@ -61,7 +76,9 @@ export const ProviderSettingsScreen: React.FC = () => {
     useState(true);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [servicesCount, setServicesCount] = useState(0);
-  const [invitationsCount, setInvitationsCount] = useState(0);
+  const [ordersCount, setOrdersCount] = useState(0);
+  const [averageRating, setAverageRating] = useState("0.0");
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const displayName =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
@@ -94,41 +111,57 @@ export const ProviderSettingsScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      const loadServicesCount = async () => {
+
+      const loadStats = async () => {
+        setStatsLoading(true);
         try {
-          const res = await api.getMyVerificationDocuments();
-          const docs = Array.isArray(res.data) ? (res.data as any[]) : [];
+          const [profileRes, completedRes, docsRes] = await Promise.all([
+            api.getProviderProfile(),
+            api.getMyAppointmentsAsProvider("COMPLETED"),
+            api.getMyVerificationDocuments(),
+          ]);
+
+          if (!alive) return;
+
+          const profile = profileRes.data as {
+            provider?: { averageRating?: number | string | null };
+          };
+          setAverageRating(
+            formatProviderRating(profile?.provider?.averageRating),
+          );
+
+          const completed = Array.isArray(completedRes.data)
+            ? completedRes.data
+            : [];
+          setOrdersCount(completed.length);
+
+          const docs = Array.isArray(docsRes.data) ? (docsRes.data as any[]) : [];
           const unique = new Set<string>();
           for (const doc of docs) {
             const id = doc?.verificationRequest?.service?.id;
             if (typeof id === "string" && id.trim()) unique.add(id);
           }
-          if (alive) setServicesCount(unique.size);
+          setServicesCount(unique.size);
         } catch {
-          if (alive) setServicesCount(0);
+          if (!alive) return;
+          setOrdersCount(0);
+          setAverageRating(formatProviderRating(user?.provider?.averageRating));
+          setServicesCount(0);
+        } finally {
+          if (alive) setStatsLoading(false);
         }
       };
-      void loadServicesCount();
 
-      const loadInvitationsCount = async () => {
-        try {
-          const res = await api.getMyReceivedInvitations();
-          const items = Array.isArray(res.data) ? res.data : [];
-          if (alive) setInvitationsCount(items.length);
-        } catch {
-          if (alive) setInvitationsCount(0);
-        }
-      };
-      void loadInvitationsCount();
+      void loadStats();
 
       return () => {
         alive = false;
       };
-    }, []),
+    }, [user?.provider?.averageRating]),
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+    <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
       <StatusBar barStyle="dark-content" />
 
       <ScrollView
@@ -193,19 +226,19 @@ export const ProviderSettingsScreen: React.FC = () => {
               <Text style={styles.statLabel}>
                 {t("provider.settings.statOrders")}
               </Text>
-              <Text style={styles.statValue}>0</Text>
+              <StatValue loading={statsLoading}>{ordersCount}</StatValue>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>
                 {t("provider.screenTitles.ProviderRatings")}
               </Text>
-              <Text style={styles.statValue}>0</Text>
+              <StatValue loading={statsLoading}>{averageRating}</StatValue>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>
                 {t("provider.settings.statServices")}
               </Text>
-              <Text style={styles.statValue}>{servicesCount}</Text>
+              <StatValue loading={statsLoading}>{servicesCount}</StatValue>
             </View>
           </View>
         </View>
@@ -222,33 +255,6 @@ export const ProviderSettingsScreen: React.FC = () => {
               title={t("provider.settings.menuProfile")}
               subtitle={t("provider.settings.menuProfileHint")}
               onPress={() => navigation.navigate("ProviderProfile")}
-            />
-            <View style={styles.cardDivider} />
-            <SettingsRow
-              icon="star"
-              iconBackground="#FFFBEB"
-              iconColor="#D97706"
-              title={t("provider.settings.menuMyReviews")}
-              subtitle={t("provider.settings.menuMyReviewsHint")}
-              onPress={() => navigation.navigate("ProviderReviews")}
-            />
-            <View style={styles.cardDivider} />
-            <SettingsRow
-              icon="briefcase"
-              iconBackground="#EEF2FF"
-              iconColor="#4F46E5"
-              title="Job Invitations"
-              subtitle="Invitations from companies to join their team"
-              onPress={() => navigation.navigate("ProviderInvitations")}
-              trailing={
-                invitationsCount > 0 ? (
-                  <View style={inviteBadgeStyles.badge}>
-                    <Text style={inviteBadgeStyles.badgeText}>
-                      {invitationsCount > 99 ? "99+" : String(invitationsCount)}
-                    </Text>
-                  </View>
-                ) : undefined
-              }
             />
             <View style={styles.cardDivider} />
             <SettingsRow
@@ -427,6 +433,24 @@ export const ProviderSettingsScreen: React.FC = () => {
               subtitle={t("provider.settings.menuPrivacyHint")}
               onPress={() => navigation.navigate("ProviderPrivacy")}
             />
+            <View style={styles.cardDivider} />
+            <SettingsRow
+              icon="circle-question"
+              iconBackground="#EEF2FF"
+              iconColor="#4F46E5"
+              title={t("support.menuFaq")}
+              subtitle={t("support.menuFaqHint")}
+              onPress={() => navigation.navigate("ProviderFaq")}
+            />
+            <View style={styles.cardDivider} />
+            <SettingsRow
+              icon="envelope-open-text"
+              iconBackground="#F0FDFA"
+              iconColor="#0F766E"
+              title={t("support.menuContact")}
+              subtitle={t("support.menuContactHint")}
+              onPress={() => navigation.navigate("ProviderContactUs")}
+            />
           </View>
         </View>
 
@@ -435,15 +459,6 @@ export const ProviderSettingsScreen: React.FC = () => {
             {t("provider.settings.sectionActions")}
           </Text>
           <View style={styles.card}>
-            <SettingsRow
-              icon="headset"
-              iconBackground="#F0FDFA"
-              iconColor="#0F766E"
-              title={t("provider.settings.helpCenter")}
-              subtitle={t("provider.settings.helpCenterHint")}
-              onPress={() => navigation.navigate("ProviderComplaints")}
-            />
-            <View style={styles.cardDivider} />
             <SettingsRow
               icon="user-slash"
               iconBackground="#FEF2F2"

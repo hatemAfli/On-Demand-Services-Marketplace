@@ -99,8 +99,15 @@ export class ProviderInvitationsController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Get()
-  getMyReceivedInvitations(@CurrentUser() user: AuthUser) {
-    return this.employeesService.getMyReceivedInvitations(user.id);
+  getMyReceivedInvitations(
+    @CurrentUser() user: AuthUser,
+    @Query('filter') filter?: string,
+  ) {
+    const normalized =
+      filter === 'all' || filter === 'pending' || filter === 'cancelled'
+        ? filter
+        : 'pending';
+    return this.employeesService.getMyReceivedInvitations(user.id, normalized);
   }
 
   @Patch(':invitationId/respond')

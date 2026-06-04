@@ -1100,6 +1100,233 @@
 
 .sc-drawer-btn-danger:hover { background: #fef2f2; }
 
+/* ── Date navigation ──────────────────────────────────────── */
+.sc-date-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sc-date-btn,
+.sc-today-btn,
+.sc-refresh-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #374151;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sc-today-btn { width: auto; padding: 0 14px; font-size: 12px; font-weight: 600; }
+.sc-date-center {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #1f2937;
+  flex: 1;
+  min-width: 200px;
+}
+
+.sc-loading {
+  padding: 48px 20px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.sc-error { color: #dc2626; }
+
+.sc-alert-empty {
+  padding: 16px;
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.sc-bars-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.sc-prov-initials {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #f3e8ff;
+  color: #7e22ce;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sc-manage-btn {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #7621c2;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.sc-manage-btn:hover { background: #f5f3ff; }
+
+.sc-provider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sc-modal-wide { max-width: 560px; }
+
+.sc-editor-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 0 20px;
+}
+
+.sc-editor-tabs button {
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-family: inherit;
+}
+
+.sc-editor-tabs button.active {
+  color: #7621c2;
+  border-bottom-color: #7621c2;
+}
+
+.sc-weekly-grid { display: flex; flex-direction: column; gap: 10px; }
+
+.sc-weekly-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.sc-day-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  min-width: 120px;
+  cursor: pointer;
+}
+
+.sc-time-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.sc-time-inputs input {
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.sc-day-off-label { font-size: 12px; color: #9ca3af; font-style: italic; }
+
+.sc-daysoff-section { display: flex; flex-direction: column; gap: 14px; }
+
+.sc-dayoff-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sc-dayoff-form input {
+  flex: 1;
+  min-width: 120px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.sc-dayoff-list { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
+
+.sc-dayoff-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.sc-dayoff-item strong { display: block; font-size: 13px; color: #111827; }
+.sc-dayoff-item small { display: block; font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+.sc-dayoff-remove {
+  padding: 4px 10px;
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: #dc2626;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sc-dayoff-empty { font-size: 12px; color: #94a3b8; margin: 0; }
+
+.sc-conflict-group {
+  padding: 12px;
+  border: 1px solid #fee2e2;
+  border-radius: 12px;
+  background: #fef2f2;
+  margin-bottom: 10px;
+}
+
+.sc-conflict-group strong { display: block; margin-bottom: 8px; color: #b91c1c; font-size: 13px; }
+
+.sc-conflict-group .sc-conflict-booking {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #991b1b;
+  padding: 4px 0;
+}
+
+.sc-drawer-hint {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 16px 0 0;
+  line-height: 1.5;
+}
+
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 1024px) {
   .sc-top-grid { grid-template-columns: 1fr; }

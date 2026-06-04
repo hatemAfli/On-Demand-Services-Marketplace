@@ -44,6 +44,8 @@ import { ProviderDeleteAccountScreen } from "../screens/provider/setting/Provide
 import { ProviderDocumentDetailsScreen } from "../screens/provider/setting/ProviderDocumentDetailsScreen";
 import { TermsScreen } from "../screens/auth/TermsScreen";
 import { PrivacyScreen } from "../screens/auth/PrivacyScreen";
+import { FaqScreen } from "../screens/shared/FaqScreen";
+import { ContactUsScreen } from "../screens/shared/ContactUsScreen";
 
 const Stack = createNativeStackNavigator<ProviderStackParamList>();
 
@@ -254,6 +256,8 @@ export const ProviderOverlayNavigator: React.FC = () => {
         />
         <Stack.Screen name="ProviderTerms" component={TermsScreen} />
         <Stack.Screen name="ProviderPrivacy" component={PrivacyScreen} />
+        <Stack.Screen name="ProviderFaq" component={FaqScreen} />
+        <Stack.Screen name="ProviderContactUs" component={ContactUsScreen} />
       </Stack.Navigator>
       </ProviderSidebarProvider>
 

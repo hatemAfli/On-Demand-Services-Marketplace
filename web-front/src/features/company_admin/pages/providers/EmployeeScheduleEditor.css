@@ -1,0 +1,212 @@
+.ese-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ese-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.ese-error {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 12px;
+}
+
+.ese-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 16px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.ese-spin {
+  animation: eseSpin 0.8s linear infinite;
+}
+
+@keyframes eseSpin {
+  to { transform: rotate(360deg); }
+}
+
+.ese-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.ese-tabs button {
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-family: inherit;
+}
+
+.ese-tabs button.active {
+  color: #7621c2;
+  border-bottom-color: #7621c2;
+}
+
+.ese-weekly-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ese-weekly-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.ese-day-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  min-width: 110px;
+  cursor: pointer;
+}
+
+.ese-time-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.ese-time-inputs input {
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.ese-off-label {
+  font-size: 12px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.ese-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.ese-save-btn {
+  padding: 8px 16px;
+  background: #7621c2;
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ese-save-btn:hover:not(:disabled) {
+  background: #5d199a;
+}
+
+.ese-save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ese-daysoff-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ese-dayoff-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ese-dayoff-form input {
+  flex: 1;
+  min-width: 120px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.ese-dayoff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.ese-dayoff-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.ese-dayoff-item strong {
+  display: block;
+  font-size: 13px;
+  color: #111827;
+}
+
+.ese-dayoff-item small {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.ese-dayoff-remove {
+  padding: 4px 10px;
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: #dc2626;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ese-dayoff-empty {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+  text-align: center;
+  padding: 16px;
+}

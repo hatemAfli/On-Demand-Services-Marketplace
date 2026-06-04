@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import { useMessagingUnreadTotal } from "../../../hooks/useMessagingUnreadTotal";
 import { useNotificationsRealtime } from "../../../context/NotificationsRealtimeContext";
+import { api } from "../../../services/api";
 import type { UserWithProfile } from "../../../types";
 import { ProviderType } from "../../../types";
 
@@ -57,6 +58,11 @@ const MENU_ITEMS = [
     key: "Notifications",
     labelKey: "provider.sidebar.menu.notifications",
     icon: "notifications-outline",
+  },
+  {
+    key: "ProviderInvitations",
+    labelKey: "provider.sidebar.menu.invitations",
+    icon: "briefcase-outline",
   },
   {
     key: "ProviderComplaints",
@@ -115,10 +121,27 @@ export const ProviderSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
     useMessagingUnreadTotal(isOpen);
   const { unreadCount: notificationUnread, refreshUnreadCount } =
     useNotificationsRealtime();
+  const [invitationsCount, setInvitationsCount] = useState(0);
 
   useEffect(() => {
     if (!isOpen) return;
     void refreshUnreadCount();
+
+    let alive = true;
+    const loadInvitationsCount = async () => {
+      try {
+        const res = await api.getMyReceivedInvitations();
+        const items = Array.isArray(res.data) ? res.data : [];
+        if (alive) setInvitationsCount(items.length);
+      } catch {
+        if (alive) setInvitationsCount(0);
+      }
+    };
+    void loadInvitationsCount();
+
+    return () => {
+      alive = false;
+    };
   }, [isOpen, refreshUnreadCount]);
 
   const handleLogout = async () => {
@@ -249,6 +272,13 @@ export const ProviderSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
                 ) : null}
                 {item.key === "Notifications" && notificationUnread > 0 ? (
                   <View style={styles.menuDot} />
+                ) : null}
+                {item.key === "ProviderInvitations" && invitationsCount > 0 ? (
+                  <View style={styles.menuBadge}>
+                    <Text style={styles.menuBadgeText}>
+                      {formatSidebarBadgeCount(invitationsCount)}
+                    </Text>
+                  </View>
                 ) : null}
               </View>
               <Text

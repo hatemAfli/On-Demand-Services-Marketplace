@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,7 +20,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type {
   NativeStackNavigationProp,
   NativeStackScreenProps,
@@ -51,6 +51,8 @@ type GivenServiceDetails = {
   totalCompletedJobs: number;
   galleries: { id: string; imageUrl: string }[];
   bookingProviderId?: string | null;
+  /** Set when the offering is from a company employee (routes booking to company admin). */
+  bookingCompanyId?: string | null;
   owner: {
     id?: string;
     /** User.id of the provider to message (independent: same as provider id; company: first linked provider). */
@@ -64,8 +66,49 @@ type GivenServiceDetails = {
     languagesSpoken: string[];
     paymentMethodsAccepted: string[];
     isTopProvider?: boolean;
+    city?: string | null;
+    address?: string | null;
+    cancellationRate?: number;
+    averageResponseTime?: number | null;
+    totalComplaints?: number;
   };
 };
+
+function formatCancellationRate(rate: number): string {
+  return `${Number(rate).toFixed(1)}%`;
+}
+
+function formatResponseTime(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined || !Number.isFinite(minutes)) {
+    return "—";
+  }
+  const rounded = Math.max(0, Math.round(minutes));
+  if (rounded < 60) return `${rounded} min`;
+  const hours = Math.floor(rounded / 60);
+  const mins = rounded % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+function cancellationTone(rate: number): "good" | "warn" | "bad" {
+  if (rate <= 5) return "good";
+  if (rate <= 12) return "warn";
+  return "bad";
+}
+
+function responseTone(minutes: number | null | undefined): "good" | "warn" | "bad" | "neutral" {
+  if (minutes === null || minutes === undefined || !Number.isFinite(minutes)) {
+    return "neutral";
+  }
+  if (minutes <= 60) return "good";
+  if (minutes <= 120) return "warn";
+  return "bad";
+}
+
+function complaintsTone(count: number): "good" | "warn" | "bad" {
+  if (count <= 0) return "good";
+  if (count <= 2) return "warn";
+  return "bad";
+}
 
 export type ReviewItem = {
   id: string;
@@ -400,6 +443,77 @@ function StatPill({
   );
 }
 
+function TrustMetricCard({
+  icon,
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  hint: string;
+  tone: "good" | "warn" | "bad" | "neutral";
+}) {
+  const toneStyles =
+    tone === "good"
+      ? trustMetricToneStyles.good
+      : tone === "warn"
+        ? trustMetricToneStyles.warn
+        : tone === "bad"
+          ? trustMetricToneStyles.bad
+          : trustMetricToneStyles.neutral;
+
+  return (
+    <View style={[styles.trustMetricCard, toneStyles.card]}>
+      <View style={[styles.trustMetricIconWrap, toneStyles.iconWrap]}>
+        <Ionicons name={icon} size={16} color={toneStyles.iconColor} />
+      </View>
+      <Text style={[styles.trustMetricValue, toneStyles.value]} numberOfLines={1}>
+        {value}
+      </Text>
+      <Text style={styles.trustMetricLabel} numberOfLines={2}>
+        {label}
+      </Text>
+      <Text style={[styles.trustMetricHint, toneStyles.hint]} numberOfLines={2}>
+        {hint}
+      </Text>
+    </View>
+  );
+}
+
+const trustMetricToneStyles = {
+  good: {
+    card: { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
+    iconWrap: { backgroundColor: "#FFFFFF", borderColor: "#86EFAC" },
+    iconColor: "#059669",
+    value: { color: "#065F46" },
+    hint: { color: "#047857" },
+  },
+  warn: {
+    card: { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" },
+    iconWrap: { backgroundColor: "#FFFFFF", borderColor: "#FCD34D" },
+    iconColor: "#B45309",
+    value: { color: "#92400E" },
+    hint: { color: "#A16207" },
+  },
+  bad: {
+    card: { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },
+    iconWrap: { backgroundColor: "#FFFFFF", borderColor: "#FCA5A5" },
+    iconColor: "#DC2626",
+    value: { color: "#991B1B" },
+    hint: { color: "#B91C1C" },
+  },
+  neutral: {
+    card: { backgroundColor: C.accentPale, borderColor: C.accentBorder },
+    iconWrap: { backgroundColor: C.white, borderColor: C.accentBorder },
+    iconColor: C.accent,
+    value: { color: C.text },
+    hint: { color: C.textMuted },
+  },
+} as const;
+
 // ─── Section wrapper ────────────────────────────────────────
 function Section({
   title,
@@ -575,6 +689,22 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({ route }) => {
       cancelled = true;
     };
   }, [givenServiceId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (loading) return;
+      let cancelled = false;
+      void api
+        .getGivenServiceDetails(givenServiceId)
+        .then((res) => {
+          if (!cancelled) setData(res.data as GivenServiceDetails);
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }, [givenServiceId, loading]),
+  );
 
   const ownerId = data?.owner?.id;
 
@@ -828,7 +958,6 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({ route }) => {
                   <Ionicons name="person" size={32} color={C.accent} />
                 </View>
               )}
-              {/* Gold ring */}
               <View style={styles.avatarRing} />
             </View>
 
@@ -854,12 +983,91 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({ route }) => {
             </View>
           </View>
 
+          {data.owner.city?.trim() || data.owner.address?.trim() ? (
+            <View style={styles.locationCard}>
+              <View style={styles.locationIconWrap}>
+                <Ionicons name="location" size={16} color={C.accent} />
+              </View>
+              <View style={styles.locationTextCol}>
+                {data.owner.city?.trim() ? (
+                  <Text style={styles.locationCity} numberOfLines={1}>
+                    {data.owner.city.trim()}
+                  </Text>
+                ) : null}
+                {data.owner.address?.trim() ? (
+                  <Text style={styles.locationAddress} numberOfLines={2}>
+                    {data.owner.address.trim()}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+
           {data.owner.isTopProvider ? (
             <View style={styles.topProviderBadge}>
               <Ionicons name="ribbon" size={13} color={C.topAmberText} />
               <Text style={styles.topProviderText}>Top Provider</Text>
             </View>
           ) : null}
+
+          <View style={styles.trustMetricsSection}>
+            <View style={styles.trustMetricsHeader}>
+              <Text style={styles.trustMetricsTitle}>Reliability</Text>
+              <Text style={styles.trustMetricsSubtitle}>
+                Based on booking history
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.trustMetricsGrid,
+                data.owner.type === "COMPANY" && styles.trustMetricsGridTwo,
+              ]}
+            >
+              <TrustMetricCard
+                icon="close-circle-outline"
+                label="Cancellation rate"
+                value={formatCancellationRate(data.owner.cancellationRate ?? 0)}
+                hint={
+                  (data.owner.cancellationRate ?? 0) <= 5
+                    ? "Very reliable"
+                    : (data.owner.cancellationRate ?? 0) <= 12
+                      ? "Acceptable"
+                      : "Higher than average"
+                }
+                tone={cancellationTone(data.owner.cancellationRate ?? 0)}
+              />
+              <TrustMetricCard
+                icon="timer-outline"
+                label="Avg response"
+                value={formatResponseTime(data.owner.averageResponseTime)}
+                hint={
+                  data.owner.averageResponseTime == null
+                    ? "No data yet"
+                    : (data.owner.averageResponseTime ?? 0) <= 60
+                      ? "Fast replies"
+                      : (data.owner.averageResponseTime ?? 0) <= 120
+                        ? "Moderate speed"
+                        : "Slower responses"
+                }
+                tone={responseTone(data.owner.averageResponseTime)}
+              />
+              {data.owner.type !== "COMPANY" ? (
+                <TrustMetricCard
+                  icon="alert-circle-outline"
+                  label="Complaints"
+                  value={String(data.owner.totalComplaints ?? 0)}
+                  hint={
+                    (data.owner.totalComplaints ?? 0) <= 0
+                      ? "No complaints"
+                      : (data.owner.totalComplaints ?? 0) <= 2
+                        ? "Few reports"
+                        : "Review carefully"
+                  }
+                  tone={complaintsTone(data.owner.totalComplaints ?? 0)}
+                />
+              ) : null}
+            </View>
+          </View>
 
           {/* Stats row */}
           <View style={styles.statsRow}>
@@ -1257,6 +1465,7 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({ route }) => {
                 }
                 navigation.navigate("ClientSlotPicker", {
                   providerId: providerIdForBooking,
+                  companyId: data.bookingCompanyId ?? undefined,
                   givenServiceId: data.givenServiceId,
                   providerName: data.owner.displayName,
                   serviceName: data.serviceName,
@@ -1414,6 +1623,54 @@ const styles = StyleSheet.create({
     gap: 14,
     marginTop: 0,
   },
+  locationCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: C.accentPale,
+    borderWidth: 1,
+    borderColor: C.accentBorder,
+  },
+  locationIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: C.white,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.accentBorder,
+    flexShrink: 0,
+    ...Platform.select({
+      ios: {
+        shadowColor: C.accent,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.12,
+        shadowRadius: 4,
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  locationTextCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  locationCity: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: C.text,
+    letterSpacing: -0.2,
+  },
+  locationAddress: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: C.textMuted,
+    lineHeight: 18,
+  },
   avatarWrapper: {
     position: "relative",
     width: 84,
@@ -1491,6 +1748,75 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: C.topAmberText,
     letterSpacing: 0.3,
+  },
+
+  trustMetricsSection: {
+    gap: 10,
+  },
+  trustMetricsHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  trustMetricsTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: C.text,
+    letterSpacing: -0.2,
+  },
+  trustMetricsSubtitle: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: C.textMuted,
+    flexShrink: 1,
+    textAlign: "right",
+  },
+  trustMetricsGrid: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  trustMetricsGridTwo: {
+    justifyContent: "space-between",
+  },
+  trustMetricCard: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    gap: 4,
+  },
+  trustMetricIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  trustMetricValue: {
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+    textAlign: "center",
+  },
+  trustMetricLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: C.text,
+    textAlign: "center",
+    lineHeight: 13,
+  },
+  trustMetricHint: {
+    fontSize: 9,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 12,
+    marginTop: 1,
   },
 
   // Stats

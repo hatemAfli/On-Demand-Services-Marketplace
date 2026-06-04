@@ -13,8 +13,22 @@ export class CreateAppointmentDto {
   @IsUUID()
   givenServiceId!: string;
 
+  /**
+   * Required for independent-provider bookings.
+   * For company bookings it is optional: when omitted the company admin assigns
+   * a provider later ("any available provider" mode).
+   */
+  @IsOptional()
   @IsUUID()
-  providerId!: string;
+  providerId?: string;
+
+  /**
+   * Set when booking with a company. The company admin manages the request
+   * (accept / refuse / reschedule / assign a free provider).
+   */
+  @IsOptional()
+  @IsUUID()
+  companyId?: string;
 
   @IsDateString()
   scheduledDate!: string;

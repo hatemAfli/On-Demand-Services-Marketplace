@@ -98,4 +98,29 @@ export class SupabaseService {
       console.warn('[SupabaseService] remove avatars failed', removeError);
     }
   }
+
+  /** Parse object path from a Supabase public URL, e.g. `{givenServiceId}/file.jpg`. */
+  parsePublicObjectPath(bucket: string, publicUrl: string): string | null {
+    const base = this.configService.get<string>('SUPABASE_URL')?.replace(/\/$/, '');
+    if (!base) return null;
+    const marker = `/storage/v1/object/public/${bucket}/`;
+    const idx = publicUrl.indexOf(marker);
+    if (idx === -1) return null;
+    const path = publicUrl.slice(idx + marker.length).split('?')[0];
+    return path || null;
+  }
+
+  /** Delete one object from a bucket using its public URL. */
+  async removeStorageObjectByPublicUrl(
+    bucket: string,
+    publicUrl: string,
+  ): Promise<void> {
+    const objectPath = this.parsePublicObjectPath(bucket, publicUrl);
+    if (!objectPath) return;
+
+    const { error } = await this.supabase.storage.from(bucket).remove([objectPath]);
+    if (error) {
+      console.warn('[SupabaseService] remove storage object failed', error);
+    }
+  }
 }

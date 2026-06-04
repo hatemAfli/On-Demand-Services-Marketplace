@@ -1,4 +1,4 @@
-import { ComplaintCategory } from '@prisma/client';
+import { ComplaintCategory, ComplaintForwardTarget } from '@prisma/client';
 import {
   ArrayMaxSize,
   IsArray,
@@ -29,4 +29,9 @@ export class CreateComplaintDto {
   @IsString({ each: true })
   @ArrayMaxSize(5)
   evidenceUrls?: string[];
+
+  /** Required when the reported provider is a company employee. */
+  @IsOptional()
+  @IsEnum(ComplaintForwardTarget)
+  forwardTarget?: ComplaintForwardTarget;
 }

@@ -22,9 +22,57 @@ type Props = NativeStackScreenProps<
   ClientStackParamList,
   "ClientSearchProvider"
 >;
-type SortKey = "RECOMMENDED" | "RATING_DESC" | "PRICE_ASC";
-type OwnerTypeFilter = "ALL" | "PROVIDER" | "COMPANY";
-type GenderFilter = "ALL" | "MALE" | "FEMALE";
+type SearchSegment = "PROVIDER" | "COMPANY";
+type ProviderFilterKey =
+  | "BEST_MATCH"
+  | "TOP_RATED"
+  | "LOWEST_PRICE"
+  | "AVAILABLE"
+  | "MALE"
+  | "FEMALE";
+type CompanyFilterKey = "BEST_MATCH" | "TOP_RATED" | "LOWEST_PRICE";
+
+type SearchQueryParams = {
+  ownerType: SearchSegment;
+  sort: "RECOMMENDED" | "RATING_DESC" | "PRICE_ASC";
+  isAvailableImmediately?: boolean;
+  gender?: "MALE" | "FEMALE";
+};
+
+function buildSearchQueryParams(
+  segment: SearchSegment,
+  providerFilter: ProviderFilterKey,
+  companyFilter: CompanyFilterKey,
+): SearchQueryParams {
+  if (segment === "PROVIDER") {
+    const base = { ownerType: "PROVIDER" as const };
+    switch (providerFilter) {
+      case "TOP_RATED":
+        return { ...base, sort: "RATING_DESC" };
+      case "LOWEST_PRICE":
+        return { ...base, sort: "PRICE_ASC" };
+      case "AVAILABLE":
+        return { ...base, sort: "RECOMMENDED", isAvailableImmediately: true };
+      case "MALE":
+        return { ...base, sort: "RECOMMENDED", gender: "MALE" };
+      case "FEMALE":
+        return { ...base, sort: "RECOMMENDED", gender: "FEMALE" };
+      case "BEST_MATCH":
+      default:
+        return { ...base, sort: "RECOMMENDED" };
+    }
+  }
+
+  switch (companyFilter) {
+    case "TOP_RATED":
+      return { ownerType: "COMPANY", sort: "RATING_DESC" };
+    case "LOWEST_PRICE":
+      return { ownerType: "COMPANY", sort: "PRICE_ASC" };
+    case "BEST_MATCH":
+    default:
+      return { ownerType: "COMPANY", sort: "RECOMMENDED" };
+  }
+}
 
 type SearchResultItem = {
   givenServiceId: string;
@@ -35,9 +83,11 @@ type SearchResultItem = {
   averageRating: number;
   totalReviews: number;
   serviceRadiusKm: number | null;
+  providerCount?: number;
   galleries: { id: string; imageUrl: string }[];
   owner: {
     id: string;
+    type: "PROVIDER" | "COMPANY";
     displayName: string;
     photoUrl: string | null;
     city: string;
@@ -115,11 +165,11 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sort, setSort] = useState<SortKey>("RECOMMENDED");
-  const [onlyAvailable, setOnlyAvailable] = useState(false);
-  const [onlyTop, setOnlyTop] = useState(false);
-  const [ownerType, setOwnerType] = useState<OwnerTypeFilter>("ALL");
-  const [gender, setGender] = useState<GenderFilter>("ALL");
+  const [searchSegment, setSearchSegment] = useState<SearchSegment>("PROVIDER");
+  const [providerFilter, setProviderFilter] =
+    useState<ProviderFilterKey>("BEST_MATCH");
+  const [companyFilter, setCompanyFilter] =
+    useState<CompanyFilterKey>("BEST_MATCH");
   const [items, setItems] = useState<SearchResultItem[]>([]);
   const [favoriteProviderIds, setFavoriteProviderIds] = useState<Set<string>>(
     new Set(),
@@ -132,6 +182,11 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
   const [limit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  const searchQuery = useMemo(
+    () => buildSearchQueryParams(searchSegment, providerFilter, companyFilter),
+    [searchSegment, providerFilter, companyFilter],
+  );
 
   useEffect(() => {
     if (!serviceId) {
@@ -152,11 +207,10 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
           serviceId,
           clientLat,
           clientLng,
-          sort,
-          ownerType: ownerType === "ALL" ? undefined : ownerType,
-          gender: gender === "ALL" ? undefined : gender,
-          isAvailableImmediately: onlyAvailable ? true : undefined,
-          isTopProvider: onlyTop ? true : undefined,
+          sort: searchQuery.sort,
+          ownerType: searchQuery.ownerType,
+          gender: searchQuery.gender,
+          isAvailableImmediately: searchQuery.isAvailableImmediately,
           page: targetPage,
           limit,
         });
@@ -200,48 +254,82 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [
-    clientLat,
-    clientLng,
-    onlyAvailable,
-    onlyTop,
-    ownerType,
-    gender,
-    serviceId,
-    sort,
-    limit,
-    t,
-  ]);
+  }, [clientLat, clientLng, searchQuery, serviceId, limit, t]);
 
-  const resultLabel = useMemo(
-    () =>
-      total === 1
-        ? t("client.searchProvider.resultsCountOne", { count: total })
-        : t("client.searchProvider.resultsCountMany", { count: total }),
-    [total, t],
-  );
+  const resultLabel = useMemo(() => {
+    if (searchSegment === "COMPANY") {
+      return total === 1
+        ? t("client.searchProvider.companiesCountOne", { count: total })
+        : t("client.searchProvider.companiesCountMany", { count: total });
+    }
+    return total === 1
+      ? t("client.searchProvider.resultsCountOne", { count: total })
+      : t("client.searchProvider.resultsCountMany", { count: total });
+  }, [total, searchSegment, t]);
 
-  const sortOptions = useMemo(
+  const providerFilterOptions = useMemo(
     () =>
       [
         {
-          key: "RECOMMENDED" as const,
+          key: "BEST_MATCH" as const,
           label: t("client.searchProvider.sortBestMatch"),
           icon: "sparkles-outline",
         },
         {
-          key: "RATING_DESC" as const,
+          key: "TOP_RATED" as const,
           label: t("client.searchProvider.sortTopRated"),
           icon: "star-outline",
         },
         {
-          key: "PRICE_ASC" as const,
+          key: "LOWEST_PRICE" as const,
+          label: t("client.searchProvider.sortLowestPrice"),
+          icon: "pricetag-outline",
+        },
+        {
+          key: "AVAILABLE" as const,
+          label: t("client.searchProvider.filterAvailableNow"),
+          icon: "flash-outline",
+        },
+        {
+          key: "MALE" as const,
+          label: t("client.searchProvider.filterMale"),
+          icon: "male-outline",
+        },
+        {
+          key: "FEMALE" as const,
+          label: t("client.searchProvider.filterFemale"),
+          icon: "female-outline",
+        },
+      ] as const,
+    [t],
+  );
+
+  const companyFilterOptions = useMemo(
+    () =>
+      [
+        {
+          key: "BEST_MATCH" as const,
+          label: t("client.searchProvider.sortBestMatch"),
+          icon: "sparkles-outline",
+        },
+        {
+          key: "TOP_RATED" as const,
+          label: t("client.searchProvider.sortTopRated"),
+          icon: "star-outline",
+        },
+        {
+          key: "LOWEST_PRICE" as const,
           label: t("client.searchProvider.sortLowestPrice"),
           icon: "pricetag-outline",
         },
       ] as const,
     [t],
   );
+
+  const activeFilterOptions =
+    searchSegment === "PROVIDER" ? providerFilterOptions : companyFilterOptions;
+  const activeFilterKey =
+    searchSegment === "PROVIDER" ? providerFilter : companyFilter;
 
   const canLoadMore = page < totalPages;
 
@@ -254,11 +342,10 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
         serviceId,
         clientLat,
         clientLng,
-        sort,
-        ownerType: ownerType === "ALL" ? undefined : ownerType,
-        gender: gender === "ALL" ? undefined : gender,
-        isAvailableImmediately: onlyAvailable ? true : undefined,
-        isTopProvider: onlyTop ? true : undefined,
+        sort: searchQuery.sort,
+        ownerType: searchQuery.ownerType,
+        gender: searchQuery.gender,
+        isAvailableImmediately: searchQuery.isAvailableImmediately,
         page: nextPage,
         limit,
       });
@@ -343,6 +430,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
       .slice(0, 2)
       .toUpperCase();
 
+    const isCompany = item.owner.type === "COMPANY";
     const isFavorite = favoriteProviderIds.has(item.owner.id);
     const favoriteLoading = favoriteBusyIds.has(item.owner.id);
 
@@ -379,32 +467,41 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
 
     return (
       <View style={styles.card}>
-        <TouchableOpacity
-          style={[
-            styles.cardFavoriteButton,
-            isFavorite && styles.cardFavoriteButtonActive,
-          ]}
-          onPress={() => {
-            void toggleFavorite();
-          }}
-          disabled={favoriteLoading}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={t("client.searchProvider.a11yToggleFavorite")}
-        >
-          {favoriteLoading ? (
-            <ActivityIndicator
-              size="small"
-              color={isFavorite ? "#FFFFFF" : "#EF4444"}
-            />
-          ) : (
-            <Ionicons
-              name={isFavorite ? "heart" : "heart-outline"}
-              size={15}
-              color={isFavorite ? "#FFFFFF" : "#EF4444"}
-            />
-          )}
-        </TouchableOpacity>
+        {!isCompany ? (
+          <TouchableOpacity
+            style={[
+              styles.cardFavoriteButton,
+              isFavorite && styles.cardFavoriteButtonActive,
+            ]}
+            onPress={() => {
+              void toggleFavorite();
+            }}
+            disabled={favoriteLoading}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={t("client.searchProvider.a11yToggleFavorite")}
+          >
+            {favoriteLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={isFavorite ? "#FFFFFF" : "#EF4444"}
+              />
+            ) : (
+              <Ionicons
+                name={isFavorite ? "heart" : "heart-outline"}
+                size={15}
+                color={isFavorite ? "#FFFFFF" : "#EF4444"}
+              />
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.companyTag}>
+            <Ionicons name="business" size={11} color="#7C5CFC" />
+            <Text style={styles.companyTagText}>
+              {t("client.searchProvider.companyTag")}
+            </Text>
+          </View>
+        )}
         <View style={styles.cardRow}>
           <View style={styles.leftAvatarWrap}>
             {profileImage ? (
@@ -460,6 +557,16 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
             </View>
 
             <View style={styles.badgesRow}>
+              {isCompany && item.providerCount ? (
+                <View style={styles.badgeCount}>
+                  <Ionicons name="people" size={11} color="#7C5CFC" />
+                  <Text style={styles.badgeCountText}>
+                    {t("client.searchProvider.providersCount", {
+                      count: item.providerCount,
+                    })}
+                  </Text>
+                </View>
+              ) : null}
               {item.owner.isTopProvider ? (
                 <View style={styles.badgeTop}>
                   <Ionicons name="medal" size={11} color="#B45309" />
@@ -498,13 +605,23 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
                 style={styles.ctaBtn}
                 activeOpacity={0.85}
                 onPress={() =>
-                  navigation.navigate("ClientProviderProfile", {
-                    givenServiceId: item.givenServiceId,
-                  })
+                  isCompany
+                    ? navigation.navigate("ClientCompanyProfile", {
+                        companyId: item.owner.id,
+                        serviceId: serviceId ?? "",
+                        serviceName,
+                        clientLat,
+                        clientLng,
+                      })
+                    : navigation.navigate("ClientProviderProfile", {
+                        givenServiceId: item.givenServiceId,
+                      })
                 }
               >
                 <Text style={styles.ctaBtnText}>
-                  {t("client.searchProvider.viewProfile")}
+                  {isCompany
+                    ? t("client.searchProvider.viewCompany")
+                    : t("client.searchProvider.viewProfile")}
                 </Text>
                 <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
               </TouchableOpacity>
@@ -551,83 +668,89 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
             <Ionicons name="heart" size={18} color="#EF4444" />
           </TouchableOpacity>
         </View>
+
+        {/* Providers / Companies */}
+        <View style={styles.segmentRow}>
+          <TouchableOpacity
+            style={[
+              styles.segmentBtn,
+              searchSegment === "PROVIDER" && styles.segmentBtnActive,
+            ]}
+            onPress={() => setSearchSegment("PROVIDER")}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityState={{ selected: searchSegment === "PROVIDER" }}
+          >
+            <Ionicons
+              name="person-outline"
+              size={14}
+              color={searchSegment === "PROVIDER" ? "#7C5CFC" : "#9B9BB0"}
+            />
+            <Text
+              style={[
+                styles.segmentBtnText,
+                searchSegment === "PROVIDER" && styles.segmentBtnTextActive,
+              ]}
+            >
+              {t("client.searchProvider.tabProviders")}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.segmentBtn,
+              searchSegment === "COMPANY" && styles.segmentBtnActive,
+            ]}
+            onPress={() => setSearchSegment("COMPANY")}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityState={{ selected: searchSegment === "COMPANY" }}
+          >
+            <Ionicons
+              name="business-outline"
+              size={14}
+              color={searchSegment === "COMPANY" ? "#7C5CFC" : "#9B9BB0"}
+            />
+            <Text
+              style={[
+                styles.segmentBtnText,
+                searchSegment === "COMPANY" && styles.segmentBtnTextActive,
+              ]}
+            >
+              {t("client.searchProvider.tabCompanies")}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Filter bar */}
+      {/* Filter chips for active segment */}
       <View style={styles.filtersRow}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filtersContent}
         >
-          {/* Sort chips */}
-          <View style={styles.chipGroupLabel}>
-            <Text style={styles.chipGroupLabelText}>
-              {t("client.searchProvider.filterSort")}
-            </Text>
-          </View>
-          {sortOptions.map((opt) => (
+          {activeFilterOptions.map((opt) => (
             <Chip
               key={opt.key}
               label={opt.label}
               icon={opt.icon}
-              active={sort === opt.key}
-              onPress={() => setSort(opt.key)}
-              accent="violet"
+              active={activeFilterKey === opt.key}
+              onPress={() => {
+                if (searchSegment === "PROVIDER") {
+                  setProviderFilter(opt.key as ProviderFilterKey);
+                } else {
+                  setCompanyFilter(opt.key as CompanyFilterKey);
+                }
+              }}
+              accent={
+                opt.key === "AVAILABLE"
+                  ? "emerald"
+                  : opt.key === "TOP_RATED"
+                    ? "amber"
+                    : "violet"
+              }
             />
           ))}
-
-          <View style={styles.chipDivider} />
-
-          {/* Filter chips */}
-          <Chip
-            label={t("client.searchProvider.filterAvailableNow")}
-            icon="flash-outline"
-            active={onlyAvailable}
-            onPress={() => setOnlyAvailable((v) => !v)}
-            accent="emerald"
-          />
-          <Chip
-            label={t("client.searchProvider.filterTopProvider")}
-            icon="medal-outline"
-            active={onlyTop}
-            onPress={() => setOnlyTop((v) => !v)}
-            accent="amber"
-          />
-          <Chip
-            label={t("client.searchProvider.filterIndependent")}
-            icon="person-outline"
-            active={ownerType === "PROVIDER"}
-            onPress={() =>
-              setOwnerType((v) => (v === "PROVIDER" ? "ALL" : "PROVIDER"))
-            }
-            accent="violet"
-          />
-          <Chip
-            label={t("client.searchProvider.filterCompany")}
-            icon="business-outline"
-            active={ownerType === "COMPANY"}
-            onPress={() =>
-              setOwnerType((v) => (v === "COMPANY" ? "ALL" : "COMPANY"))
-            }
-            accent="violet"
-          />
-          <Chip
-            label={t("client.searchProvider.filterMale")}
-            icon="male-outline"
-            active={gender === "MALE"}
-            onPress={() => setGender((v) => (v === "MALE" ? "ALL" : "MALE"))}
-            accent="violet"
-          />
-          <Chip
-            label={t("client.searchProvider.filterFemale")}
-            icon="female-outline"
-            active={gender === "FEMALE"}
-            onPress={() =>
-              setGender((v) => (v === "FEMALE" ? "ALL" : "FEMALE"))
-            }
-            accent="violet"
-          />
         </ScrollView>
       </View>
 
@@ -636,7 +759,9 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
           <View style={styles.loadingCard}>
             <ActivityIndicator size="large" color="#7C5CFC" />
             <Text style={styles.loadingText}>
-              {t("client.searchProvider.loading")}
+              {searchSegment === "COMPANY"
+                ? t("client.searchProvider.loadingCompanies")
+                : t("client.searchProvider.loading")}
             </Text>
           </View>
         </View>
@@ -663,10 +788,14 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
                 <Ionicons name="search-outline" size={32} color="#9B9BB0" />
               </View>
               <Text style={styles.emptyTitle}>
-                {t("client.searchProvider.emptyTitle")}
+                {searchSegment === "COMPANY"
+                  ? t("client.searchProvider.emptyCompaniesTitle")
+                  : t("client.searchProvider.emptyTitle")}
               </Text>
               <Text style={styles.emptySub}>
-                {t("client.searchProvider.emptySub")}
+                {searchSegment === "COMPANY"
+                  ? t("client.searchProvider.emptyCompaniesSub")
+                  : t("client.searchProvider.emptySub")}
               </Text>
             </View>
           }
@@ -743,6 +872,35 @@ const styles = StyleSheet.create({
     color: "#9B9BB0",
     fontWeight: "500",
     marginTop: 1,
+  },
+  segmentRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+  },
+  segmentBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#EBEBF5",
+    backgroundColor: "#F9F8FF",
+  },
+  segmentBtnActive: {
+    backgroundColor: "#EDE9FE",
+    borderColor: "#C4B5FD",
+  },
+  segmentBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#9B9BB0",
+  },
+  segmentBtnTextActive: {
+    color: "#7C5CFC",
   },
 
   /* Filter bar */
@@ -902,6 +1060,34 @@ const styles = StyleSheet.create({
   cardFavoriteButtonActive: {
     backgroundColor: "#EF4444",
   },
+  companyTag: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#EDE9FE",
+    borderWidth: 1,
+    borderColor: "#C4B5FD",
+    zIndex: 3,
+  },
+  companyTagText: { fontSize: 10, fontWeight: "800", color: "#7C5CFC" },
+  badgeCount: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#EDE9FE",
+    borderWidth: 1,
+    borderColor: "#C4B5FD",
+  },
+  badgeCountText: { fontSize: 11, color: "#7C5CFC", fontWeight: "700" },
   cardRow: {
     flexDirection: "row",
     alignItems: "flex-start",

@@ -9,6 +9,7 @@ import {
   AppointmentStatus,
   NotificationType,
   OwnerType,
+  ProviderType,
 } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { AvailabilityService } from '../availability/availability.service';
@@ -18,6 +19,16 @@ import { ClientRespondRescheduleDto, ClientRescheduleAction } from './dto/client
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { ExecutionAction, ExecutionActionDto } from './dto/execution-action.dto';
 import { ProviderRespondAction, RespondAppointmentDto } from './dto/respond-appointment.dto';
+import {
+  recomputeIndependentProviderAverageResponseTime,
+  recomputeIndependentProviderCancellationRate,
+} from './helpers/recompute-provider-metrics';
+import {
+  backfillCompletedJobsCount,
+  finalizeAppointmentCompletion,
+  hasProviderEndConfirmation,
+} from './helpers/complete-appointment';
+import { recomputeProviderTopProviderStatus } from './helpers/top-provider-status';
 
 @Injectable()
 export class AppointmentsService {
@@ -34,6 +45,7 @@ export class AppointmentsService {
     },
     client: { include: { user: true } },
     provider: { include: { user: true } },
+    company: true,
     confirmations: true,
     complaints: {
       select: { id: true },
@@ -63,32 +75,50 @@ export class AppointmentsService {
       throw new BadRequestException('Given service is not active or does not exist');
     }
 
-    const provider = await this.prisma.provider.findUnique({
-      where: { id: dto.providerId },
-      select: { id: true, companyId: true },
-    });
-    if (!provider) {
-      throw new NotFoundException('Provider not found');
+    // For "any provider" company bookings the client doesn't choose a provider;
+    // the company admin assigns one later.
+    const assignedProviderId = dto.providerId ?? null;
+
+    let providerMeta: { type: ProviderType; companyId: string | null } | null =
+      null;
+    if (assignedProviderId) {
+      providerMeta = await this.prisma.provider.findUnique({
+        where: { id: assignedProviderId },
+        select: { type: true, companyId: true },
+      });
+      if (!providerMeta) {
+        throw new NotFoundException('Provider not found');
+      }
     }
 
-    const providerMatchesGivenService =
-      (givenService.ownerType === OwnerType.PROVIDER &&
-        givenService.ownerId === dto.providerId) ||
-      (givenService.ownerType === OwnerType.COMPANY &&
-        provider.companyId &&
-        provider.companyId === givenService.ownerId);
-    if (!providerMatchesGivenService) {
-      throw new BadRequestException('Provider does not match the selected given service');
+    const isCompanyBooking = !!dto.companyId;
+    const isEmployeeBooking =
+      !isCompanyBooking &&
+      providerMeta?.type === ProviderType.EMPLOYEE &&
+      !!providerMeta.companyId;
+    const appointmentCompanyId =
+      dto.companyId ?? (isEmployeeBooking ? providerMeta!.companyId : null);
+
+    if (isCompanyBooking) {
+      await this.validateCompanyBooking(dto, givenService);
+    } else {
+      if (!assignedProviderId) {
+        throw new BadRequestException('providerId is required for this booking');
+      }
+      await this.validateProviderBooking(dto, givenService, assignedProviderId);
     }
 
-    const duration = givenService.estimatedDurationMinutes ?? 60;
-    const availableSlots = await this.availabilityService.getAvailableSlots(
-      dto.providerId,
-      dto.scheduledDate,
-      duration,
-    );
-    if (!availableSlots.includes(dto.scheduledTime)) {
-      throw new BadRequestException('Selected slot is not available');
+    // Slot availability is only enforced when a concrete provider is targeted.
+    if (assignedProviderId) {
+      const duration = givenService.estimatedDurationMinutes ?? 60;
+      const availableSlots = await this.availabilityService.getAvailableSlots(
+        assignedProviderId,
+        dto.scheduledDate,
+        duration,
+      );
+      if (!availableSlots.includes(dto.scheduledTime)) {
+        throw new BadRequestException('Selected slot is not available');
+      }
     }
 
     const photoUrls = this.validateClientRequestPhotoUrls(
@@ -100,7 +130,8 @@ export class AppointmentsService {
       data: {
         clientId,
         givenServiceId: dto.givenServiceId,
-        providerId: dto.providerId,
+        providerId: assignedProviderId,
+        companyId: appointmentCompanyId,
         status: AppointmentStatus.PENDING,
         scheduledDate: new Date(dto.scheduledDate),
         scheduledTime: dto.scheduledTime,
@@ -111,13 +142,9 @@ export class AppointmentsService {
       },
     });
 
-    const [client, providerUser, givenServiceDetails] = await Promise.all([
+    const [client, givenServiceDetails] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: clientId },
-        select: { firstName: true, lastName: true },
-      }),
-      this.prisma.user.findUnique({
-        where: { id: dto.providerId },
         select: { firstName: true, lastName: true },
       }),
       this.prisma.givenService.findUnique({
@@ -141,16 +168,120 @@ export class AppointmentsService {
       givenServiceDetails?.service.translations[0]?.name?.trim() || 'requested service';
     const formattedDate = this.formatDateForNotification(dto.scheduledDate);
 
-    void this.notificationsService.send({
-      userId: appointment.providerId,
-      type: NotificationType.APPOINTMENT_NEW_REQUEST,
-      title: 'New booking request',
-      body: `${clientName} requested ${serviceName} on ${formattedDate} at ${dto.scheduledTime}`,
-      data: { appointmentId: appointment.id, screen: 'ProviderAppointmentDetail' },
-    });
+    if (isCompanyBooking || isEmployeeBooking) {
+      // Company marketplace / employee provider: notify company admin only.
+      const companyIdForNotify =
+        dto.companyId ?? providerMeta?.companyId ?? null;
+      if (companyIdForNotify) {
+        const adminUserId =
+          await this.resolveCompanyAdminUserId(companyIdForNotify);
+        if (adminUserId) {
+          void this.notificationsService.send({
+            userId: adminUserId,
+            type: NotificationType.COMPANY_NEW_REQUEST,
+            title: 'New service request',
+            body: `${clientName} requested ${serviceName} on ${formattedDate} at ${dto.scheduledTime}`,
+            data: { appointmentId: appointment.id, screen: 'CompanyOrders' },
+          });
+        }
+      }
+    } else if (assignedProviderId) {
+      void this.notificationsService.send({
+        userId: assignedProviderId,
+        type: NotificationType.APPOINTMENT_NEW_REQUEST,
+        title: 'New booking request',
+        body: `${clientName} requested ${serviceName} on ${formattedDate} at ${dto.scheduledTime}`,
+        data: { appointmentId: appointment.id, screen: 'ProviderAppointmentDetail' },
+      });
+    }
 
     this.emitAppointmentUpdated(appointment.id);
     return appointment;
+  }
+
+  /** Validates an independent / direct provider booking. */
+  private async validateProviderBooking(
+    dto: CreateAppointmentDto,
+    givenService: { ownerType: OwnerType; ownerId: string },
+    providerId: string,
+  ): Promise<void> {
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: providerId },
+      select: { id: true, companyId: true },
+    });
+    if (!provider) {
+      throw new NotFoundException('Provider not found');
+    }
+    const providerMatchesGivenService =
+      (givenService.ownerType === OwnerType.PROVIDER &&
+        givenService.ownerId === providerId) ||
+      (givenService.ownerType === OwnerType.COMPANY &&
+        provider.companyId &&
+        provider.companyId === givenService.ownerId);
+    if (!providerMatchesGivenService) {
+      throw new BadRequestException('Provider does not match the selected given service');
+    }
+  }
+
+  /**
+   * Validates a company booking. The offering (givenService) must belong to the
+   * company — either company-owned, or owned by one of its employees. When a
+   * provider is preselected they must be an employee of that company and own the
+   * offering.
+   */
+  private async validateCompanyBooking(
+    dto: CreateAppointmentDto,
+    givenService: { ownerType: OwnerType; ownerId: string },
+  ): Promise<void> {
+    const companyId = dto.companyId!;
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true },
+    });
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    // The offering must be attributable to this company.
+    let offeringBelongsToCompany = false;
+    if (givenService.ownerType === OwnerType.COMPANY) {
+      offeringBelongsToCompany = givenService.ownerId === companyId;
+    } else {
+      const owner = await this.prisma.provider.findUnique({
+        where: { id: givenService.ownerId },
+        select: { companyId: true },
+      });
+      offeringBelongsToCompany = owner?.companyId === companyId;
+    }
+    if (!offeringBelongsToCompany) {
+      throw new BadRequestException('Service does not belong to the selected company');
+    }
+
+    // If the client preselected a provider, validate they're an employee who owns the offering.
+    if (dto.providerId) {
+      const provider = await this.prisma.provider.findUnique({
+        where: { id: dto.providerId },
+        select: { id: true, companyId: true },
+      });
+      if (!provider || provider.companyId !== companyId) {
+        throw new BadRequestException('Selected provider is not part of this company');
+      }
+      if (
+        givenService.ownerType === OwnerType.PROVIDER &&
+        givenService.ownerId !== dto.providerId
+      ) {
+        throw new BadRequestException('Provider does not match the selected offering');
+      }
+    }
+  }
+
+  /** Returns the user id of a company's admin (used for notifications), or null. */
+  private async resolveCompanyAdminUserId(companyId: string): Promise<string | null> {
+    const admin = await this.prisma.companyAdmin.findFirst({
+      where: { companyId },
+      select: { id: true },
+    });
+    return admin?.id ?? null;
   }
 
   async getMyAppointmentsAsClient(clientId: string, status?: AppointmentStatus) {
@@ -177,6 +308,7 @@ export class AppointmentsService {
             user: true,
           },
         },
+        company: true,
       },
       orderBy: [{ scheduledDate: 'desc' }, { scheduledTime: 'desc' }],
     });
@@ -228,12 +360,24 @@ export class AppointmentsService {
         scheduledTime: true,
         rescheduleDate: true,
         rescheduleTime: true,
+        givenService: { select: { estimatedDurationMinutes: true } },
       },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
     if (appointment.providerId !== providerId) {
       throw new ForbiddenException('Access denied');
     }
+
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: providerId },
+      select: { type: true },
+    });
+    if (provider?.type === ProviderType.EMPLOYEE) {
+      throw new ForbiddenException(
+        'Company employees cannot accept or refuse bookings. Your company admin manages pending orders.',
+      );
+    }
+
     if (
       appointment.status !== AppointmentStatus.PENDING &&
       appointment.status !== AppointmentStatus.RESCHEDULED
@@ -241,14 +385,40 @@ export class AppointmentsService {
       throw new BadRequestException('Appointment cannot be responded to in current status');
     }
 
+    const slotPassed =
+      appointment.status === AppointmentStatus.PENDING &&
+      this.isScheduledSlotPast(appointment.scheduledDate, appointment.scheduledTime);
+
+    if (
+      slotPassed &&
+      (dto.action === ProviderRespondAction.CONFIRMED ||
+        dto.action === ProviderRespondAction.REFUSED)
+    ) {
+      throw new BadRequestException(
+        'The requested appointment time has passed. Propose a new time instead of accepting or refusing.',
+      );
+    }
+
+    const respondedAt = new Date();
+
     if (dto.action === ProviderRespondAction.CONFIRMED) {
-      const updated = await this.prisma.appointment.update({
-        where: { id: appointmentId },
-        data: {
-          status: AppointmentStatus.CONFIRMED,
-          refusalReason: null,
-          confirmedAt: new Date(),
-        },
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.appointment.findUnique({
+          where: { id: appointmentId },
+          select: { providerRespondedAt: true },
+        });
+        const row = await tx.appointment.update({
+          where: { id: appointmentId },
+          data: {
+            status: AppointmentStatus.CONFIRMED,
+            refusalReason: null,
+            confirmedAt: respondedAt,
+            providerRespondedAt: existing?.providerRespondedAt ?? respondedAt,
+          },
+        });
+        await recomputeIndependentProviderAverageResponseTime(tx, providerId);
+        await recomputeProviderTopProviderStatus(tx, providerId);
+        return row;
       });
       const providerUser = await this.prisma.user.findUnique({
         where: { id: providerId },
@@ -274,12 +444,22 @@ export class AppointmentsService {
     }
 
     if (dto.action === ProviderRespondAction.REFUSED) {
-      const updated = await this.prisma.appointment.update({
-        where: { id: appointmentId },
-        data: {
-          status: AppointmentStatus.REFUSED,
-          refusalReason: dto.refusalReason?.trim() || null,
-        },
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.appointment.findUnique({
+          where: { id: appointmentId },
+          select: { providerRespondedAt: true },
+        });
+        const row = await tx.appointment.update({
+          where: { id: appointmentId },
+          data: {
+            status: AppointmentStatus.REFUSED,
+            refusalReason: dto.refusalReason?.trim() || null,
+            providerRespondedAt: existing?.providerRespondedAt ?? respondedAt,
+          },
+        });
+        await recomputeIndependentProviderAverageResponseTime(tx, providerId);
+        await recomputeProviderTopProviderStatus(tx, providerId);
+        return row;
       });
       const providerUser = await this.prisma.user.findUnique({
         where: { id: providerId },
@@ -306,13 +486,43 @@ export class AppointmentsService {
         'rescheduleDate and rescheduleTime are required for RESCHEDULED action',
       );
     }
-    const updated = await this.prisma.appointment.update({
-      where: { id: appointmentId },
-      data: {
-        status: AppointmentStatus.RESCHEDULED,
-        rescheduleDate: new Date(dto.rescheduleDate),
-        rescheduleTime: dto.rescheduleTime,
-      },
+    const rescheduleDate = dto.rescheduleDate;
+    const rescheduleTime = dto.rescheduleTime;
+
+    if (this.isScheduledSlotPast(new Date(rescheduleDate), rescheduleTime)) {
+      throw new BadRequestException('Proposed time must be in the future');
+    }
+
+    const durationMinutes =
+      appointment.givenService?.estimatedDurationMinutes ?? 60;
+    const daySlots = await this.availabilityService.getProviderDaySlots(
+      providerId,
+      rescheduleDate,
+      durationMinutes,
+      { excludeAppointmentId: appointmentId, includePendingHolds: true },
+    );
+    const proposed = daySlots.slots.find((s) => s.time === rescheduleTime);
+    if (!proposed || proposed.status !== 'available') {
+      throw new BadRequestException('Selected slot is not available');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.appointment.findUnique({
+        where: { id: appointmentId },
+        select: { providerRespondedAt: true },
+      });
+      const row = await tx.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          status: AppointmentStatus.RESCHEDULED,
+          rescheduleDate: new Date(rescheduleDate),
+          rescheduleTime,
+          providerRespondedAt: existing?.providerRespondedAt ?? respondedAt,
+        },
+      });
+      await recomputeIndependentProviderAverageResponseTime(tx, providerId);
+      await recomputeProviderTopProviderStatus(tx, providerId);
+      return row;
     });
     const providerUser = await this.prisma.user.findUnique({
       where: { id: providerId },
@@ -323,12 +533,12 @@ export class AppointmentsService {
       providerUser?.lastName,
       'Your provider',
     );
-    const formattedRescheduleDate = this.formatDateForNotification(dto.rescheduleDate);
+    const formattedRescheduleDate = this.formatDateForNotification(rescheduleDate);
     void this.notificationsService.send({
       userId: appointment.clientId,
       type: NotificationType.APPOINTMENT_RESCHEDULED,
       title: 'New time proposed',
-      body: `${providerName} proposed a new time: ${formattedRescheduleDate} at ${dto.rescheduleTime}`,
+      body: `${providerName} proposed a new time: ${formattedRescheduleDate} at ${rescheduleTime}`,
       data: { appointmentId, screen: 'ClientAppointmentDetail' },
     });
     this.emitAppointmentUpdated(appointmentId);
@@ -346,6 +556,7 @@ export class AppointmentsService {
         id: true,
         clientId: true,
         providerId: true,
+        companyId: true,
         status: true,
         rescheduleDate: true,
         rescheduleTime: true,
@@ -361,15 +572,18 @@ export class AppointmentsService {
       if (!appointment.rescheduleDate || !appointment.rescheduleTime) {
         throw new BadRequestException('Missing proposed reschedule values');
       }
+      const isCompanyBooking = !!appointment.companyId;
       const updated = await this.prisma.appointment.update({
         where: { id: appointmentId },
         data: {
-          status: AppointmentStatus.CONFIRMED,
+          status: isCompanyBooking
+            ? AppointmentStatus.PENDING
+            : AppointmentStatus.CONFIRMED,
           scheduledDate: appointment.rescheduleDate,
           scheduledTime: appointment.rescheduleTime,
           rescheduleDate: null,
           rescheduleTime: null,
-          confirmedAt: new Date(),
+          confirmedAt: isCompanyBooking ? null : new Date(),
         },
       });
       const clientUser = await this.prisma.user.findUnique({
@@ -380,13 +594,27 @@ export class AppointmentsService {
       const formattedDate = this.formatDateForNotification(
         appointment.rescheduleDate.toISOString().slice(0, 10),
       );
-      void this.notificationsService.send({
-        userId: appointment.providerId,
-        type: NotificationType.APPOINTMENT_RESCHEDULE_ACCEPTED,
-        title: 'Reschedule accepted',
-        body: `${clientName} accepted the new time: ${formattedDate} at ${appointment.rescheduleTime}`,
-        data: { appointmentId, screen: 'ProviderAppointmentDetail' },
-      });
+      if (appointment.providerId && !appointment.companyId) {
+        void this.notificationsService.send({
+          userId: appointment.providerId,
+          type: NotificationType.APPOINTMENT_RESCHEDULE_ACCEPTED,
+          title: 'Reschedule accepted',
+          body: `${clientName} accepted the new time: ${formattedDate} at ${appointment.rescheduleTime}`,
+          data: { appointmentId, screen: 'ProviderAppointmentDetail' },
+        });
+      }
+      if (appointment.companyId) {
+        const adminUserId = await this.resolveCompanyAdminUserId(appointment.companyId);
+        if (adminUserId) {
+          void this.notificationsService.send({
+            userId: adminUserId,
+            type: NotificationType.APPOINTMENT_RESCHEDULE_ACCEPTED,
+            title: 'Reschedule accepted',
+            body: `${clientName} accepted the new time: ${formattedDate} at ${appointment.rescheduleTime}`,
+            data: { appointmentId, screen: 'CompanyOrders' },
+          });
+        }
+      }
       this.emitAppointmentUpdated(appointmentId);
       return updated;
     }
@@ -404,13 +632,27 @@ export class AppointmentsService {
       select: { firstName: true, lastName: true },
     });
     const clientName = this.buildDisplayName(clientUser?.firstName, clientUser?.lastName, 'Client');
-    void this.notificationsService.send({
-      userId: appointment.providerId,
-      type: NotificationType.APPOINTMENT_RESCHEDULE_DECLINED,
-      title: 'Reschedule declined',
-      body: `${clientName} declined the proposed time and cancelled the request`,
-      data: { appointmentId, screen: 'ProviderAppointmentDetail' },
-    });
+    if (appointment.providerId && !appointment.companyId) {
+      void this.notificationsService.send({
+        userId: appointment.providerId,
+        type: NotificationType.APPOINTMENT_RESCHEDULE_DECLINED,
+        title: 'Reschedule declined',
+        body: `${clientName} declined the proposed time and cancelled the request`,
+        data: { appointmentId, screen: 'ProviderAppointmentDetail' },
+      });
+    }
+    if (appointment.companyId) {
+      const adminUserId = await this.resolveCompanyAdminUserId(appointment.companyId);
+      if (adminUserId) {
+        void this.notificationsService.send({
+          userId: adminUserId,
+          type: NotificationType.APPOINTMENT_RESCHEDULE_DECLINED,
+          title: 'Reschedule declined',
+          body: `${clientName} declined the proposed time and cancelled the request`,
+          data: { appointmentId, screen: 'CompanyOrders' },
+        });
+      }
+    }
     this.emitAppointmentUpdated(appointmentId);
     return updated;
   }
@@ -427,6 +669,7 @@ export class AppointmentsService {
         id: true,
         clientId: true,
         providerId: true,
+        companyId: true,
         status: true,
         scheduledDate: true,
         scheduledTime: true,
@@ -441,32 +684,45 @@ export class AppointmentsService {
 
     if (
       appointment.status !== AppointmentStatus.CONFIRMED &&
-      appointment.status !== AppointmentStatus.PENDING
+      appointment.status !== AppointmentStatus.PENDING &&
+      appointment.status !== AppointmentStatus.RESCHEDULED
     ) {
       throw new BadRequestException('Appointment cannot be cancelled in current status');
     }
 
-    const updated = await this.prisma.appointment.update({
-      where: { id: appointmentId },
-      data: {
-        status:
-          role === 'CLIENT'
-            ? AppointmentStatus.CANCELLED_CLIENT
-            : AppointmentStatus.CANCELLED_PROVIDER,
-        cancelledBy: role,
-        cancellationReason: reason?.trim() || null,
-        cancelledAt: new Date(),
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          status:
+            role === 'CLIENT'
+              ? AppointmentStatus.CANCELLED_CLIENT
+              : AppointmentStatus.CANCELLED_PROVIDER,
+          cancelledBy: role,
+          cancellationReason: reason?.trim() || null,
+          cancelledAt: new Date(),
+        },
+      });
+      if (role === 'PROVIDER' && appointment.providerId) {
+        await recomputeIndependentProviderCancellationRate(
+          tx,
+          appointment.providerId,
+        );
+        await recomputeProviderTopProviderStatus(tx, appointment.providerId);
+      }
+      return row;
     });
     const [clientUser, providerUser] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: appointment.clientId },
         select: { firstName: true, lastName: true },
       }),
-      this.prisma.user.findUnique({
-        where: { id: appointment.providerId },
-        select: { firstName: true, lastName: true },
-      }),
+      appointment.providerId
+        ? this.prisma.user.findUnique({
+            where: { id: appointment.providerId },
+            select: { firstName: true, lastName: true },
+          })
+        : Promise.resolve(null),
     ]);
     const clientName = this.buildDisplayName(clientUser?.firstName, clientUser?.lastName, 'Client');
     const providerName = this.buildDisplayName(
@@ -478,13 +734,28 @@ export class AppointmentsService {
       appointment.scheduledDate.toISOString().slice(0, 10),
     );
     if (role === 'CLIENT') {
-      void this.notificationsService.send({
-        userId: appointment.providerId,
-        type: NotificationType.APPOINTMENT_CANCELLED_CLIENT,
-        title: 'Appointment cancelled',
-        body: `${clientName} cancelled the appointment for ${formattedDate} at ${appointment.scheduledTime}`,
-        data: { appointmentId, screen: 'ProviderAppointmentDetail' },
-      });
+      if (appointment.providerId && !appointment.companyId) {
+        void this.notificationsService.send({
+          userId: appointment.providerId,
+          type: NotificationType.APPOINTMENT_CANCELLED_CLIENT,
+          title: 'Appointment cancelled',
+          body: `${clientName} cancelled the appointment for ${formattedDate} at ${appointment.scheduledTime}`,
+          data: { appointmentId, screen: 'ProviderAppointmentDetail' },
+        });
+      }
+      if (appointment.companyId) {
+        // Always keep the company admin informed of company bookings.
+        const adminUserId = await this.resolveCompanyAdminUserId(appointment.companyId);
+        if (adminUserId) {
+          void this.notificationsService.send({
+            userId: adminUserId,
+            type: NotificationType.COMPANY_BOOKING_CANCELLED,
+            title: 'Service request cancelled',
+            body: `${clientName} cancelled their request for ${formattedDate} at ${appointment.scheduledTime}`,
+            data: { appointmentId, screen: 'CompanyOrders' },
+          });
+        }
+      }
     } else {
       void this.notificationsService.send({
         userId: appointment.clientId,
@@ -739,143 +1010,116 @@ export class AppointmentsService {
       return current;
     }
 
-    const providerEnd = await this.prisma.appointmentConfirmation.findUnique({
-      where: {
-        appointmentId_role_type: {
-          appointmentId,
-          role: 'PROVIDER',
-          type: AppointmentConfirmationType.END,
-        },
+    if (appointment.status === AppointmentStatus.COMPLETED) {
+      const completedRow = await this.prisma.appointment.findUnique({
+        where: { id: appointmentId },
+        include: { confirmations: true },
+      });
+      if (
+        completedRow &&
+        !completedRow.completedJobsCounted &&
+        hasProviderEndConfirmation(completedRow.confirmations)
+      ) {
+        const backfilled = await this.prisma.$transaction((tx) =>
+          backfillCompletedJobsCount(tx, completedRow),
+        );
+        if (backfilled.length === 0) {
+          throw new BadRequestException(
+            'Could not update completed jobs for this service offering',
+          );
+        }
+      }
+      const current = await this.prisma.appointment.findUnique({
+        where: { id: appointmentId },
+        include: this.appointmentDetailInclude,
+      });
+      this.emitAppointmentUpdated(appointmentId);
+      return current ?? appointment;
+    }
+
+    const refreshed = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: { confirmations: true },
+    });
+    if (!refreshed) {
+      throw new NotFoundException('Appointment not found');
+    }
+
+    if (!hasProviderEndConfirmation(refreshed.confirmations)) {
+      this.emitAppointmentUpdated(appointmentId);
+      return refreshed;
+    }
+
+    const finalized = await this.prisma.$transaction((tx) =>
+      finalizeAppointmentCompletion(tx, refreshed),
+    );
+
+    if (!finalized) {
+      throw new BadRequestException(
+        'Could not complete this appointment. Ensure the provider ended the service, then try again.',
+      );
+    }
+
+    const { appointment: completedRow, incrementedGivenServiceIds } = finalized;
+
+    const completedProviderId = refreshed.providerId;
+    const durationMinutes = completedRow.durationMinutes;
+    const [clientUser, providerUser] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: refreshed.clientId },
+        select: { firstName: true, lastName: true },
+      }),
+      completedProviderId
+        ? this.prisma.user.findUnique({
+            where: { id: completedProviderId },
+            select: { firstName: true, lastName: true },
+          })
+        : Promise.resolve(null),
+    ]);
+    const clientName = this.buildDisplayName(
+      clientUser?.firstName,
+      clientUser?.lastName,
+      'Client',
+    );
+    const providerName = this.buildDisplayName(
+      providerUser?.firstName,
+      providerUser?.lastName,
+      'Your provider',
+    );
+    if (completedProviderId) {
+      void this.notificationsService.send({
+        userId: completedProviderId,
+        type: NotificationType.APPOINTMENT_COMPLETED,
+        title: 'Service completed ✓',
+        body: `Your session with ${clientName} is complete. Duration: ${durationMinutes} min`,
+        data: { appointmentId, screen: 'ProviderAppointmentDetail' },
+      });
+    }
+    void this.notificationsService.send({
+      userId: refreshed.clientId,
+      type: NotificationType.APPOINTMENT_COMPLETED,
+      title: 'Service completed ✓',
+      body: `Your service with ${providerName} is done. How was your experience?`,
+      data: {
+        appointmentId,
+        screen: 'ClientAppointmentDetail',
+        action: 'LEAVE_REVIEW',
       },
     });
 
-    if (providerEnd) {
-      const now = new Date();
-      const startedAt = appointment.startedAt ?? now;
-      const durationMinutes = Math.max(
-        0,
-        Math.round((now.getTime() - startedAt.getTime()) / 60000),
-      );
-      const updated = await this.prisma.$transaction(async (tx) => {
-        const updatedAppointment = await tx.appointment.update({
-          where: { id: appointmentId },
-          data: {
-            status: AppointmentStatus.COMPLETED,
-            completedAt: now,
-            durationMinutes,
-          },
-        });
-
-        // Provider model has no totalCompletedJobs field in current schema,
-        // so we increment the metric at GivenService level instead.
-        await tx.givenService.update({
-          where: { id: appointment.givenServiceId },
-          data: {
-            totalCompletedJobs: {
-              increment: 1,
-            },
-          },
-        });
-
-        const [cancelledByProviderCount, totalAppointmentsCount, confirmedAppointments] =
-          await Promise.all([
-            tx.appointment.count({
-              where: {
-                providerId: appointment.providerId,
-                status: AppointmentStatus.CANCELLED_PROVIDER,
-              },
-            }),
-            tx.appointment.count({
-              where: {
-                providerId: appointment.providerId,
-              },
-            }),
-            tx.appointment.findMany({
-              where: {
-                providerId: appointment.providerId,
-                status: AppointmentStatus.CONFIRMED,
-              },
-              select: {
-                createdAt: true,
-                updatedAt: true,
-              },
-            }),
-          ]);
-
-        const cancellationRate =
-          totalAppointmentsCount > 0
-            ? (cancelledByProviderCount / totalAppointmentsCount) * 100
-            : 0;
-
-        const averageResponseTime =
-          confirmedAppointments.length > 0
-            ? confirmedAppointments.reduce((sum, row) => {
-                const minutes = (row.updatedAt.getTime() - row.createdAt.getTime()) / 60000;
-                return sum + Math.max(0, minutes);
-              }, 0) / confirmedAppointments.length
-            : 0;
-
-        await tx.provider.update({
-          where: { id: appointment.providerId },
-          data: {
-            cancellationRate,
-            averageResponseTime,
-          },
-        });
-
-        const [clientUser, providerUser] = await Promise.all([
-          tx.user.findUnique({
-            where: { id: appointment.clientId },
-            select: { firstName: true, lastName: true },
-          }),
-          tx.user.findUnique({
-            where: { id: appointment.providerId },
-            select: { firstName: true, lastName: true },
-          }),
-        ]);
-        const clientName = this.buildDisplayName(
-          clientUser?.firstName,
-          clientUser?.lastName,
-          'Client',
-        );
-        const providerName = this.buildDisplayName(
-          providerUser?.firstName,
-          providerUser?.lastName,
-          'Your provider',
-        );
-        void this.notificationsService.send({
-          userId: appointment.providerId,
-          type: NotificationType.APPOINTMENT_COMPLETED,
-          title: 'Service completed ✓',
-          body: `Your session with ${clientName} is complete. Duration: ${durationMinutes} min`,
-          data: { appointmentId, screen: 'ProviderAppointmentDetail' },
-        });
-        void this.notificationsService.send({
-          userId: appointment.clientId,
-          type: NotificationType.APPOINTMENT_COMPLETED,
-          title: 'Service completed ✓',
-          body: `Your service with ${providerName} is done. How was your experience?`,
-          data: {
-            appointmentId,
-            screen: 'ClientAppointmentDetail',
-            action: 'LEAVE_REVIEW',
-          },
-        });
-
-        return updatedAppointment;
-      });
-      this.emitAppointmentUpdated(appointmentId);
-      return updated;
-    }
-
-    const current = await this.prisma.appointment.findUnique({
+    const updated = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
+      include: this.appointmentDetailInclude,
     });
     this.emitAppointmentUpdated(appointmentId);
-    return current;
+    return updated;
   }
 
   async getProviderCalendar(providerId: string, from: string, to: string) {
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: providerId },
+      select: { type: true },
+    });
     return this.prisma.appointment.findMany({
       where: {
         providerId,
@@ -883,6 +1127,9 @@ export class AppointmentsService {
           gte: new Date(from),
           lte: new Date(to),
         },
+        ...(provider?.type === ProviderType.EMPLOYEE
+          ? { status: { not: AppointmentStatus.PENDING } }
+          : {}),
       },
       include: {
         givenService: {
@@ -915,6 +1162,19 @@ export class AppointmentsService {
       appointmentId,
       JSON.parse(JSON.stringify(appointment)) as Record<string, unknown>,
     );
+  }
+
+  private isScheduledSlotPast(scheduledDate: Date, scheduledTime: string): boolean {
+    return Date.now() > this.scheduledSlotStartMs(scheduledDate, scheduledTime);
+  }
+
+  private scheduledSlotStartMs(scheduledDate: Date, scheduledTime: string): number {
+    const ymd = scheduledDate.toISOString().slice(0, 10);
+    const [y, mo, d] = ymd.split('-').map(Number);
+    const parts = scheduledTime.split(':');
+    const hh = Number(parts[0]) || 0;
+    const mm = Number(parts[1]) || 0;
+    return new Date(y, (mo || 1) - 1, d || 1, hh, mm, 0, 0).getTime();
   }
 
   private formatDateForNotification(dateStr: string): string {

@@ -55,6 +55,8 @@ type GivenServiceApi = {
 };
 type GalleryImage = { id: string; imageUrl: string };
 
+const MAX_GALLERY_PHOTOS = 40;
+
 function numToInput(v: number | string | null | undefined): string {
   if (v === null || v === undefined) return "";
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
@@ -145,6 +147,7 @@ export const ProviderManageServiceScreen: React.FC = () => {
   const [clientMustProvide, setClientMustProvide] = useState("");
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryRemovingId, setGalleryRemovingId] = useState<string | null>(null);
 
   const loadFromApi = useCallback(async () => {
     if (mode !== "edit" || !serviceId) {
@@ -191,38 +194,46 @@ export const ProviderManageServiceScreen: React.FC = () => {
     }
   }, [mode, serviceId]);
 
-  const pickAndUploadGalleryImage = async () => {
+  const onAddGalleryPhotos = async () => {
     if (mode !== "edit" || !serviceId || !user?.id || !givenServiceId) return;
-    if (gallery.length >= 40) {
-      Alert.alert("Limit reached", "Maximum 40 images.");
+    if (gallery.length >= MAX_GALLERY_PHOTOS) {
+      Alert.alert("Limit reached", `Maximum ${MAX_GALLERY_PHOTOS} images.`);
       return;
     }
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission needed", "Enable photo library access first.");
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Allow photo library access to attach images.");
       return;
     }
+    const remaining = MAX_GALLERY_PHOTOS - gallery.length;
+    if (remaining <= 0) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      quality: 0.9,
-      allowsEditing: false,
+      allowsMultipleSelection: true,
+      quality: 0.85,
+      selectionLimit: remaining,
     });
-    if (result.canceled || !result.assets?.[0]?.uri) return;
+    if (result.canceled || !result.assets?.length) return;
 
-    const asset = result.assets[0];
+    const assets = result.assets.filter((a) => a.uri).slice(0, remaining);
+    if (!assets.length) return;
+
     setGalleryUploading(true);
     try {
-      const publicUrl = await uploadProviderGalleryImage(
-        user.id,
-        givenServiceId,
-        asset.uri,
-        asset.mimeType,
-      );
-      const item: GalleryImage = {
-        id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        imageUrl: publicUrl,
-      };
-      setGallery((prev) => [...prev, item]);
+      const uploaded: GalleryImage[] = [];
+      for (const asset of assets) {
+        const publicUrl = await uploadProviderGalleryImage(
+          user.id,
+          givenServiceId,
+          asset.uri,
+          asset.mimeType,
+        );
+        uploaded.push({
+          id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          imageUrl: publicUrl,
+        });
+      }
+      setGallery((prev) => [...prev, ...uploaded].slice(0, MAX_GALLERY_PHOTOS));
     } catch (e) {
       Alert.alert(
         "Upload failed",
@@ -233,8 +244,30 @@ export const ProviderManageServiceScreen: React.FC = () => {
     }
   };
 
-  const removeGalleryImage = (id: string) => {
-    setGallery((prev) => prev.filter((g) => g.id !== id));
+  const removeGalleryImage = async (id: string) => {
+    if (mode !== "edit" || !serviceId) return;
+    const item = gallery.find((g) => g.id === id);
+    if (!item) return;
+
+    setGalleryRemovingId(id);
+    try {
+      await api.removeProviderGalleryImage(serviceId, {
+        imageUrl: item.imageUrl,
+        galleryId: id.startsWith("local-") ? undefined : id,
+      });
+      setGallery((prev) => prev.filter((g) => g.id !== id));
+    } catch (e) {
+      const err = e as AxiosError<{ message?: string | string[] }>;
+      const msg =
+        (typeof err.response?.data?.message === "string"
+          ? err.response.data.message
+          : Array.isArray(err.response?.data?.message)
+            ? err.response.data.message.join(", ")
+            : null) ?? "Could not remove this image.";
+      Alert.alert("Remove failed", msg);
+    } finally {
+      setGalleryRemovingId(null);
+    }
   };
 
   useFocusEffect(
@@ -313,7 +346,12 @@ export const ProviderManageServiceScreen: React.FC = () => {
   };
 
   const canSave =
-    mode === "edit" && !!serviceId && !loading && !saving && !galleryUploading;
+    mode === "edit" &&
+    !!serviceId &&
+    !loading &&
+    !saving &&
+    !galleryUploading &&
+    !galleryRemovingId;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -589,11 +627,11 @@ export const ProviderManageServiceScreen: React.FC = () => {
               Add real project photos so clients can see your work quality.
             </Text>
             <GallerySection
-              title="Your realization photos"
               items={gallery}
-              onAdd={() => void pickAndUploadGalleryImage()}
-              onRemove={removeGalleryImage}
+              onAdd={() => void onAddGalleryPhotos()}
+              onRemove={(id) => void removeGalleryImage(id)}
               uploading={galleryUploading}
+              removingId={galleryRemovingId}
             />
           </View>
 
@@ -684,65 +722,83 @@ function SwitchRow({
   );
 }
 
+function GalleryPhotoThumb({
+  uri,
+  onRemove,
+  removing,
+}: {
+  uri: string;
+  onRemove: () => void;
+  removing?: boolean;
+}) {
+  return (
+    <View style={styles.photoPreview}>
+      <Image source={{ uri }} style={styles.photoImage} resizeMode="cover" />
+      <TouchableOpacity
+        style={styles.photoOverlay}
+        onPress={onRemove}
+        disabled={removing}
+        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      >
+        {removing ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <Ionicons name="trash-outline" size={14} color="#FFFFFF" />
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function GallerySection({
-  title,
   items,
   onAdd,
   onRemove,
   uploading,
+  removingId,
 }: {
-  title: string;
   items: GalleryImage[];
   onAdd: () => void;
   onRemove: (id: string) => void;
   uploading: boolean;
+  removingId: string | null;
 }) {
+  const atLimit = items.length >= MAX_GALLERY_PHOTOS;
+  const busy = uploading || removingId !== null;
+
   return (
-    <View style={styles.galleryBlock}>
-      <View style={styles.galleryHeaderRow}>
-        <Text style={styles.galleryTitle}>{title}</Text>
+    <View style={styles.galleryPhotoCard}>
+      <View style={styles.photoRow}>
         <TouchableOpacity
-          style={styles.galleryAddBtn}
+          style={[styles.addPhotoBtn, (atLimit || busy) && styles.addPhotoBtnDisabled]}
           onPress={onAdd}
-          disabled={uploading}
+          disabled={atLimit || busy}
+          activeOpacity={0.85}
         >
           {uploading ? (
-            <ActivityIndicator size="small" color="#7C5CFC" />
+            <ActivityIndicator size="small" color="#9B9BB0" />
           ) : (
             <>
-              <Ionicons name="add" size={15} color="#7C5CFC" />
-              <Text style={styles.galleryAddBtnText}>Add photo</Text>
+              <Ionicons
+                name="camera-outline"
+                size={16}
+                color={atLimit ? "#C4C4C4" : "#6B6B80"}
+              />
+              <Text style={styles.addPhotoText}>
+                {atLimit ? `${MAX_GALLERY_PHOTOS}/${MAX_GALLERY_PHOTOS}` : "Add Photo"}
+              </Text>
             </>
           )}
         </TouchableOpacity>
+        {items.map((item) => (
+          <GalleryPhotoThumb
+            key={item.id}
+            uri={item.imageUrl}
+            removing={removingId === item.id}
+            onRemove={() => onRemove(item.id)}
+          />
+        ))}
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.galleryRow}
-      >
-        {items.length === 0 ? (
-          <View style={styles.galleryEmpty}>
-            <Ionicons name="camera-outline" size={22} color="#C4C4C4" />
-            <Text style={styles.galleryEmptyText}>No photos yet</Text>
-          </View>
-        ) : (
-          items.map((item) => (
-            <View key={item.id} style={styles.galleryItem}>
-              <Image
-                source={{ uri: item.imageUrl }}
-                style={styles.galleryImage}
-              />
-              <TouchableOpacity
-                style={styles.galleryRemoveBtn}
-                onPress={() => onRemove(item.id)}
-              >
-                <Ionicons name="close" size={12} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          ))
-        )}
-      </ScrollView>
     </View>
   );
 }
@@ -1026,84 +1082,64 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  /* Gallery */
+  /* Gallery — same picker row as ClientSlotPickerScreen "Add Details" */
   galleryHint: {
     fontSize: 12,
     color: "#9B9BB0",
-    marginBottom: 8,
+    marginBottom: 12,
     lineHeight: 17,
   },
-  galleryBlock: { gap: 10 },
-  galleryHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  galleryTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#6B6B80",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  galleryAddBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: "#C4B5FD",
-    backgroundColor: "#EDE9FE",
-    minWidth: 96,
-    justifyContent: "center",
-  },
-  galleryAddBtnText: {
-    color: "#7C5CFC",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  galleryRow: {
-    gap: 10,
-    paddingVertical: 4,
-  },
-  galleryEmpty: {
-    width: 120,
-    height: 88,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: "#EBEBF5",
-    borderStyle: "dashed",
-    backgroundColor: "#FAFAFA",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  galleryEmptyText: {
-    fontSize: 11,
-    color: "#C4C4C4",
-    fontWeight: "600",
-  },
-  galleryItem: {
-    width: 120,
-    height: 88,
-    borderRadius: 14,
-    overflow: "hidden",
+  galleryPhotoCard: {
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#EBEBF5",
-    backgroundColor: "#F4F3FA",
+    overflow: "hidden",
+    backgroundColor: "#FAFAFA",
   },
-  galleryImage: { width: "100%", height: "100%" },
-  galleryRemoveBtn: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "rgba(26,26,46,0.65)",
+  photoRow: {
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexWrap: "wrap",
+  },
+  addPhotoBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#EBEBF5",
+    borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  addPhotoBtnDisabled: { opacity: 0.4 },
+  addPhotoText: {
+    fontSize: 9,
+    color: "#6B6B80",
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  photoPreview: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  photoImage: {
+    width: "100%",
+    height: "100%",
+  },
+  photoOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
   },
 });

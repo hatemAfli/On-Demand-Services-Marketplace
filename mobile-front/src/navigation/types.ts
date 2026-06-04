@@ -38,6 +38,14 @@ export type ClientStackParamList = {
       }
     | undefined;
   ClientProviderProfile: { givenServiceId: string };
+  /** Company profile + its providers offering a given service (marketplace). */
+  ClientCompanyProfile: {
+    companyId: string;
+    serviceId: string;
+    serviceName: string;
+    clientLat?: number;
+    clientLng?: number;
+  };
   /** Read-only provider reviews (marketplace / client). */
   PublicProviderReviews: {
     providerId: string;
@@ -45,11 +53,14 @@ export type ClientStackParamList = {
     isTopProvider?: boolean;
   };
   ClientSlotPicker: {
-    providerId: string;
+    /** Null for "any available provider" company bookings (admin assigns later). */
+    providerId: string | null;
     givenServiceId: string;
     providerName: string;
     serviceName: string;
     estimatedDurationMinutes: number;
+    /** Set when booking with a company (routes the order to the company admin). */
+    companyId?: string;
   };
   ClientBookingConfirmation: {
     appointmentId: string;
@@ -86,6 +97,9 @@ export type ClientStackParamList = {
   /** Client's filed complaints (from GET /complaints/me). */
   ClientMyComplaints: undefined;
   ClientComplaintDetail: { complaintId: string };
+  /** Client's reviews on providers (GET /reviews/me). */
+  ClientMyReviews: undefined;
+  ClientReviewDetail: { reviewId: string };
   ClientFavorites: undefined;
   ClientFavoritesList: { type: "CATEGORY" | "SERVICE" | "PROVIDER" };
   Notifications: undefined;
@@ -99,6 +113,8 @@ export type ClientStackParamList = {
   ClientDeleteAccount: undefined;
   ClientTerms: undefined;
   ClientPrivacy: undefined;
+  ClientFaq: undefined;
+  ClientContactUs: undefined;
 };
 
 /** Client stack screens that do not require params (e.g. drawer / root shortcuts). */
@@ -107,6 +123,7 @@ export type ClientStackRouteWithoutParams = Exclude<
   | "ClientCategoryServices"
   | "ClientSearchProvider"
   | "ClientProviderProfile"
+  | "ClientCompanyProfile"
   | "PublicProviderReviews"
   | "ClientSlotPicker"
   | "ClientBookingConfirmation"
@@ -223,4 +240,6 @@ export type ProviderStackParamList = {
   ProviderDeleteAccount: undefined;
   ProviderTerms: undefined;
   ProviderPrivacy: undefined;
+  ProviderFaq: undefined;
+  ProviderContactUs: undefined;
 };

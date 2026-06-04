@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Image,
   Modal,
   Pressable,
@@ -19,14 +20,21 @@ import type { ProviderStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
 import { api } from "../../../services/api";
 import type { UserWithProfile } from "../../../types";
+import { ProviderType } from "../../../types";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
+import {
+  computeProviderProfileStrength,
+  extractActiveApprovedServicesFromDocuments,
+  type ProfileStrengthGivenService,
+  type ProfileStrengthMissingItem,
+  type ProfileStrengthResult,
+} from "../../../utils/computeProviderProfileStrength";
 
 type ProfileDocumentsScreenProps = {
   onPressBack?: () => void;
   onPressSettings?: () => void;
   onPressEditPhoto?: () => void;
   onPressEditPersonalInfo?: () => void;
-  onPressFixMissingDocument?: () => void;
   onPressAddSkill?: () => void;
   onPressRemoveSkill?: (skill: string) => void;
   onPressDocument?: (doc: ProviderVerificationDocument) => void;
@@ -42,6 +50,8 @@ type ProfileDocumentsScreenProps = {
   loading?: boolean;
   verificationRequest?: LatestVerificationRequest | null;
   allDocuments?: ProviderVerificationDocument[];
+  profileStrength?: ProfileStrengthResult | null;
+  profileStrengthLoading?: boolean;
 };
 
 type TabKey = "Details" | "Documents";
@@ -87,6 +97,147 @@ type ProviderVerificationDocument = LatestVerificationDocument & {
   } | null;
 };
 
+function ProfileStrengthComputingCard({
+  title,
+  hint,
+  computingLabel,
+}: {
+  title: string;
+  hint: string;
+  computingLabel: string;
+}) {
+  const shimmer = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+  const fillWidth = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const shimmerAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, {
+          toValue: 1,
+          duration: 1400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmer, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    const pulseAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.35,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    const fillAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(fillWidth, {
+          toValue: 1,
+          duration: 1100,
+          useNativeDriver: false,
+        }),
+        Animated.timing(fillWidth, {
+          toValue: 0.25,
+          duration: 1100,
+          useNativeDriver: false,
+        }),
+      ]),
+    );
+
+    shimmerAnim.start();
+    pulseAnim.start();
+    fillAnim.start();
+
+    return () => {
+      shimmerAnim.stop();
+      pulseAnim.stop();
+      fillAnim.stop();
+    };
+  }, [fillWidth, pulse, shimmer]);
+
+  const shimmerTranslate = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-140, 320],
+  });
+
+  const animatedFillWidth = fillWidth.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["22%", "78%"],
+  });
+
+  return (
+    <View style={styles.strengthCard}>
+      <View style={styles.strengthHeaderRow}>
+        <View style={styles.strengthTitleBlock}>
+          <Text style={styles.strengthTitle}>{title}</Text>
+          <Text style={styles.strengthSub}>{hint}</Text>
+        </View>
+        <View style={styles.strengthLoadingBadge}>
+          <ActivityIndicator size="small" color={colors.primary} />
+        </View>
+      </View>
+
+      <View style={styles.strengthTrack}>
+        <Animated.View
+          style={[
+            styles.strengthLoadingFill,
+            { width: animatedFillWidth },
+          ]}
+        >
+          <Animated.View
+            style={[styles.strengthLoadingFillPulse, { opacity: pulse }]}
+          />
+        </Animated.View>
+        <Animated.View
+          style={[
+            styles.strengthShimmer,
+            { transform: [{ translateX: shimmerTranslate }] },
+          ]}
+        />
+      </View>
+
+      <View style={styles.strengthLoadingRow}>
+        <View style={styles.strengthLoadingDots}>
+          {[0, 1, 2].map((index) => (
+            <Animated.View
+              key={index}
+              style={[
+                styles.strengthLoadingDot,
+                {
+                  opacity: pulse.interpolate({
+                    inputRange: [0.35, 1],
+                    outputRange: index === 1 ? [0.45, 1] : [0.25, 0.85],
+                  }),
+                  transform: [
+                    {
+                      scale: pulse.interpolate({
+                        inputRange: [0.35, 1],
+                        outputRange:
+                          index === 1 ? [0.85, 1.15] : [0.9, 1.05],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+          ))}
+        </View>
+        <Text style={styles.strengthLoadingText}>{computingLabel}</Text>
+      </View>
+    </View>
+  );
+}
+
 export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
   const { t } = useAppTranslation();
   const [activeTab, setActiveTab] = useState<TabKey>("Details");
@@ -99,6 +250,11 @@ export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
   );
 
   const avatarUri = props.profile?.provider?.photoUrl;
+  const providerType = props.profile?.provider?.type;
+  const roleBadgeLabel =
+    providerType === ProviderType.EMPLOYEE
+      ? t("provider.profileDocuments.employee")
+      : t("provider.profileDocuments.independent");
   const fullName =
     `${props.profile?.firstName ?? ""} ${props.profile?.lastName ?? ""}`.trim() ||
     t("provider.profileDocuments.providerFallbackName");
@@ -166,7 +322,29 @@ export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
       });
     }
     return services;
-  }, [verificationDocs]);
+  }, [verificationDocs, t]);
+
+  const profileStrengthPercent = props.profileStrength?.percent ?? 0;
+  const topMissingItem = props.profileStrength?.missingItems[0] ?? null;
+
+  const handleFixMissingItem = (item: ProfileStrengthMissingItem) => {
+    if (item.action === "edit-profile") {
+      props.onPressEditPersonalInfo?.();
+      return;
+    }
+    if (item.action === "documents") {
+      setActiveTab("Documents");
+      return;
+    }
+    if (item.action === "manage-service" && item.serviceId) {
+      const service = providedServices.find((entry) => entry.id === item.serviceId);
+      if (service) {
+        props.onPressServiceSkill?.(service);
+        return;
+      }
+    }
+    props.onPressEditPersonalInfo?.();
+  };
 
   const formatDate = (value: string) => {
     try {
@@ -220,9 +398,7 @@ export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
             <View style={styles.headerRight}>
               <View style={styles.roleBadge}>
                 <View style={styles.roleDot} />
-                <Text style={styles.roleText}>
-                  {t("provider.profileDocuments.independent")}
-                </Text>
+                <Text style={styles.roleText}>{roleBadgeLabel}</Text>
               </View>
 
               <TouchableOpacity
@@ -270,38 +446,62 @@ export function ProfileDocumentsScreen(props: ProfileDocumentsScreenProps) {
         </View>
 
         <View style={styles.sectionPad}>
-          <View style={styles.strengthCard}>
-            <View style={styles.strengthHeaderRow}>
-              <View>
-                <Text style={styles.strengthTitle}>
-                  {t("provider.profileDocuments.profileStrength")}
-                </Text>
-                <Text style={styles.strengthSub}>
-                  {t("provider.profileDocuments.profileStrengthHint")}
-                </Text>
+          {props.profileStrengthLoading ? (
+            <ProfileStrengthComputingCard
+              title={t("provider.profileDocuments.profileStrength")}
+              hint={t("provider.profileDocuments.profileStrengthHint")}
+              computingLabel={t(
+                "provider.profileDocuments.profileStrengthComputing",
+              )}
+            />
+          ) : (
+            <View style={styles.strengthCard}>
+              <View style={styles.strengthHeaderRow}>
+                <View style={styles.strengthTitleBlock}>
+                  <Text style={styles.strengthTitle}>
+                    {t("provider.profileDocuments.profileStrength")}
+                  </Text>
+                  <Text style={styles.strengthSub}>
+                    {t("provider.profileDocuments.profileStrengthHint")}
+                  </Text>
+                </View>
+                <Text style={styles.strengthPercent}>{profileStrengthPercent}%</Text>
               </View>
-              <Text style={styles.strengthPercent}>85%</Text>
-            </View>
 
-            <View style={styles.strengthTrack}>
-              <View style={styles.strengthFill} />
-            </View>
+              <View style={styles.strengthTrack}>
+                <View
+                  style={[
+                    styles.strengthFill,
+                    { width: `${profileStrengthPercent}%` },
+                  ]}
+                />
+              </View>
 
-            <View style={styles.missingRow}>
-              <Text style={styles.missingIcon}>⚠</Text>
-              <Text style={styles.missingText}>
-                {t("provider.profileDocuments.missingVehicleDoc")}
-              </Text>
-              <TouchableOpacity
-                onPress={props.onPressFixMissingDocument}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.missingFix}>
-                  {t("provider.profileDocuments.fix")}
-                </Text>
-              </TouchableOpacity>
+              {profileStrengthPercent >= 100 ? (
+                <View style={styles.missingRow}>
+                  <Text style={styles.missingCompleteIcon}>✓</Text>
+                  <Text style={styles.missingCompleteText}>
+                    {t("provider.profileDocuments.profileStrengthComplete")}
+                  </Text>
+                </View>
+              ) : topMissingItem ? (
+                <View style={styles.missingRow}>
+                  <Text style={styles.missingIcon}>⚠</Text>
+                  <Text style={styles.missingText}>
+                    {t(topMissingItem.labelKey, topMissingItem.labelParams)}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => handleFixMissingItem(topMissingItem)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.missingFix}>
+                      {t("provider.profileDocuments.fix")}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
-          </View>
+          )}
         </View>
 
         <View style={styles.tabsStickyWrap}>
@@ -935,6 +1135,72 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 10,
   },
+  strengthTitleBlock: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  strengthLoadingBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(240,142,16,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(240,142,16,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  strengthLoadingFill: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 999,
+    overflow: "hidden",
+    backgroundColor: "rgba(240,142,16,0.22)",
+  },
+  strengthLoadingFillPulse: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 999,
+    backgroundColor: "rgba(240,142,16,0.35)",
+  },
+  strengthShimmer: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 72,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.55)",
+  },
+  strengthLoadingRow: {
+    marginTop: 12,
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "rgba(240,142,16,0.14)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  strengthLoadingDots: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  strengthLoadingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+  },
+  strengthLoadingText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#92400E",
+    lineHeight: 15,
+  },
   strengthTitle: {
     fontSize: 14,
     fontWeight: "900",
@@ -959,9 +1225,21 @@ const styles = StyleSheet.create({
   },
   strengthFill: {
     height: 8,
-    width: "85%",
     backgroundColor: colors.primary,
     borderRadius: 999,
+  },
+  missingCompleteIcon: {
+    fontSize: 12,
+    color: colors.success,
+    marginRight: 8,
+    fontWeight: "900",
+  },
+  missingCompleteText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.success,
+    lineHeight: 15,
   },
   missingRow: {
     marginTop: 12,
@@ -1573,28 +1851,117 @@ export const ProviderProfileScreen: React.FC = () => {
   const [allDocuments, setAllDocuments] = useState<
     ProviderVerificationDocument[]
   >([]);
+  const [profileStrength, setProfileStrength] =
+    useState<ProfileStrengthResult | null>(null);
+  const [profileStrengthLoading, setProfileStrengthLoading] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
+    setProfileStrengthLoading(true);
     try {
       const [profileRes, verificationRes, docsRes] = await Promise.all([
         api.getProviderProfile(),
         api.getMyLatestVerificationRequest(),
         api.getMyVerificationDocuments(),
       ]);
-      setProfile(profileRes.data as UserWithProfile);
+      const nextProfile = profileRes.data as UserWithProfile;
+      const nextDocuments =
+        (docsRes.data as ProviderVerificationDocument[]) ?? [];
+      const activeServices =
+        extractActiveApprovedServicesFromDocuments(nextDocuments);
+
+      const givenServiceResults = await Promise.allSettled(
+        activeServices.map(async (service) => {
+          const res = await api.getProviderGivenService(service.id);
+          const row = res.data as {
+            price?: number | string;
+            description?: string | null;
+            whatIsIncluded?: string | null;
+            serviceAreaNotes?: string | null;
+            clientMustProvide?: string | null;
+            estimatedDurationMinutes?: number | null;
+            minimumHours?: number | null;
+            serviceRadiusKm?: number | string | null;
+            galleries?: Array<{ id: string }>;
+          };
+
+          const price =
+            typeof row.price === "number"
+              ? row.price
+              : Number.parseFloat(String(row.price ?? ""));
+
+          const serviceRadiusKm =
+            typeof row.serviceRadiusKm === "number"
+              ? row.serviceRadiusKm
+              : row.serviceRadiusKm != null
+                ? Number.parseFloat(String(row.serviceRadiusKm))
+                : null;
+
+          return {
+            serviceId: service.id,
+            serviceName: service.name,
+            servicePhoto: service.servicePhoto,
+            description: row.description ?? service.description ?? null,
+            price: Number.isFinite(price) ? price : null,
+            whatIsIncluded: row.whatIsIncluded ?? null,
+            serviceAreaNotes: row.serviceAreaNotes ?? null,
+            clientMustProvide: row.clientMustProvide ?? null,
+            estimatedDurationMinutes: row.estimatedDurationMinutes ?? null,
+            minimumHours: row.minimumHours ?? null,
+            serviceRadiusKm: Number.isFinite(Number(serviceRadiusKm))
+              ? Number(serviceRadiusKm)
+              : null,
+            galleryCount: Array.isArray(row.galleries) ? row.galleries.length : 0,
+          } satisfies ProfileStrengthGivenService;
+        }),
+      );
+
+      const givenServices: ProfileStrengthGivenService[] = [];
+      for (const result of givenServiceResults) {
+        if (result.status === "fulfilled") {
+          givenServices.push(result.value);
+        }
+      }
+
+      setProfile(nextProfile);
       setVerificationRequest(
         (verificationRes.data as LatestVerificationRequest | null) ?? null,
       );
-      setAllDocuments((docsRes.data as ProviderVerificationDocument[]) ?? []);
+      setAllDocuments(nextDocuments);
+      setProfileStrength(
+        computeProviderProfileStrength({
+          profile: nextProfile,
+          givenServices,
+        }),
+      );
     } catch {
       setProfile((user as UserWithProfile | null) ?? null);
       setVerificationRequest(null);
       setAllDocuments([]);
+      setProfileStrength(
+        computeProviderProfileStrength({
+          profile: (user as UserWithProfile | null) ?? null,
+          givenServices: [],
+        }),
+      );
     } finally {
       setLoading(false);
+      setProfileStrengthLoading(false);
     }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    setProfile((prev) => {
+      if (!prev) return user;
+      if (!user.provider) return { ...prev, ...user };
+      return {
+        ...prev,
+        ...user,
+        provider: { ...(prev.provider ?? {}), ...user.provider },
+      };
+    });
   }, [user]);
 
   useFocusEffect(
@@ -1621,6 +1988,8 @@ export const ProviderProfileScreen: React.FC = () => {
       loading={loading}
       verificationRequest={verificationRequest}
       allDocuments={allDocuments}
+      profileStrength={profileStrength}
+      profileStrengthLoading={profileStrengthLoading}
       onPressBack={() => navigation.goBack()}
       onPressEditPersonalInfo={() => navigation.navigate("ProviderEditProfile")}
       onPressEditPhoto={() => navigation.navigate("ProviderEditProfile")}

@@ -78,6 +78,18 @@ enum Locale {
   AR
 }
 
+enum FaqAudience {
+  ALL
+  CLIENT
+  PROVIDER
+}
+
+enum SupportMessageStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
 enum LegalDocumentType {
   TERMS
   PRIVACY
@@ -117,6 +129,28 @@ enum AppointmentConfirmationType {
   END
 }
 
+enum CompanyBranchStatus {
+  OPERATIONAL
+  COMING_SOON
+  INACTIVE
+}
+
+enum CompanyAuditAction {
+  PROFILE_UPDATED
+  BRANDING_UPDATED
+  BRANCH_CREATED
+  BRANCH_UPDATED
+  BRANCH_DELETED
+  NOTIFICATION_UPDATED
+  DATA_EXPORT
+}
+
+enum DashboardTheme {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
 enum NotificationType {
   // Appointment lifecycle
   APPOINTMENT_NEW_REQUEST // provider receives new booking request
@@ -129,6 +163,7 @@ enum NotificationType {
   APPOINTMENT_CANCELLED_PROVIDER // client: provider cancelled
   APPOINTMENT_REMINDER_24H // both: reminder 24h before
   APPOINTMENT_REMINDER_1H // both: reminder 1h before
+  APPOINTMENT_START_DUE // provider: scheduled start time reached, service not started
   APPOINTMENT_EN_ROUTE // client: provider is on the way
   APPOINTMENT_STARTED // both: service started (awaiting other confirmation)
   APPOINTMENT_PROVIDER_ENDED // client: provider marked service ended; confirm to complete
@@ -153,6 +188,10 @@ enum NotificationType {
   EMPLOYEE_INVITATION_DECLINED  // company admin: provider declined
   EMPLOYEE_INVITATION_CANCELLED // provider: company cancelled the invitation
   EMPLOYEE_REMOVED_FROM_COMPANY // provider: company admin removed them
+  // Company bookings
+  COMPANY_NEW_REQUEST           // company admin: client requested a service from the company
+  COMPANY_BOOKING_CANCELLED     // company admin: client cancelled a company booking
+  APPOINTMENT_PROVIDER_ASSIGNED // provider: company admin assigned you to an appointment
 }
 
 enum InvitationStatus {
@@ -203,6 +242,13 @@ enum ComplaintDecision {
   FORWARDED_TO_COMPANY // dependent provider → forwarded to company admin
 }
 
+/// Where a client wants a complaint about a company employee to be reviewed.
+enum ComplaintForwardTarget {
+  PLATFORM // platform support only
+  COMPANY // company administrator only
+  BOTH // platform and company administrators
+}
+
 // User Model (synced with Supabase Auth)
 model User {
   id              String        @id @db.Uuid
@@ -229,6 +275,7 @@ model User {
   pushTokens                 PushToken[]
   notifications              Notification[]
   sentMessages               Message[]
+  supportMessages            SupportMessage[]
 
   @@map("users")
 }
@@ -363,6 +410,8 @@ model CompanyAdmin {
   user            User                 @relation(fields: [id], references: [id], onDelete: Cascade)
   company         Company?             @relation
   sentInvitations EmployeeInvitation[]
+  notificationPreference CompanyNotificationPreference?
+  auditLogs              CompanyAuditLog[]              @relation("CompanyAuditActor")
 
   @@map("company_admins")
 }
@@ -383,9 +432,15 @@ model Company {
   latitude       Float?
   longitude      Float?
   serviceZones   String[] @default([]) @map("service_zones")
-  email    String?   @map("email")
+  email          String?  @map("email")
+  phone          String?  @map("phone")
+  about          String?  @db.Text @map("about")
+  brandColor     String?  @default("#7621C2") @map("brand_color")
+  dashboardTheme DashboardTheme @default(LIGHT) @map("dashboard_theme")
   averageRating  Decimal? @default(0) @db.Decimal(3, 2)
   totalReviews   Int      @default(0) @map("total_reviews")
+  cancellationRate    Decimal? @default(0) @map("cancellation_rate") @db.Decimal(5, 2)
+  averageResponseTime Decimal? @map("average_response_time") @db.Decimal(10, 2)
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -393,8 +448,60 @@ model Company {
   providers     Provider[]     @relation("CompanyProviders")
   admin         CompanyAdmin?  @relation(fields: [adminId], references: [id])
   invitations   EmployeeInvitation[]
+  appointments  Appointment[]
+  branches      CompanyBranch[]
+  auditLogs     CompanyAuditLog[]
+  complaints    Complaint[]
 
   @@map("companies")
+}
+
+model CompanyBranch {
+  id        String              @id @default(uuid()) @db.Uuid
+  companyId String              @map("company_id") @db.Uuid
+  name      String
+  subtitle  String?
+  city      String
+  address   String?
+  status    CompanyBranchStatus @default(OPERATIONAL)
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("company_branches")
+}
+
+model CompanyNotificationPreference {
+  id                    String   @id @default(uuid()) @db.Uuid
+  companyAdminId        String   @unique @map("company_admin_id") @db.Uuid
+  newOrderAlerts        Boolean  @default(true) @map("new_order_alerts")
+  providerStatusUpdates Boolean  @default(false) @map("provider_status_updates")
+  weeklyReport          Boolean  @default(true) @map("weekly_report")
+  systemAnnouncements   Boolean  @default(true) @map("system_announcements")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  companyAdmin CompanyAdmin @relation(fields: [companyAdminId], references: [id], onDelete: Cascade)
+
+  @@map("company_notification_preferences")
+}
+
+model CompanyAuditLog {
+  id           String             @id @default(uuid()) @db.Uuid
+  companyId    String             @map("company_id") @db.Uuid
+  actorAdminId String?            @map("actor_admin_id") @db.Uuid
+  action       CompanyAuditAction
+  summary      String
+  metadata     Json?
+  ipAddress    String?            @map("ip_address")
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  company    Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  actorAdmin CompanyAdmin? @relation("CompanyAuditActor", fields: [actorAdminId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@map("company_audit_logs")
 }
 
 
@@ -687,7 +794,10 @@ model Appointment {
   id             String            @id @default(uuid()) @db.Uuid
   clientId       String            @map("client_id") @db.Uuid
   givenServiceId String            @map("given_service_id") @db.Uuid
-  providerId     String            @map("provider_id") @db.Uuid
+  /// Nullable: a company booking can be created before a provider is assigned.
+  providerId     String?           @map("provider_id") @db.Uuid
+  /// Set when the booking targets a company (the admin assigns/manages the provider).
+  companyId      String?           @map("company_id") @db.Uuid
   status         AppointmentStatus @default(PENDING)
   scheduledDate  DateTime          @db.Date @map("scheduled_date") // date only
   scheduledTime  String            @map("scheduled_time") // "HH:MM"
@@ -702,13 +812,19 @@ model Appointment {
   refusalReason  String?   @map("refusal_reason") @db.Text
   rescheduleDate DateTime? @db.Date @map("reschedule_date")
   rescheduleTime String?   @map("reschedule_time")
-  confirmedAt    DateTime? @map("confirmed_at")
+  confirmedAt         DateTime? @map("confirmed_at")
+  /// First provider response to the request (accept / refuse / reschedule).
+  providerRespondedAt DateTime? @map("provider_responded_at")
+  /// First company admin response to the request (accept / refuse / reschedule).
+  companyRespondedAt  DateTime? @map("company_responded_at")
 
   // Execution tracking
   enRouteAt       DateTime? @map("en_route_at")
   startedAt       DateTime? @map("started_at")
   completedAt     DateTime? @map("completed_at")
   durationMinutes Int?      @map("duration_minutes") // computed on completion
+  /// Set when linked GivenService.totalCompletedJobs was incremented for this appointment.
+  completedJobsCounted Boolean @default(false) @map("completed_jobs_counted")
 
   // Photos uploaded during/after intervention
   beforePhotoUrls String[] @default([]) @map("before_photo_urls")
@@ -724,13 +840,15 @@ model Appointment {
 
   client        Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
   givenService  GivenService              @relation(fields: [givenServiceId], references: [id], onDelete: Restrict)
-  provider      Provider                  @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  provider      Provider?                 @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  company       Company?                  @relation(fields: [companyId], references: [id], onDelete: SetNull)
   confirmations AppointmentConfirmation[]
   review        Review?
   complaints    Complaint[]
 
   @@index([clientId, status])
   @@index([providerId, scheduledDate])
+  @@index([companyId, status])
   @@index([givenServiceId])
   @@index([status])
   @@map("appointments")
@@ -819,8 +937,21 @@ model Complaint {
   resolvedAt DateTime? @map("resolved_at")
 
   /// Whether the complaint targets a company employee (dependent provider).
-  /// If true, the company admin is also notified (company feature — future).
   targetIsEmployee Boolean @default(false) @map("target_is_employee")
+
+  /// Client-selected routing when the provider is a company employee.
+  forwardTarget ComplaintForwardTarget @default(PLATFORM) @map("forward_target")
+
+  /// Company linked to the reported employee (set when forward includes company).
+  companyId String? @map("company_id") @db.Uuid
+
+  /// Company admin internal notes (not visible to client).
+  companyNotes String? @map("company_notes") @db.Text
+
+  /// Company admin response visible to the client.
+  companyResponse String? @map("company_response") @db.Text
+
+  companyReviewedAt DateTime? @map("company_reviewed_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -829,12 +960,14 @@ model Complaint {
   client          Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   provider        Provider       @relation(fields: [providerId], references: [id], onDelete: Cascade)
   handledByAdmin  PlatformAdmin? @relation(fields: [handledByAdminId], references: [id], onDelete: SetNull)
+  company         Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
   @@unique([appointmentId, clientId]) // one complaint per appointment per client
   @@index([status, createdAt])
   @@index([providerId, status])
   @@index([clientId])
   @@index([handledByAdminId])
+  @@index([companyId, status])
   @@map("complaints")
 }
 
@@ -971,4 +1104,51 @@ model EmployeeInvitation {
   @@index([companyId, status])
   @@index([expiresAt])
   @@map("employee_invitations")
+}
+
+model FaqItem {
+  id          String      @id @default(uuid()) @db.Uuid
+  audience    FaqAudience @default(ALL)
+  sortOrder   Int         @default(0) @map("sort_order")
+  isPublished Boolean     @default(true) @map("is_published")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  translations FaqTranslation[]
+
+  @@index([audience, isPublished, sortOrder])
+  @@map("faq_items")
+}
+
+model FaqTranslation {
+  id        String @id @default(uuid()) @db.Uuid
+  faqItemId String @map("faq_item_id") @db.Uuid
+  locale    Locale
+  question  String @db.Text
+  answer    String @db.Text
+
+  faqItem FaqItem @relation(fields: [faqItemId], references: [id], onDelete: Cascade)
+
+  @@unique([faqItemId, locale])
+  @@map("faq_translations")
+}
+
+model SupportMessage {
+  id        String               @id @default(uuid()) @db.Uuid
+  userId    String               @map("user_id") @db.Uuid
+  name      String
+  email     String
+  subject   String
+  message   String               @db.Text
+  status    SupportMessageStatus @default(NEW)
+  userRole  UserRole             @map("user_role")
+  readAt    DateTime?            @map("read_at")
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@map("support_messages")
 }

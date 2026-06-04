@@ -64,6 +64,9 @@ export function getNotificationVisual(type: NotificationType): NotificationIconC
   if (type === "APPOINTMENT_REMINDER_24H" || type === "APPOINTMENT_REMINDER_1H") {
     return { icon: "alarm-outline", bgColor: "#E0E7FF", iconColor: "#4F46E5" };
   }
+  if (type === "APPOINTMENT_START_DUE") {
+    return { icon: "alert-circle-outline", bgColor: "#FEE2E2", iconColor: "#DC2626" };
+  }
   if (type === "ACCOUNT_VERIFIED") {
     return {
       icon: "shield-checkmark-outline",

@@ -21,17 +21,22 @@ import {
   AdminComplaintDetailPage,
   AdminReviewsPage,
   AdminReviewDetailPage,
+  FaqAdminPage,
+  SupportMessagesAdminPage,
 } from './features/admin'
 import {
   CompanyAdminLayout,
   CompanyDashboardPage,
   CompanyProvidersPage,
   CompanyServicesPage,
+  GivenServiceEditPage,
   CompanyOrdersPage,
   CompanySchedulePage,
   CompanyRatingsPage,
   CompanySettingsPage,
   CompanyPlaceholderPage,
+  CompanyComplaintsPage,
+  CompanyComplaintDetailPage,
 } from './features/company_admin'
 import { useAuthStore } from './stores/authStore'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
@@ -151,10 +156,7 @@ function AppShell() {
                   path="finance/payouts"
                   element={<PlaceholderPage title="Payouts" />}
                 />
-                <Route
-                  path="messages"
-                  element={<PlaceholderPage title="Messages & support" />}
-                />
+                <Route path="messages" element={<SupportMessagesAdminPage />} />
                 <Route
                   path="analytics/overview"
                   element={<PlaceholderPage title="Analytics overview" />}
@@ -163,18 +165,8 @@ function AppShell() {
                   path="analytics/exports"
                   element={<PlaceholderPage title="Report exports" />}
                 />
-                <Route
-                  path="content/legal-documents"
-                  element={<LegalDocumentsAdminPage />}
-                />
-                <Route
-                  path="content/pages"
-                  element={<PlaceholderPage title="Content pages" />}
-                />
-                <Route
-                  path="content/media"
-                  element={<PlaceholderPage title="Media library" />}
-                />
+                <Route path="content/legal-documents" element={<LegalDocumentsAdminPage />} />
+                <Route path="content/faq" element={<FaqAdminPage />} />
                 <Route
                   path="settings/general"
                   element={<PlaceholderPage title="General settings" />}
@@ -196,12 +188,14 @@ function AppShell() {
                 <Route path="dashboard" element={<CompanyDashboardPage />} />
                 <Route path="providers" element={<CompanyProvidersPage />} />
                 <Route path="services" element={<CompanyServicesPage />} />
+                <Route path="services/given/:givenServiceId" element={<GivenServiceEditPage />} />
                 <Route path="orders" element={<CompanyOrdersPage />} />
                 <Route
                   path="schedule-capacity"
                   element={<CompanySchedulePage />}
                 />
-                <Route path="finance" element={<CompanyPlaceholderPage title="Finance" />} />
+                <Route path="complaints" element={<CompanyComplaintsPage />} />
+                <Route path="complaints/:id" element={<CompanyComplaintDetailPage />} />
                 <Route path="ratings" element={<CompanyRatingsPage />} />
                 <Route
                   path="subscription-plan"

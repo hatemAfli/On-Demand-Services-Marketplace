@@ -361,9 +361,9 @@ export const ProviderEditProfileScreen: React.FC = () => {
                     </View>
                   )}
                 </View>
-              </View>
-              <View style={styles.avatarEditBadge}>
-                <Ionicons name="camera" size={13} color="#FFF" />
+                <View style={styles.editPhotoBtn}>
+                  <Text style={styles.editPhotoIcon}>📷</Text>
+                </View>
               </View>
             </TouchableOpacity>
             <Text style={[styles.avatarHeroTitle, isRTL && styles.rtlText]}>
@@ -710,23 +710,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#FFF7ED",
   },
-  avatarEditBadge: {
+  editPhotoBtn: {
     position: "absolute",
     right: 0,
     bottom: 0,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#7C5CFC",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2.5,
-    borderColor: "#FFFFFF",
-    shadowColor: "#7C5CFC",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  editPhotoIcon: {
+    fontSize: 12,
+    color: "#F08E10",
   },
   avatarHeroTitle: {
     fontSize: 22,

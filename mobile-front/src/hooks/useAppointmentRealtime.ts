@@ -13,11 +13,19 @@ export function useAppointmentRealtime(
     if (!appointmentId) return;
 
     const channel = supabase
-      .channel(`appointment:${appointmentId}`)
+      .channel(`appointment:${appointmentId}`, {
+        config: { broadcast: { self: true } },
+      })
       .on("broadcast", { event: "appointment_updated" }, ({ payload }) => {
         callbackRef.current(payload);
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          console.warn(
+            `[realtime] appointment:${appointmentId} subscription error`,
+          );
+        }
+      });
 
     return () => {
       void supabase.removeChannel(channel);

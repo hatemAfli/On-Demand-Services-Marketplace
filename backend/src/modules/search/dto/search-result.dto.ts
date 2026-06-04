@@ -44,6 +44,8 @@ export interface SearchResultItem {
   serviceRadiusKm: number | null;
   galleries: GalleryPreview[];
   owner: OwnerSnapshot;
+  /** For COMPANY entries: how many of the company's providers offer this service. */
+  providerCount?: number;
   _score: number;
 }
 

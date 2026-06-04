@@ -23,6 +23,8 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
 import { AdminReviewsModule } from './modules/reviews/admin-reviews.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { CompanyModule } from './modules/company/company.module';
+import { SupportMessagesModule } from './modules/support-messages/support-messages.module';
+import { FaqModule } from './modules/faq/faq.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -56,6 +58,8 @@ import { AppService } from './app.service';
     AdminReviewsModule,
     ComplaintsModule,
     CompanyModule,
+    FaqModule,
+    SupportMessagesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

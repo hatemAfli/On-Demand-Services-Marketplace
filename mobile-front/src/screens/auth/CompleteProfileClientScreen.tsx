@@ -26,9 +26,12 @@ import {
   requestPhotoLibraryPermission,
   uploadClientProfileAvatar,
 } from "../../services/clientAvatarUpload";
-import { COLORS } from "../../constants";
 
-const ACCENT = "#4F46E5";
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_SOFT = "#FFEDD5";
+const ACCENT_BORDER = "#FDBA74";
+const SCREEN_BG = "#F1F5F9";
 
 interface CompleteProfileClientScreenProps {
   navigation: NativeStackNavigationProp<any>;
@@ -240,10 +243,10 @@ export const CompleteProfileClientScreen: React.FC<
                     style={styles.photoImage}
                   />
                 ) : (
-                  <Ionicons name="camera-outline" size={36} color={ACCENT} />
+                  <Ionicons name="camera-outline" size={28} color={ACCENT} />
                 )}
                 <View style={styles.photoBadge}>
-                  <Ionicons name="add" size={18} color="#0b1020" />
+                  <Ionicons name="add" size={16} color="#FFFFFF" />
                 </View>
               </TouchableOpacity>
               <Text style={[styles.photoHint, isRTL && styles.rtlText]}>
@@ -298,8 +301,6 @@ export const CompleteProfileClientScreen: React.FC<
                 value={formData.address}
                 onChangeText={(value) => updateField("address", value)}
                 leftIcon="home-outline"
-                multiline
-                numberOfLines={2}
               />
             </View>
 
@@ -319,11 +320,14 @@ export const CompleteProfileClientScreen: React.FC<
         <View
           style={[
             styles.footer,
-            { paddingBottom: 16 + insets.bottom, paddingTop: 16 },
+            { paddingBottom: Math.max(insets.bottom - 40, 4), paddingTop: 12 },
           ]}
         >
           <TouchableOpacity
-            style={styles.submitButton}
+            style={[
+              styles.submitButton,
+              isSubmitting && styles.submitButtonDisabled,
+            ]}
             onPress={handleSubmit}
             activeOpacity={0.9}
             disabled={isSubmitting}
@@ -332,10 +336,12 @@ export const CompleteProfileClientScreen: React.FC<
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <View style={styles.submitButtonContent}>
-                <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
                 <Text style={styles.submitButtonText}>
                   {t("completeProfile.completeButton")}
                 </Text>
+                <View style={styles.submitButtonIconWrap}>
+                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                </View>
               </View>
             )}
           </TouchableOpacity>
@@ -348,7 +354,7 @@ export const CompleteProfileClientScreen: React.FC<
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: SCREEN_BG,
   },
   topBackContainer: {
     position: "absolute",
@@ -360,7 +366,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 0,
   },
   navBackButton: {
     paddingVertical: 8,
@@ -374,31 +380,25 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   panel: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-    padding: 16,
     width: "100%",
-    maxWidth: 420,
-    alignSelf: "center",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 1,
+    alignSelf: "stretch",
+    backgroundColor: SCREEN_BG,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 24,
+    minHeight: 400,
   },
   photoBlock: {
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   photoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "#F9FAFB",
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: ACCENT_LIGHT,
     borderWidth: 2,
-    borderColor: "#E5E7EB",
+    borderColor: ACCENT_BORDER,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -406,15 +406,15 @@ const styles = StyleSheet.create({
   photoImage: {
     width: "100%",
     height: "100%",
-    borderRadius: 60,
+    borderRadius: 42,
   },
   photoBadge: {
     position: "absolute",
-    bottom: 4,
-    right: 4,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    bottom: 2,
+    right: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
@@ -422,8 +422,8 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF",
   },
   photoHint: {
-    marginTop: 10,
-    fontSize: 13,
+    marginTop: 8,
+    fontSize: 12,
     color: "#6B7280",
     textAlign: "center",
     paddingHorizontal: 8,
@@ -434,13 +434,13 @@ const styles = StyleSheet.create({
   locationTip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFBEB",
+    backgroundColor: ACCENT_LIGHT,
     padding: 12,
     borderRadius: 12,
     gap: 10,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: "#FDE68A",
+    borderColor: ACCENT_BORDER,
   },
   locationTipText: {
     flex: 1,
@@ -453,24 +453,26 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 24,
-    backgroundColor: "rgba(255,255,255,0.96)",
+    paddingHorizontal: 20,
+    backgroundColor: SCREEN_BG,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: "#E2E8F0",
   },
   submitButton: {
-    alignSelf: "center",
-    minWidth: 210,
-    height: 48,
-    borderRadius: 999,
-    backgroundColor: "#6366F1",
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#4338CA",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
     shadowRadius: 10,
     elevation: 3,
+  },
+  submitButtonDisabled: {
+    opacity: 0.65,
   },
   submitButtonContent: {
     flexDirection: "row",
@@ -479,9 +481,17 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
     letterSpacing: 0.2,
+  },
+  submitButtonIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   rtlText: {
     textAlign: "right",

@@ -22,7 +22,9 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { COLORS } from "../../../constants";
+import { useAuth } from "../../../context/AuthContext";
 import type { ProviderStackParamList } from "../../../navigation/types";
+import { ProviderType, type UserWithProfile } from "../../../types";
 import { api, type ProviderDayOffItem } from "../../../services/api";
 
 type Props = NativeStackScreenProps<ProviderStackParamList, "ProviderDaysOff">;
@@ -98,6 +100,9 @@ const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const isEmployee =
+    (user as UserWithProfile | null)?.provider?.type === ProviderType.EMPLOYEE;
   const contentWidth = Dimensions.get("window").width - SCREEN_PAD * 2;
   const cellSize = Math.floor((contentWidth - GAP * 6) / 7);
 
@@ -202,6 +207,13 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleDayCellPress = (dayNum: number) => {
+    if (isEmployee) {
+      Alert.alert(
+        "Schedule managed by company",
+        "Your company admin manages your days off.",
+      );
+      return;
+    }
     const key = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
     const cellDate = new Date(year, monthIndex, dayNum);
     const todayStart = new Date();
@@ -241,6 +253,7 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleDelete = async (id: string) => {
+    if (isEmployee) return;
     setDeletingIds((prev) => new Set(prev).add(id));
     try {
       await api.deleteDayOff(id);
@@ -501,6 +514,7 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
                         )}
                       </View>
 
+                      {!isEmployee ? (
                       <TouchableOpacity
                         style={[
                           styles.trashBtn,
@@ -520,6 +534,7 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
                           />
                         )}
                       </TouchableOpacity>
+                      ) : null}
                     </View>
                     {index < upcomingBlocked.length - 1 && (
                       <View style={styles.sep} />
