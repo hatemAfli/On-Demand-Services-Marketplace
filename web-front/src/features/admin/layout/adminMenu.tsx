@@ -1,20 +1,18 @@
+import type { IconType } from 'react-icons'
 import {
-  AlertOutlined,
-  AppstoreOutlined,
-  BarChartOutlined,
-  CalendarOutlined,
-  CommentOutlined,
-  DashboardOutlined,
-  DollarOutlined,
-  FileTextOutlined,
-  HistoryOutlined,
-  SafetyCertificateOutlined,
-  SettingOutlined,
-  StarOutlined,
-  TeamOutlined,
-} from '@ant-design/icons'
-import { Badge } from 'antd'
-import type { MenuProps } from 'antd'
+  FaCalendarCheck,
+  FaClockRotateLeft,
+  FaFileLines,
+  FaFolderTree,
+  FaGaugeHigh,
+  FaHandshake,
+  FaListCheck,
+  FaMessage,
+  FaShieldHalved,
+  FaStar,
+  FaTriangleExclamation,
+  FaUsers,
+} from 'react-icons/fa6'
 
 export type MenuCountProps = {
   pendingVerificationTotal: number
@@ -23,126 +21,139 @@ export type MenuCountProps = {
   openReclamations: number
 }
 
-export function buildAdminMenuItems(c: MenuCountProps): MenuProps['items'] {
-  const badge = (n: number) =>
-    n > 0 ? <Badge count={n} size="small" offset={[8, 0]} /> : null
+export type AdminMenuItem = {
+  key: string
+  label: string
+  icon: IconType
+  badge?: number
+}
 
+export type AdminMenuSection = {
+  title: string
+  items: AdminMenuItem[]
+}
+
+export function buildAdminMenuSections(c: MenuCountProps): AdminMenuSection[] {
   return [
     {
-      key: '/admin/dashboard',
-      icon: <DashboardOutlined />,
-      label: 'Dashboard',
-    },
-    {
-      key: 'sub-users',
-      icon: <TeamOutlined />,
-      label: 'User Management',
-      children: [
-        { key: '/admin/users/all', label: 'All Users' },
-        { key: '/admin/companies', label: 'Companies' },
+      title: 'Main Menu',
+      items: [
+        { key: '/admin/dashboard', label: 'Dashboard', icon: FaGaugeHigh },
       ],
     },
     {
-      key: 'sub-validation',
-      icon: <SafetyCertificateOutlined />,
-      label: (
-        <span>
-          Validation Center {badge(c.pendingVerificationTotal)}
-        </span>
-      ),
-      children: [
+      title: 'Users & Companies',
+      items: [
+        { key: '/admin/users/all', label: 'All Users', icon: FaUsers },
+        { key: '/admin/companies', label: 'Companies', icon: FaHandshake },
+      ],
+    },
+    {
+      title: 'Validation',
+      items: [
         {
           key: '/admin/validations/pending-providers',
-          label: (
-            <span>
-              Pending Providers {badge(c.pendingProviderVerifications)}
-            </span>
-          ),
+          label: 'Pending Providers',
+          icon: FaShieldHalved,
+          badge: c.pendingProviderVerifications,
         },
         {
           key: '/admin/validations/pending-companies',
-          label: (
-            <span>
-              Pending Companies {badge(c.pendingCompanyVerifications)}
-            </span>
-          ),
+          label: 'Pending Companies',
+          icon: FaListCheck,
+          badge: c.pendingCompanyVerifications,
         },
-        { key: '/admin/validations/history', label: 'Validation History' },
+        {
+          key: '/admin/validations/history',
+          label: 'Validation History',
+          icon: FaClockRotateLeft,
+        },
       ],
     },
     {
-      key: 'sub-catalog',
-      icon: <AppstoreOutlined />,
-      label: 'Categories & Services',
-      children: [
-        { key: '/admin/catalog/categories', label: 'Categories' },
-        { key: '/admin/catalog/services', label: 'Services' },
+      title: 'Catalog',
+      items: [
+        { key: '/admin/catalog/categories', label: 'Categories', icon: FaFolderTree },
+        { key: '/admin/catalog/services', label: 'Services', icon: FaFileLines },
       ],
     },
     {
-      key: '/admin/appointments/list',
-      icon: <CalendarOutlined />,
-      label: 'Appointments',
-    },
-    {
-      key: '/admin/reclamations',
-      icon: <AlertOutlined />,
-      label: (
-        <span>
-          Reclamations {badge(c.openReclamations)}
-        </span>
-      ),
-    },
-    {
-      key: '/admin/reviews',
-      icon: <StarOutlined />,
-      label: 'Reviews & Ratings',
-    },
-    {
-      key: 'sub-finance',
-      icon: <DollarOutlined />,
-      label: 'Financial Management',
-      children: [
-        { key: '/admin/finance/overview', label: 'Overview' },
-        { key: '/admin/finance/payouts', label: 'Payouts' },
+      title: 'Operations',
+      items: [
+        { key: '/admin/appointments/list', label: 'Appointments', icon: FaCalendarCheck },
+        {
+          key: '/admin/reclamations',
+          label: 'Reclamations',
+          icon: FaTriangleExclamation,
+          badge: c.openReclamations,
+        },
+        { key: '/admin/reviews', label: 'Reviews & Ratings', icon: FaStar },
       ],
     },
     {
-      key: '/admin/messages',
-      icon: <CommentOutlined />,
-      label: 'Messages & Support',
-    },
-    {
-      key: 'sub-analytics',
-      icon: <BarChartOutlined />,
-      label: 'Analytics & Reports',
-      children: [
-        { key: '/admin/analytics/overview', label: 'Overview' },
-        { key: '/admin/analytics/exports', label: 'Exports' },
+      title: 'Support & Content',
+      items: [
+        { key: '/admin/messages', label: 'Messages & Support', icon: FaMessage },
+        { key: '/admin/content/legal-documents', label: 'Terms & Privacy', icon: FaFileLines },
+        { key: '/admin/content/faq', label: 'FAQ', icon: FaFileLines },
       ],
     },
     {
-      key: 'sub-content',
-      icon: <FileTextOutlined />,
-      label: 'Content Management',
-      children: [
-        { key: '/admin/content/legal-documents', label: 'Terms & Privacy' },
-        { key: '/admin/content/faq', label: 'FAQ' },
+      title: 'System',
+      items: [
+        { key: '/admin/activity-logs', label: 'Activity Logs', icon: FaClockRotateLeft },
       ],
-    },
-    {
-      key: 'sub-settings',
-      icon: <SettingOutlined />,
-      label: 'Settings',
-      children: [
-        { key: '/admin/settings/general', label: 'General' },
-        { key: '/admin/settings/security', label: 'Security' },
-      ],
-    },
-    {
-      key: '/admin/activity-logs',
-      icon: <HistoryOutlined />,
-      label: 'Activity Logs',
     },
   ]
+}
+
+export function resolveAdminPageMeta(pathname: string): {
+  label: string
+  icon: IconType | null
+} {
+  const sections = buildAdminMenuSections({
+    pendingVerificationTotal: 0,
+    pendingProviderVerifications: 0,
+    pendingCompanyVerifications: 0,
+    openReclamations: 0,
+  })
+
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (pathname === item.key || pathname.startsWith(`${item.key}/`)) {
+        return { label: item.label, icon: item.icon }
+      }
+    }
+  }
+
+  if (pathname.startsWith('/admin/users/') && pathname !== '/admin/users/all') {
+    return { label: 'User details', icon: null }
+  }
+  if (pathname.startsWith('/admin/appointments/') && pathname !== '/admin/appointments/list') {
+    return { label: 'Appointment details', icon: null }
+  }
+  if (pathname.startsWith('/admin/reclamations/')) {
+    return { label: 'Complaint review', icon: null }
+  }
+  if (pathname.startsWith('/admin/reviews/')) {
+    return { label: 'Review details', icon: null }
+  }
+
+  return { label: 'Administration', icon: null }
+}
+
+export function resolveAdminSubtitle(pathname: string): string {
+  if (pathname === '/admin/dashboard') {
+    return 'Overview of platform activity, queues, and key metrics.'
+  }
+  if (pathname.startsWith('/admin/validations')) {
+    return 'Review provider and company verification requests.'
+  }
+  if (pathname.startsWith('/admin/catalog')) {
+    return 'Manage marketplace service categories and catalog entries.'
+  }
+  if (pathname.startsWith('/admin/activity-logs')) {
+    return 'Audit trail of platform administrator actions.'
+  }
+  return 'ServeMe platform administration workspace.'
 }

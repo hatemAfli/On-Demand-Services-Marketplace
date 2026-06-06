@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { NotificationType, Prisma, ReviewVisibility } from '@prisma/client';
+import { NotificationType, PlatformAuditAction, Prisma, ReviewVisibility } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
+import type { PlatformAuditContext } from '../platform-audit/platform-audit.types';
 import { recomputeProviderTopProviderStatus } from '../appointments/helpers/top-provider-status';
 import { recomputeCompanyRating } from './helpers/recompute-company-rating';
 import { GetAdminReviewsDto } from './dto/get-admin-reviews.dto';
@@ -61,6 +63,7 @@ export class AdminReviewsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly audit: PlatformAuditService,
   ) {}
 
   async list(dto: GetAdminReviewsDto) {
@@ -85,33 +88,38 @@ export class AdminReviewsService {
   }
 
   async getStats() {
-    const [total, publicAgg, hidden, withReply, ratingCounts] =
-      await Promise.all([
-        this.prisma.review.count(),
-        this.prisma.review.aggregate({
-          where: { visibility: ReviewVisibility.PUBLIC },
-          _avg: { rating: true },
-        }),
-        this.prisma.review.count({
-          where: { visibility: ReviewVisibility.HIDDEN },
-        }),
-        this.prisma.review.count({
-          where: { providerReply: { not: null } },
-        }),
-        Promise.all(
-          ([1, 2, 3, 4, 5] as const).map((rating) =>
-            this.prisma.review.count({ where: { rating } }),
-          ),
-        ),
-      ]);
+    const [ratingGroups, publicAgg, hidden, withReply] = await Promise.all([
+      this.prisma.review.groupBy({
+        by: ['rating'],
+        _count: { _all: true },
+      }),
+      this.prisma.review.aggregate({
+        where: { visibility: ReviewVisibility.PUBLIC },
+        _avg: { rating: true },
+      }),
+      this.prisma.review.count({
+        where: { visibility: ReviewVisibility.HIDDEN },
+      }),
+      this.prisma.review.count({
+        where: { providerReply: { not: null } },
+      }),
+    ]);
 
     const byRating = {
-      1: ratingCounts[0] ?? 0,
-      2: ratingCounts[1] ?? 0,
-      3: ratingCounts[2] ?? 0,
-      4: ratingCounts[3] ?? 0,
-      5: ratingCounts[4] ?? 0,
+      1: 0,
+      2: 0,
+      3: 0,
+      4: 0,
+      5: 0,
     } as Record<1 | 2 | 3 | 4 | 5, number>;
+
+    let total = 0;
+    for (const row of ratingGroups) {
+      if (row.rating >= 1 && row.rating <= 5) {
+        byRating[row.rating as 1 | 2 | 3 | 4 | 5] = row._count._all;
+        total += row._count._all;
+      }
+    }
 
     return {
       total,
@@ -136,7 +144,11 @@ export class AdminReviewsService {
     return review;
   }
 
-  async hide(id: string, dto: HideReviewDto): Promise<AdminReviewPayload> {
+  async hide(
+    id: string,
+    dto: HideReviewDto,
+    ctx?: PlatformAuditContext,
+  ): Promise<AdminReviewPayload> {
     const review = await this.findReviewOrThrow(id);
     const now = new Date();
 
@@ -162,10 +174,23 @@ export class AdminReviewsService {
       data: { reviewId: id, screen: 'ProviderReviews' },
     });
 
+    const actor = ctx
+      ? await this.audit.actorName(ctx.actorAdminId)
+      : 'Admin';
+    this.audit.logIf(
+      ctx,
+      PlatformAuditAction.REVIEW_HIDDEN,
+      `${actor} hid a review.`,
+      { reviewId: id, reason: dto.reason.trim() },
+    );
+
     return updated;
   }
 
-  async restore(id: string): Promise<AdminReviewPayload> {
+  async restore(
+    id: string,
+    ctx?: PlatformAuditContext,
+  ): Promise<AdminReviewPayload> {
     const review = await this.findReviewOrThrow(id);
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -190,16 +215,36 @@ export class AdminReviewsService {
       data: { reviewId: id, screen: 'ProviderReviews' },
     });
 
+    const actor = ctx
+      ? await this.audit.actorName(ctx.actorAdminId)
+      : 'Admin';
+    this.audit.logIf(
+      ctx,
+      PlatformAuditAction.REVIEW_RESTORED,
+      `${actor} restored a hidden review.`,
+      { reviewId: id },
+    );
+
     return updated;
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, ctx?: PlatformAuditContext): Promise<void> {
     const review = await this.findReviewOrThrow(id);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.review.delete({ where: { id } });
       await this.recomputeRatings(tx, review.providerId, review.givenServiceId);
     });
+
+    const actor = ctx
+      ? await this.audit.actorName(ctx.actorAdminId)
+      : 'Admin';
+    this.audit.logIf(
+      ctx,
+      PlatformAuditAction.REVIEW_DELETED,
+      `${actor} permanently deleted a review.`,
+      { reviewId: id, providerId: review.providerId },
+    );
   }
 
   private async findReviewOrThrow(id: string) {

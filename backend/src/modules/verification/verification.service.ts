@@ -9,12 +9,15 @@ import {
   Locale,
   NotificationType,
   OwnerType,
+  PlatformAuditAction,
   Prisma,
   ReviewStatus,
   UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { ResendMailService } from '../../config/resend-mail.service';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
+import type { PlatformAuditContext } from '../platform-audit/platform-audit.types';
 import type { ListVerificationRequestsQueryDto } from './dto/list-verification-requests-query.dto';
 import type { ResubmitVerificationDto } from './dto/resubmit-verification.dto';
 import type { CreateProviderServiceRequestDto } from './dto/create-provider-service-request.dto';
@@ -183,6 +186,7 @@ export class VerificationService {
     private readonly givenServiceService: GivenServiceService,
     private readonly notificationsService: NotificationsService,
     private readonly availabilityService: AvailabilityService,
+    private readonly audit: PlatformAuditService,
   ) {}
 
   async listVerificationRequestsForAdmin(
@@ -601,10 +605,11 @@ export class VerificationService {
   }
 
   async reviewDocument(
-    _user: User,
+    user: User,
     requestId: string,
     documentId: string,
     dto: ReviewVerificationDocumentDto,
+    ctx?: PlatformAuditContext,
   ) {
     const request = await this.prisma.verificationProfilRequest.findUnique({
       where: { id: requestId },
@@ -675,10 +680,19 @@ export class VerificationService {
     if (!updated) {
       throw new NotFoundException('Verification request not found');
     }
+
+    const actor = await this.audit.actorName(ctx?.actorAdminId ?? user.id);
+    this.audit.logIf(
+      { actorAdminId: ctx?.actorAdminId ?? user.id, ipAddress: ctx?.ipAddress },
+      PlatformAuditAction.VERIFICATION_DOCUMENT_REVIEWED,
+      `${actor} ${dto.decision === 'accept' ? 'accepted' : 'rejected'} verification document.`,
+      { requestId, documentId, decision: dto.decision },
+    );
+
     return normalizeVerificationItem(updated);
   }
 
-  async approveRequest(_user: User, id: string) {
+  async approveRequest(user: User, id: string, ctx?: PlatformAuditContext) {
     const existing = await this.prisma.verificationProfilRequest.findUnique({
       where: { id },
     });
@@ -772,10 +786,23 @@ export class VerificationService {
 
     await this.notifyProviderOutcome(updated, 'APPROVED');
 
+    const actor = await this.audit.actorName(ctx?.actorAdminId ?? user.id);
+    this.audit.logIf(
+      { actorAdminId: ctx?.actorAdminId ?? user.id, ipAddress: ctx?.ipAddress },
+      PlatformAuditAction.VERIFICATION_APPROVED,
+      `${actor} approved verification request.`,
+      { requestId: id, ownerType: existing.ownerType, userId: existing.userId },
+    );
+
     return normalizeVerificationItem(updated);
   }
 
-  async rejectRequest(_user: User, id: string, reason: string) {
+  async rejectRequest(
+    user: User,
+    id: string,
+    reason: string,
+    ctx?: PlatformAuditContext,
+  ) {
     const existing = await this.prisma.verificationProfilRequest.findUnique({
       where: { id },
     });
@@ -832,10 +859,18 @@ export class VerificationService {
 
     await this.notifyProviderOutcome(updated, 'REJECTED', reason);
 
+    const actor = await this.audit.actorName(ctx?.actorAdminId ?? user.id);
+    this.audit.logIf(
+      { actorAdminId: ctx?.actorAdminId ?? user.id, ipAddress: ctx?.ipAddress },
+      PlatformAuditAction.VERIFICATION_REJECTED,
+      `${actor} rejected verification request.`,
+      { requestId: id, reason, ownerType: existing.ownerType, userId: existing.userId },
+    );
+
     return normalizeVerificationItem(updated);
   }
 
-  async markUnderReview(_user: User, id: string) {
+  async markUnderReview(user: User, id: string, ctx?: PlatformAuditContext) {
     const existing = await this.prisma.verificationProfilRequest.findUnique({
       where: { id },
     });
@@ -850,6 +885,14 @@ export class VerificationService {
     });
 
     await this.notifyProviderOutcome(updated, 'UNDER_REVIEW');
+
+    const actor = await this.audit.actorName(ctx?.actorAdminId ?? user.id);
+    this.audit.logIf(
+      { actorAdminId: ctx?.actorAdminId ?? user.id, ipAddress: ctx?.ipAddress },
+      PlatformAuditAction.VERIFICATION_UNDER_REVIEW,
+      `${actor} marked verification request as under review.`,
+      { requestId: id, ownerType: existing.ownerType, userId: existing.userId },
+    );
 
     return normalizeVerificationItem(updated);
   }

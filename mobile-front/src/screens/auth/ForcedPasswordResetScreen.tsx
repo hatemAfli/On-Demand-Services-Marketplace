@@ -13,19 +13,19 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AuthNoticeModal, Input } from "../../components/common";
 import { useAuth } from "../../context/AuthContext";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { supabase } from "../../services/supabase";
 
+const ACCENT = "#EA580C";
+const SCREEN_BG = "#F1F5F9";
+
 /**
  * Shown after the user opens the password-reset email link.
- * Same layout as `ClientChangePasswordScreen`; on success clears recovery gate and returns to the app.
+ * Same layout as `LoginScreen`; on success clears recovery gate and returns to the app.
  */
 export const ForcedPasswordResetScreen: React.FC = () => {
   const { t, isRTL } = useAppTranslation();
@@ -112,14 +112,12 @@ export const ForcedPasswordResetScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="dark-content" />
-
-      <View style={[styles.topHint, { top: insets.top + 6 }]}>
-        <Text style={[styles.hintText, isRTL && styles.rtlText]}>
-          {t("auth.resetPasswordForcedHint")}
-        </Text>
-      </View>
+    <View style={styles.root}>
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
 
       <KeyboardAvoidingView
         style={styles.container}
@@ -128,21 +126,20 @@ export const ForcedPasswordResetScreen: React.FC = () => {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: insets.top + 52, paddingBottom: 24 + insets.bottom },
+            {
+              paddingTop: insets.top + 48,
+              paddingBottom: 16 + insets.bottom,
+            },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.card}>
-            <View style={styles.headerRow}>
-              <View style={styles.iconWrap}>
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={20}
-                  color="#4F46E5"
-                />
+          <View style={styles.panel}>
+            <View style={styles.heroRow}>
+              <View style={styles.heroIconWrap}>
+                <Ionicons name="lock-closed-outline" size={22} color={ACCENT} />
               </View>
-              <View style={styles.headerTextWrap}>
+              <View style={styles.heroTextWrap}>
                 <Text style={[styles.title, isRTL && styles.rtlText]}>
                   {t("auth.resetPasswordForcedTitle")}
                 </Text>
@@ -152,9 +149,17 @@ export const ForcedPasswordResetScreen: React.FC = () => {
               </View>
             </View>
 
+            <View style={styles.hintBanner}>
+              <Ionicons name="information-circle-outline" size={18} color={ACCENT} />
+              <Text style={[styles.hintText, isRTL && styles.rtlText]}>
+                {t("auth.resetPasswordForcedHint")}
+              </Text>
+            </View>
+
             <View style={styles.form}>
               <Input
                 label={t("common.password")}
+                placeholder={t("common.password")}
                 value={password}
                 onChangeText={(v) => {
                   setPassword(v);
@@ -169,6 +174,7 @@ export const ForcedPasswordResetScreen: React.FC = () => {
               />
               <Input
                 label={t("common.confirmPassword")}
+                placeholder={t("common.confirmPassword")}
                 value={confirmPassword}
                 onChangeText={(v) => {
                   setConfirmPassword(v);
@@ -188,8 +194,8 @@ export const ForcedPasswordResetScreen: React.FC = () => {
 
             <TouchableOpacity
               style={[
-                styles.saveButton,
-                (!isDirty || loading) && styles.saveButtonDisabled,
+                styles.primaryButton,
+                (!isDirty || loading) && styles.primaryButtonDisabled,
               ]}
               onPress={() => void onSave()}
               disabled={!isDirty || loading}
@@ -198,11 +204,17 @@ export const ForcedPasswordResetScreen: React.FC = () => {
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <View style={styles.saveButtonContent}>
-                  <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
-                  <Text style={styles.saveButtonText}>
+                <View style={styles.primaryButtonContent}>
+                  <Text style={styles.primaryButtonText}>
                     {t("auth.resetPasswordUpdateButton")}
                   </Text>
+                  <View style={styles.primaryButtonIconWrap}>
+                    <Ionicons
+                      name="checkmark-outline"
+                      size={18}
+                      color="#FFFFFF"
+                    />
+                  </View>
                 </View>
               )}
             </TouchableOpacity>
@@ -232,93 +244,122 @@ export const ForcedPasswordResetScreen: React.FC = () => {
           })
         }
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F1F5F9" },
-  container: { flex: 1 },
-  topHint: {
-    position: "absolute",
-    left: 24,
-    right: 24,
-    zIndex: 10,
+  root: {
+    flex: 1,
+    backgroundColor: SCREEN_BG,
   },
-  hintText: {
-    fontSize: 12,
-    color: "#64748B",
-    textAlign: "center",
+  container: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 0,
     justifyContent: "center",
   },
-  card: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-    padding: 16,
+  panel: {
     width: "100%",
-    maxWidth: 420,
-    alignSelf: "center",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 1,
+    alignSelf: "stretch",
+    backgroundColor: SCREEN_BG,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+    marginTop: 8,
   },
-  headerRow: {
+  heroRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 14,
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 16,
   },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "#EEF2FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTextWrap: { flex: 1 },
-  title: {
-    fontSize: 20,
-    lineHeight: 24,
-    fontWeight: "700",
-    color: "#0F172A",
-    letterSpacing: -0.3,
-  },
-  subtitle: { marginTop: 4, fontSize: 12, color: "#64748B" },
-  form: { gap: 8, marginBottom: 12 },
-  saveButton: {
-    alignSelf: "center",
-    minWidth: 200,
+  heroIconWrap: {
+    width: 48,
     height: 48,
-    borderRadius: 999,
-    backgroundColor: "#6366F1",
+    borderRadius: 14,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FFEDD5",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#4338CA",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+  },
+  heroTextWrap: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  title: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "800",
+    color: "#0F172A",
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#64748B",
+  },
+  hintBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FFEDD5",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 20,
+  },
+  hintText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#9A3412",
+    fontWeight: "600",
+  },
+  form: {
+    marginBottom: 20,
+    marginTop: 4,
+  },
+  primaryButton: {
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: ACCENT,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
     shadowRadius: 10,
     elevation: 3,
   },
-  saveButtonDisabled: { opacity: 0.6 },
-  saveButtonContent: {
+  primaryButtonDisabled: {
+    opacity: 0.65,
+  },
+  primaryButtonContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  saveButtonText: {
+  primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
     letterSpacing: 0.2,
+  },
+  primaryButtonIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   rtlText: {
     textAlign: "right",

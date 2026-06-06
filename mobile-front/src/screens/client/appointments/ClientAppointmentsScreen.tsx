@@ -23,6 +23,12 @@ import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { COLORS } from "../../../constants";
+
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const ACCENT_SECONDARY = "#F97316";
+const SCREEN_BG = "#F1F5F9";
 import { api, type AppointmentStatus } from "../../../services/api";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import i18n from "../../../i18n";
@@ -190,9 +196,9 @@ function statusAccent(status: AppointmentStatus): string {
     case "CONFIRMED":
       return "#3B82F6";
     case "EN_ROUTE":
-      return "#9333EA";
+      return ACCENT_SECONDARY;
     case "IN_PROGRESS":
-      return "#7C5CFC";
+      return ACCENT;
     case "COMPLETED":
       return "#10B981";
     case "RESCHEDULED":
@@ -224,13 +230,13 @@ function statusBadgeStyle(status: AppointmentStatus): {
   if (status === "CONFIRMED" || status === "EN_ROUTE")
     return { bg: "#EFF6FF", text: "#2563EB", border: "#BFDBFE" };
   if (status === "IN_PROGRESS")
-    return { bg: "#EDE9FE", text: "#7C5CFC", border: "#C4B5FD" };
+    return { bg: ACCENT_LIGHT, text: ACCENT, border: ACCENT_BORDER };
   if (status === "COMPLETED")
     return { bg: "#ECFDF5", text: "#059669", border: "#6EE7B7" };
   if (status === "RESCHEDULED")
     return { bg: "#FFF7ED", text: "#EA580C", border: "#FED7AA" };
   if (status === "DISPUTED")
-    return { bg: "#F4F3FA", text: "#6B6B80", border: "#EBEBF5" };
+    return { bg: SCREEN_BG, text: "#6B6B80", border: "#EBEBF5" };
   return { bg: "#F4F4F8", text: "#9B9BB0", border: "#E8E8F0" };
 }
 
@@ -291,6 +297,7 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("client.screenTitles.ClientAppointments"),
+      headerTitleAlign: "center",
       headerBackVisible: false,
       headerLeft: () => (
         <TouchableOpacity
@@ -301,6 +308,7 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
           <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
         </TouchableOpacity>
       ),
+      headerRight: () => <View style={{ width: 40, marginRight: 8 }} />,
     });
   }, [navigation, t]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("ALL");
@@ -493,7 +501,7 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
               </View>
 
               <View style={styles.dateTimeWrap}>
-                <Ionicons name="calendar-outline" size={13} color="#7C5CFC" />
+                <Ionicons name="calendar-outline" size={13} color="#EA580C" />
                 <Text style={styles.dateTime}>
                   {formatCardDateTime(item.scheduledDate, item.scheduledTime)}
                 </Text>
@@ -591,7 +599,7 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
 
       {loading && !refreshing ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#7C5CFC" />
+          <ActivityIndicator size="large" color="#EA580C" />
         </View>
       ) : (
         <FlatList
@@ -607,8 +615,8 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => void load(true)}
-              tintColor="#7C5CFC"
-              colors={["#7C5CFC"]}
+              tintColor="#EA580C"
+              colors={["#EA580C"]}
             />
           }
           ListEmptyComponent={
@@ -617,7 +625,7 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
                 <Ionicons
                   name="calendar-clear-outline"
                   size={32}
-                  color="#7C5CFC"
+                  color="#EA580C"
                 />
               </View>
               <Text style={styles.emptyTitle}>No Appointments</Text>
@@ -633,7 +641,7 @@ export const ClientAppointmentsScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
   },
 
   /* ── Filter bar ── */
@@ -653,13 +661,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     borderWidth: 1.5,
     borderColor: "#EBEBF5",
   },
   filterChipActive: {
-    backgroundColor: "#EDE9FE",
-    borderColor: "#C4B5FD",
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FFEDD5",
   },
   filterChipText: {
     fontSize: 11,
@@ -669,7 +677,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   filterChipTextActive: {
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
 
   /* ── List ── */
@@ -726,16 +734,16 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     flexShrink: 0,
   },
   avatarFallback: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1.5,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -743,7 +751,7 @@ const styles = StyleSheet.create({
   avatarInitials: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
   providerTextWrap: {
     flex: 1,
@@ -780,7 +788,7 @@ const styles = StyleSheet.create({
   /* Divider */
   divider: {
     height: 1,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     marginVertical: 12,
   },
 
@@ -819,15 +827,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 12,
-    backgroundColor: "#F5F3FF",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: "#EDE9FE",
+    borderColor: "#FFEDD5",
     flexShrink: 0,
   },
   dateTime: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#7C5CFC",
+    color: "#EA580C",
     fontVariant: ["tabular-nums"],
   },
 
@@ -918,11 +926,11 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 24,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     marginBottom: 4,
   },
   emptyTitle: {

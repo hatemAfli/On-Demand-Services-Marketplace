@@ -6,16 +6,17 @@ import {
 import {
   CompanyAuditAction,
   CompanyBranchStatus,
-  DashboardTheme,
   Prisma,
   ProviderType,
 } from '@prisma/client';
 import { PrismaService } from '../../../config/prisma.config';
+import { SupabaseService } from '../../../config/supabase.config';
+import type { GalleryUploadFile } from '../services/gallery-upload-file.type';
 import { ListAuditLogsDto } from './dto/list-audit-logs.dto';
 import { UpdateCompanyBrandingDto } from './dto/update-company-branding.dto';
 import { UpdateCompanyProfileDto } from './dto/update-company-profile.dto';
-import { UpdateNotificationsDto } from './dto/update-notifications.dto';
 import { UpsertBranchDto } from './dto/upsert-branch.dto';
+import { CompanyAuditService } from '../audit/company-audit.service';
 
 const BRANCH_STATUS_LABEL: Record<CompanyBranchStatus, string> = {
   OPERATIONAL: 'Operational',
@@ -23,9 +24,16 @@ const BRANCH_STATUS_LABEL: Record<CompanyBranchStatus, string> = {
   INACTIVE: 'Inactive',
 };
 
+const LOGO_BUCKET = 'avatars';
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+
 @Injectable()
 export class CompanySettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly supabase: SupabaseService,
+    private readonly audit: CompanyAuditService,
+  ) {}
 
   private async resolveCompanyAdmin(userId: string) {
     const companyAdmin = await this.prisma.companyAdmin.findUnique({
@@ -76,14 +84,6 @@ export class CompanySettingsService {
     });
   }
 
-  private async ensureNotificationPrefs(companyAdminId: string) {
-    return this.prisma.companyNotificationPreference.upsert({
-      where: { companyAdminId },
-      create: { companyAdminId },
-      update: {},
-    });
-  }
-
   private async logAudit(
     companyId: string,
     actorAdminId: string,
@@ -92,16 +92,14 @@ export class CompanySettingsService {
     metadata?: Prisma.InputJsonValue,
     ipAddress?: string,
   ) {
-    await this.prisma.companyAuditLog.create({
-      data: {
-        companyId,
-        actorAdminId,
-        action,
-        summary,
-        metadata,
-        ipAddress,
-      },
-    });
+    await this.audit.log(
+      companyId,
+      actorAdminId,
+      action,
+      summary,
+      metadata,
+      ipAddress,
+    );
   }
 
   private mapProfile(company: {
@@ -114,8 +112,6 @@ export class CompanySettingsService {
     about: string | null;
     serviceZones: string[];
     logo: string | null;
-    brandColor: string | null;
-    dashboardTheme: DashboardTheme;
   }) {
     return {
       companyName: company.companyName,
@@ -127,21 +123,17 @@ export class CompanySettingsService {
       about: company.about ?? '',
       serviceZones: company.serviceZones ?? [],
       logo: company.logo,
-      brandColor: company.brandColor ?? '#7621C2',
-      dashboardTheme: company.dashboardTheme,
     };
   }
 
   async getSettings(userId: string) {
     const admin = await this.resolveCompanyAdmin(userId);
     await this.ensureDefaultBranch(admin.companyId);
-    const [company, branches, notifications, auditPreview, employeeCount] =
-      await Promise.all([
+    const [company, branches, auditPreview] = await Promise.all([
         this.prisma.company.findUniqueOrThrow({
           where: { id: admin.companyId },
         }),
         this.listBranchesInternal(admin.companyId),
-        this.ensureNotificationPrefs(admin.id),
         this.prisma.companyAuditLog.findMany({
           where: { companyId: admin.companyId },
           orderBy: { createdAt: 'desc' },
@@ -154,35 +146,11 @@ export class CompanySettingsService {
             },
           },
         }),
-        this.prisma.provider.count({
-          where: { companyId: admin.companyId, type: ProviderType.EMPLOYEE },
-        }),
       ]);
 
     return {
       profile: this.mapProfile(company),
       branches,
-      notifications: {
-        newOrderAlerts: notifications.newOrderAlerts,
-        providerStatusUpdates: notifications.providerStatusUpdates,
-        weeklyReport: notifications.weeklyReport,
-        systemAnnouncements: notifications.systemAnnouncements,
-      },
-      team: {
-        members: [
-          {
-            id: admin.user.id,
-            name: `${admin.user.firstName ?? ''} ${admin.user.lastName ?? ''}`.trim() ||
-              admin.user.email,
-            email: admin.user.email,
-            status: admin.user.status,
-            role: 'Owner',
-            phoneNumber: admin.user.phoneNumber,
-          },
-        ],
-        employeeCount,
-        multiAdminSupported: false,
-      },
       auditPreview: auditPreview.map((log) => this.mapAuditLog(log)),
     };
   }
@@ -236,18 +204,26 @@ export class CompanySettingsService {
     }
     const admin = await this.resolveCompanyAdmin(userId);
 
+    const existing = await this.prisma.company.findUniqueOrThrow({
+      where: { id: admin.companyId },
+      select: { logo: true },
+    });
+
     const company = await this.prisma.company.update({
       where: { id: admin.companyId },
       data: {
         ...(dto.logo !== undefined ? { logo: dto.logo?.trim() || null } : {}),
-        ...(dto.brandColor !== undefined
-          ? { brandColor: dto.brandColor.trim() }
-          : {}),
-        ...(dto.dashboardTheme !== undefined
-          ? { dashboardTheme: dto.dashboardTheme }
-          : {}),
       },
     });
+
+    if (
+      dto.logo !== undefined &&
+      !dto.logo?.trim() &&
+      existing.logo &&
+      !company.logo
+    ) {
+      await this.removeStoredLogo(existing.logo);
+    }
 
     await this.logAudit(
       admin.companyId,
@@ -260,8 +236,85 @@ export class CompanySettingsService {
 
     return {
       logo: company.logo,
-      brandColor: company.brandColor ?? '#7621C2',
-      dashboardTheme: company.dashboardTheme,
+    };
+  }
+
+  private logoExtFromMime(mimetype: string, originalname: string): string {
+    const lower = mimetype.toLowerCase();
+    if (lower.includes('svg')) return 'svg';
+    if (lower.includes('png')) return 'png';
+    if (lower.includes('webp')) return 'webp';
+    const fromName = originalname.split('.').pop()?.toLowerCase();
+    if (fromName === 'svg') return 'svg';
+    if (fromName === 'png') return 'png';
+    if (fromName === 'webp') return 'webp';
+    return 'jpg';
+  }
+
+  private async removeStoredLogo(publicUrl: string | null | undefined) {
+    if (!publicUrl?.trim()) return;
+    await this.supabase.removeStorageObjectByPublicUrl(LOGO_BUCKET, publicUrl);
+  }
+
+  async uploadLogo(
+    userId: string,
+    file: GalleryUploadFile,
+    ipAddress?: string,
+  ) {
+    if (!file.buffer?.length) {
+      throw new BadRequestException('Logo file is required.');
+    }
+    if (file.buffer.length > LOGO_MAX_BYTES) {
+      throw new BadRequestException('Logo must be 2 MB or smaller.');
+    }
+
+    const admin = await this.resolveCompanyAdmin(userId);
+    const company = await this.prisma.company.findUniqueOrThrow({
+      where: { id: admin.companyId },
+      select: { logo: true },
+    });
+
+    const ext = this.logoExtFromMime(file.mimetype, file.originalname);
+    const objectPath = `logos/${admin.companyId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error } = await this.supabase.getClient().storage
+      .from(LOGO_BUCKET)
+      .upload(objectPath, file.buffer, {
+        contentType: file.mimetype,
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    const { data: urlData } = this.supabase
+      .getClient()
+      .storage.from(LOGO_BUCKET)
+      .getPublicUrl(objectPath);
+
+    const previousLogo = company.logo;
+    const updated = await this.prisma.company.update({
+      where: { id: admin.companyId },
+      data: { logo: urlData.publicUrl },
+    });
+
+    if (previousLogo && previousLogo !== urlData.publicUrl) {
+      await this.removeStoredLogo(previousLogo);
+    }
+
+    await this.logAudit(
+      admin.companyId,
+      admin.id,
+      CompanyAuditAction.BRANDING_UPDATED,
+      `${admin.user.firstName ?? 'Admin'} uploaded a new company logo.`,
+      { fields: ['logo'] },
+      ipAddress,
+    );
+
+    return {
+      logo: updated.logo,
     };
   }
 
@@ -399,52 +452,6 @@ export class CompanySettingsService {
     );
 
     return { deleted: true };
-  }
-
-  async updateNotifications(
-    userId: string,
-    dto: UpdateNotificationsDto,
-    ipAddress?: string,
-  ) {
-    if (!dto || Object.keys(dto).length === 0) {
-      throw new BadRequestException('No data to update');
-    }
-    const admin = await this.resolveCompanyAdmin(userId);
-    await this.ensureNotificationPrefs(admin.id);
-
-    const prefs = await this.prisma.companyNotificationPreference.update({
-      where: { companyAdminId: admin.id },
-      data: {
-        ...(dto.newOrderAlerts !== undefined
-          ? { newOrderAlerts: dto.newOrderAlerts }
-          : {}),
-        ...(dto.providerStatusUpdates !== undefined
-          ? { providerStatusUpdates: dto.providerStatusUpdates }
-          : {}),
-        ...(dto.weeklyReport !== undefined
-          ? { weeklyReport: dto.weeklyReport }
-          : {}),
-        ...(dto.systemAnnouncements !== undefined
-          ? { systemAnnouncements: dto.systemAnnouncements }
-          : {}),
-      },
-    });
-
-    await this.logAudit(
-      admin.companyId,
-      admin.id,
-      CompanyAuditAction.NOTIFICATION_UPDATED,
-      `${admin.user.firstName ?? 'Admin'} updated notification preferences.`,
-      { fields: Object.keys(dto) },
-      ipAddress,
-    );
-
-    return {
-      newOrderAlerts: prefs.newOrderAlerts,
-      providerStatusUpdates: prefs.providerStatusUpdates,
-      weeklyReport: prefs.weeklyReport,
-      systemAnnouncements: prefs.systemAnnouncements,
-    };
   }
 
   async listAuditLogs(userId: string, dto: ListAuditLogsDto) {

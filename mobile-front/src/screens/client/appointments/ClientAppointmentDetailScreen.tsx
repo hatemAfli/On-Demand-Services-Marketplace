@@ -30,6 +30,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { COLORS } from "../../../constants";
 import { ConfirmModal } from "../../../components/common";
+
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const ACCENT_DARK = "#C2410C";
 import { useAppointmentRealtime } from "../../../hooks/useAppointmentRealtime";
 import { api, type AppointmentStatus } from "../../../services/api";
 import i18n from "../../../i18n";
@@ -410,9 +415,9 @@ function statusBannerMeta(status: AppointmentStatus): {
       };
     case "IN_PROGRESS":
       return {
-        bg: "#F5F3FF",
-        border: "#DDD6FE",
-        text: "#6D28D9",
+        bg: ACCENT_LIGHT,
+        border: ACCENT_BORDER,
+        text: ACCENT_DARK,
         icon: "construct-outline",
       };
     case "COMPLETED":
@@ -638,7 +643,7 @@ const detailUi = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 10,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -758,7 +763,7 @@ function SectionHeader({
   return (
     <View style={detailUi.sectionHeader}>
       <View style={detailUi.sectionIconWrap}>
-        <Ionicons name={icon} size={15} color="#6366F1" />
+        <Ionicons name={icon} size={15} color={ACCENT} />
       </View>
       <Text style={detailUi.sectionTitle}>{title}</Text>
     </View>
@@ -1112,7 +1117,7 @@ const photoCarouselStyles = StyleSheet.create({
   dotActive: {
     width: 18,
     borderRadius: 4,
-    backgroundColor: "#6366F1",
+    backgroundColor: ACCENT,
   },
   lightboxRoot: {
     flex: 1,
@@ -1320,7 +1325,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
   if (loading || !appointment) {
     return (
       <View style={styles.loadingRoot}>
-        <ActivityIndicator size="large" color={COLORS.primary || "#4F46E5"} />
+        <ActivityIndicator size="large" color={ACCENT} />
       </View>
     );
   }
@@ -1692,7 +1697,7 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
               <View style={styles.actionBlock}>
                 <View style={styles.awaitingCard}>
                   <View style={styles.awaitingIconWrap}>
-                    <Ionicons name="location" size={22} color="#5B21B6" />
+                    <Ionicons name="location" size={22} color={ACCENT} />
                   </View>
                   <Text style={styles.awaitingText}>
                     Provider has arrived. Please confirm to start the service.
@@ -2158,7 +2163,6 @@ const styles = StyleSheet.create({
   screenHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: 12,
   },
   screenHeaderCenter: {
@@ -2413,7 +2417,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: "rgba(79, 70, 229, 0.1)",
+    backgroundColor: "rgba(234, 88, 12, 0.1)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2505,7 +2509,7 @@ const styles = StyleSheet.create({
   priceTag: {
     fontSize: 13,
     fontWeight: "800",
-    color: COLORS.primary || "#4F46E5",
+    color: ACCENT,
   },
   divider: {
     height: 1,
@@ -2616,10 +2620,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#6366F1",
+    backgroundColor: ACCENT,
     borderRadius: 16,
     minHeight: 52,
-    shadowColor: "#6366F1",
+    shadowColor: ACCENT,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.22,
     shadowRadius: 12,
@@ -2746,61 +2750,61 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    backgroundColor: "#F5F3FF",
+    backgroundColor: ACCENT_LIGHT,
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#DDD6FE",
+    borderColor: ACCENT_BORDER,
     marginBottom: 16,
   },
   awaitingIconWrap: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
   awaitingText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#5B21B6",
+    color: ACCENT_DARK,
     flex: 1,
     lineHeight: 18,
   },
   timerCard: {
     alignItems: "center",
-    backgroundColor: "#EEF2FF",
+    backgroundColor: ACCENT_LIGHT,
     borderRadius: 16,
     paddingVertical: 24,
     paddingHorizontal: 20,
     borderWidth: 1,
-    borderColor: "#C7D2FE",
+    borderColor: ACCENT_BORDER,
   },
   timerLabel: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#4338CA",
+    color: ACCENT_DARK,
     letterSpacing: 0.5,
     marginBottom: 8,
   },
   timerLarge: {
     fontSize: 48,
     fontWeight: "800",
-    color: COLORS.primary || "#4F46E5",
+    color: ACCENT,
   },
   timerDivider: {
     width: 40,
     height: 4,
-    backgroundColor: "#C7D2FE",
+    backgroundColor: ACCENT_BORDER,
     borderRadius: 2,
     marginVertical: 16,
   },
   timerSub: {
     fontSize: 12,
     fontWeight: "500",
-    color: "#6366F1",
+    color: ACCENT,
   },
   completedBlock: {
     marginBottom: 0,

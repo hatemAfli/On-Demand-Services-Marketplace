@@ -3,23 +3,26 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { AdminDashboardScreen } from "./AdminDashboardScreen";
+import { AdminDashboardScreen } from "./dashboard/AdminDashboardScreen";
+import type { AdminTabParamList } from "./adminNavigation";
 import { AdminUsersScreen } from "./users/AdminUsersScreen";
+import { AdminUserDetailScreen } from "./users/AdminUserDetailScreen";
+import type { AdminUsersStackParamList } from "./users/adminUsersNavigation";
 import { AdminValidationsScreen } from "./validations/AdminValidationsScreen";
 import { AdminValidationProviderDetailScreen } from "./validations/AdminValidationProviderDetailScreen";
 import { AdminComplaintsScreen } from "./complaints/AdminComplaintsScreen";
 import { AdminComplaintDetailScreen } from "./complaints/AdminComplaintDetailScreen";
-import { AdminProfileScreen } from "./AdminProfileScreen";
+import { AdminProfileScreen } from "./profile/AdminProfileScreen";
+import { AdminEditProfileScreen } from "./profile/AdminEditProfileScreen";
+import { AdminChangeEmailScreen } from "./profile/AdminChangeEmailScreen";
+import { AdminChangePhoneScreen } from "./profile/AdminChangePhoneScreen";
+import { AdminChangePasswordScreen } from "./profile/AdminChangePasswordScreen";
+import type { AdminProfileStackParamList } from "./profile/adminProfileNavigation";
+import { NotificationsScreen } from "../shared/NotificationsScreen";
+import { TermsScreen } from "../auth/TermsScreen";
+import { PrivacyScreen } from "../auth/PrivacyScreen";
 import type { AdminValidationsStackParamList } from "./validations/adminValidationsNavigation";
 import type { AdminComplaintsStackParamList } from "./complaints/adminComplaintsNavigation";
-
-type AdminTabParamList = {
-  DashboardTab: undefined;
-  UsersTab: undefined;
-  ValidationsTab: undefined;
-  ComplaintsTab: undefined;
-  ProfileTab: undefined;
-};
 
 type AdminDashboardStackParamList = {
   Dashboard: undefined;
@@ -28,10 +31,11 @@ type AdminDashboardStackParamList = {
 const Tab = createBottomTabNavigator<AdminTabParamList>();
 const DashboardStackNav =
   createNativeStackNavigator<AdminDashboardStackParamList>();
-const UsersStackNav = createNativeStackNavigator<{ Users: undefined }>();
+const UsersStackNav = createNativeStackNavigator<AdminUsersStackParamList>();
 const ComplaintsStackNav =
   createNativeStackNavigator<AdminComplaintsStackParamList>();
-const ProfileStackNav = createNativeStackNavigator<{ Profile: undefined }>();
+const ProfileStackNav =
+  createNativeStackNavigator<AdminProfileStackParamList>();
 const ValidationsStackNav =
   createNativeStackNavigator<AdminValidationsStackParamList>();
 
@@ -49,6 +53,10 @@ const DashboardStack: React.FC = () => (
 const UsersStack: React.FC = () => (
   <UsersStackNav.Navigator screenOptions={defaultStackScreenOptions}>
     <UsersStackNav.Screen name="Users" component={AdminUsersScreen} />
+    <UsersStackNav.Screen
+      name="AdminUserDetail"
+      component={AdminUserDetailScreen}
+    />
   </UsersStackNav.Navigator>
 );
 
@@ -81,6 +89,35 @@ const ComplaintsStack: React.FC = () => (
 const ProfileStack: React.FC = () => (
   <ProfileStackNav.Navigator screenOptions={defaultStackScreenOptions}>
     <ProfileStackNav.Screen name="Profile" component={AdminProfileScreen} />
+    <ProfileStackNav.Screen
+      name="AdminEditProfile"
+      component={AdminEditProfileScreen}
+    />
+    <ProfileStackNav.Screen
+      name="AdminChangeEmail"
+      component={AdminChangeEmailScreen}
+    />
+    <ProfileStackNav.Screen
+      name="AdminChangePhone"
+      component={AdminChangePhoneScreen}
+    />
+    <ProfileStackNav.Screen
+      name="AdminChangePassword"
+      component={AdminChangePasswordScreen}
+    />
+    <ProfileStackNav.Screen name="AdminNotifications">
+      {() => <NotificationsScreen variant="admin" />}
+    </ProfileStackNav.Screen>
+    <ProfileStackNav.Screen
+      name="AdminTerms"
+      component={TermsScreen}
+      options={{ headerShown: true, title: "Terms" }}
+    />
+    <ProfileStackNav.Screen
+      name="AdminPrivacy"
+      component={PrivacyScreen}
+      options={{ headerShown: true, title: "Privacy" }}
+    />
   </ProfileStackNav.Navigator>
 );
 

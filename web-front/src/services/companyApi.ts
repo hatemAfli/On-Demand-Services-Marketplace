@@ -30,15 +30,14 @@ import type {
   CompanySettingsResponse,
   CompanySettingsProfile,
   CompanyBranch,
-  CompanyNotificationPreferences,
   CompanyAuditLogsResponse,
   UpsertCompanyBranchPayload,
-  DashboardTheme,
   CompanyComplaintStats,
   CompanyComplaintsResponse,
   CompanyComplaintListItem,
   ListCompanyComplaintsParams,
   ReviewCompanyComplaintPayload,
+  CompanyDashboardData,
 } from '../types/company'
 
 export type GetEmployeesParams = {
@@ -49,6 +48,11 @@ export type GetEmployeesParams = {
 }
 
 export const companyApi = {
+  getCompanyDashboard: () =>
+    apiClient
+      .get<CompanyDashboardData>('/company/dashboard')
+      .then((r) => r.data),
+
   getEmployees: (params?: GetEmployeesParams) =>
     apiClient.get<CompanyEmployeesResponse>('/company/employees', { params }),
 
@@ -301,18 +305,24 @@ export const companyApi = {
       .patch<CompanySettingsProfile>('/company/settings/profile', payload)
       .then((r) => r.data),
 
-  updateCompanyBranding: (payload: {
-    logo?: string | null
-    brandColor?: string
-    dashboardTheme?: DashboardTheme
-  }) =>
+  updateCompanyBranding: (payload: { logo?: string | null }) =>
     apiClient
-      .patch<{
-        logo: string | null
-        brandColor: string
-        dashboardTheme: DashboardTheme
-      }>('/company/settings/branding', payload)
+      .patch<{ logo: string | null }>('/company/settings/branding', payload)
       .then((r) => r.data),
+
+  /** Upload a logo file to Supabase (`avatars/logos/{companyId}/…`) and save the public URL. */
+  uploadCompanyLogo: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return apiClient
+      .post<{ logo: string | null }>(
+        '/company/settings/branding/logo/upload',
+        form,
+        {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data)
+  },
 
   getCompanyBranches: () =>
     apiClient
@@ -332,14 +342,6 @@ export const companyApi = {
   deleteCompanyBranch: (id: string) =>
     apiClient
       .delete<{ deleted: boolean }>(`/company/settings/branches/${id}`)
-      .then((r) => r.data),
-
-  updateCompanyNotifications: (payload: Partial<CompanyNotificationPreferences>) =>
-    apiClient
-      .patch<CompanyNotificationPreferences>(
-        '/company/settings/notifications',
-        payload,
-      )
       .then((r) => r.data),
 
   getCompanyAuditLogs: (params?: { take?: number; skip?: number }) =>

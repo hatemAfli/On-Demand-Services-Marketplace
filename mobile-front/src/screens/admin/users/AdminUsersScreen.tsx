@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,10 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { AdminUsersStackParamList } from "./adminUsersNavigation";
 import { api } from "../../../services/api";
 import { COLORS } from "../../../constants";
 import { AccountStatus, UserRole } from "../../../types";
@@ -187,8 +190,13 @@ function avatarAccent(role: UserRole): { bg: string; text: string } {
 }
 
 // ─── Main Screen ──────────────────────────────────────────
+/** Backend `ListAdminUsersQueryDto` allows at most 100 per request. */
+const USERS_PAGE_SIZE = 100;
+
 export const AdminUsersScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<AdminUsersStackParamList, "Users">>();
 
   // ── All logic/state unchanged ──────────────────────────
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
@@ -198,16 +206,30 @@ export const AdminUsersScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
-      const res = await api.listAdminUsers({
-        take: 200,
-        ...(roleFilter !== "ALL" ? { role: roleFilter } : {}),
-      });
-      const data = res.data as ListResponse;
-      setItems(data.items ?? []);
-      setTotal(data.total ?? 0);
+      const roleParam =
+        roleFilter !== "ALL" ? { role: roleFilter as UserRole } : {};
+      const aggregated: AdminUserRow[] = [];
+      let skip = 0;
+      let totalCount = 0;
+
+      do {
+        const res = await api.listAdminUsers({
+          take: USERS_PAGE_SIZE,
+          skip,
+          ...roleParam,
+        });
+        const data = res.data as ListResponse;
+        totalCount = data.total ?? 0;
+        aggregated.push(...(data.items ?? []));
+        skip += USERS_PAGE_SIZE;
+      } while (aggregated.length < totalCount);
+
+      setItems(aggregated);
+      setTotal(totalCount);
     } catch {
       setError("Could not load users.");
       setItems([]);
@@ -218,14 +240,21 @@ export const AdminUsersScreen: React.FC = () => {
     }
   }, [roleFilter]);
 
-  useEffect(() => {
-    setLoading(true);
-    void load();
-  }, [load]);
+  const isFirstFocus = useRef(true);
+  const prevFilter = useRef(roleFilter);
+
+  useFocusEffect(
+    useCallback(() => {
+      const filterChanged = prevFilter.current !== roleFilter;
+      prevFilter.current = roleFilter;
+      void load({ silent: !isFirstFocus.current && !filterChanged });
+      isFirstFocus.current = false;
+    }, [load, roleFilter]),
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
-    void load();
+    void load({ silent: true });
   };
 
   const subtitle = useMemo(() => {
@@ -276,7 +305,13 @@ export const AdminUsersScreen: React.FC = () => {
     const av = avatarAccent(item.role);
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.88}
+        onPress={() =>
+          navigation.navigate("AdminUserDetail", { userId: item.id })
+        }
+      >
         {/* Left accent bar */}
         <View style={[styles.cardAccentBar, { backgroundColor: rc.border }]} />
 
@@ -367,9 +402,11 @@ export const AdminUsersScreen: React.FC = () => {
                 {sc.label}
               </Text>
             </View>
+
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

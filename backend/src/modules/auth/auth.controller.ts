@@ -1,8 +1,9 @@
-import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, ProviderType, DocumentType } from '@prisma/client';
+import { UpdateUserIdentityDto } from '../accounts/dto/update-user-identity.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -78,6 +79,15 @@ export class AuthController {
       id: user.id,
       email: user.tokenEmail ?? user.email,
     });
+  }
+
+  @Patch('me/identity')
+  @UseGuards(JwtAuthGuard)
+  async updateIdentity(
+    @CurrentUser() user: { id: string },
+    @Body() dto: UpdateUserIdentityDto,
+  ) {
+    return this.authService.updateIdentity(user.id, dto);
   }
 
   @Post('magic-login/lookup')

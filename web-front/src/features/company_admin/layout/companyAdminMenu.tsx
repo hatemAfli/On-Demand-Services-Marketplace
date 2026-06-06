@@ -30,7 +30,7 @@ export const companyAdminMenuSections: CompanyMenuSection[] = [
       { key: '/company/dashboard', label: 'Dashboard', icon: FaTableCellsLarge },
       { key: '/company/providers', label: 'Providers', icon: FaUsers },
       { key: '/company/services', label: 'Services', icon: FaWallet },
-      { key: '/company/orders', label: 'Orders', icon: FaClipboardList, badge: '12' },
+      { key: '/company/orders', label: 'Orders', icon: FaClipboardList },
       {
         key: '/company/schedule-capacity',
         label: 'Schedule & Capacity',

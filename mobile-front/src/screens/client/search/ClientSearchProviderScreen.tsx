@@ -18,6 +18,11 @@ import type { ClientStackParamList } from "../../../navigation/types";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import { api } from "../../../services/api";
 
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
+
 type Props = NativeStackScreenProps<
   ClientStackParamList,
   "ClientSearchProvider"
@@ -379,7 +384,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
     accent?: "violet" | "amber" | "emerald";
   }) => {
     const colors = {
-      violet: { bg: "#EDE9FE", border: "#C4B5FD", text: "#7C5CFC" },
+      violet: { bg: ACCENT_LIGHT, border: ACCENT_BORDER, text: ACCENT },
       amber: { bg: "#FFFBEB", border: "#FDE68A", text: "#B45309" },
       emerald: { bg: "#ECFDF5", border: "#6EE7B7", text: "#047857" },
     };
@@ -496,7 +501,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
           </TouchableOpacity>
         ) : (
           <View style={styles.companyTag}>
-            <Ionicons name="business" size={11} color="#7C5CFC" />
+            <Ionicons name="business" size={11} color="#EA580C" />
             <Text style={styles.companyTagText}>
               {t("client.searchProvider.companyTag")}
             </Text>
@@ -559,7 +564,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
             <View style={styles.badgesRow}>
               {isCompany && item.providerCount ? (
                 <View style={styles.badgeCount}>
-                  <Ionicons name="people" size={11} color="#7C5CFC" />
+                  <Ionicons name="people" size={11} color="#EA580C" />
                   <Text style={styles.badgeCountText}>
                     {t("client.searchProvider.providersCount", {
                       count: item.providerCount,
@@ -639,34 +644,38 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
       {/* Header */}
       <View style={styles.headerShell}>
         <View style={styles.headerTopRow}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.85}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityRole="button"
-            accessibilityLabel={t("client.searchProvider.a11yBack")}
-          >
-            <Ionicons name="chevron-back" size={20} color="#1A1A2E" />
-          </TouchableOpacity>
-          <View style={styles.headerTitleBlock}>
+          <View style={styles.headerSide}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.85}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={t("client.searchProvider.a11yBack")}
+            >
+              <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.headerCenter}>
             <Text style={styles.headerTitle} numberOfLines={1}>
               {serviceName}
             </Text>
             <Text style={styles.resultCount}>{resultLabel}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.favoriteButton}
-            onPress={() =>
-              navigation.navigate("ClientFavoritesList", { type: "PROVIDER" })
-            }
-            activeOpacity={0.85}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityRole="button"
-            accessibilityLabel={t("client.searchProvider.a11yOpenFavorites")}
-          >
-            <Ionicons name="heart" size={18} color="#EF4444" />
-          </TouchableOpacity>
+          <View style={styles.headerSide}>
+            <TouchableOpacity
+              style={styles.favoriteButton}
+              onPress={() =>
+                navigation.navigate("ClientFavoritesList", { type: "PROVIDER" })
+              }
+              activeOpacity={0.85}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={t("client.searchProvider.a11yOpenFavorites")}
+            >
+              <Ionicons name="heart" size={18} color="#EF4444" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Providers / Companies */}
@@ -684,7 +693,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
             <Ionicons
               name="person-outline"
               size={14}
-              color={searchSegment === "PROVIDER" ? "#7C5CFC" : "#9B9BB0"}
+              color={searchSegment === "PROVIDER" ? ACCENT : "#9B9BB0"}
             />
             <Text
               style={[
@@ -708,7 +717,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
             <Ionicons
               name="business-outline"
               size={14}
-              color={searchSegment === "COMPANY" ? "#7C5CFC" : "#9B9BB0"}
+              color={searchSegment === "COMPANY" ? ACCENT : "#9B9BB0"}
             />
             <Text
               style={[
@@ -757,7 +766,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
       {loading ? (
         <View style={styles.center}>
           <View style={styles.loadingCard}>
-            <ActivityIndicator size="large" color="#7C5CFC" />
+            <ActivityIndicator size="large" color={ACCENT} />
             <Text style={styles.loadingText}>
               {searchSegment === "COMPANY"
                 ? t("client.searchProvider.loadingCompanies")
@@ -785,7 +794,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <View style={styles.emptyIconWrap}>
-                <Ionicons name="search-outline" size={32} color="#9B9BB0" />
+                <Ionicons name="search-outline" size={32} color={ACCENT} />
               </View>
               <Text style={styles.emptyTitle}>
                 {searchSegment === "COMPANY"
@@ -802,7 +811,7 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
           ListFooterComponent={
             loadingMore ? (
               <View style={styles.listFooter}>
-                <ActivityIndicator color="#7C5CFC" size="small" />
+                <ActivityIndicator color={ACCENT} size="small" />
                 <Text style={styles.listFooterText}>
                   {t("client.searchProvider.loadingMore")}
                 </Text>
@@ -817,11 +826,11 @@ export const ClientSearchProviderScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F4F3FA" },
+  root: { flex: 1, backgroundColor: SCREEN_BG },
 
   /* Header */
   headerShell: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: SCREEN_BG,
     borderBottomWidth: 1,
     borderBottomColor: "#EBEBF5",
     paddingHorizontal: 16,
@@ -836,7 +845,17 @@ const styles = StyleSheet.create({
   headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+  },
+  headerSide: {
+    width: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
   },
   backButton: {
     width: 36,
@@ -846,10 +865,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "#EBEBF5",
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#FFFFFF",
     flexShrink: 0,
   },
-  headerTitleBlock: { flex: 1 },
   favoriteButton: {
     width: 36,
     height: 36,
@@ -866,12 +884,14 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#1A1A2E",
     letterSpacing: -0.3,
+    textAlign: "center",
   },
   resultCount: {
     fontSize: 12,
     color: "#9B9BB0",
     fontWeight: "500",
     marginTop: 1,
+    textAlign: "center",
   },
   segmentRow: {
     flexDirection: "row",
@@ -888,11 +908,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: "#EBEBF5",
-    backgroundColor: "#F9F8FF",
+    backgroundColor: "#FFF7ED",
   },
   segmentBtnActive: {
-    backgroundColor: "#EDE9FE",
-    borderColor: "#C4B5FD",
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FFEDD5",
   },
   segmentBtnText: {
     fontSize: 13,
@@ -900,7 +920,7 @@ const styles = StyleSheet.create({
     color: "#9B9BB0",
   },
   segmentBtnTextActive: {
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
 
   /* Filter bar */
@@ -934,7 +954,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1.5,
     borderColor: "#EBEBF5",
-    backgroundColor: "#F9F8FF",
+    backgroundColor: "#FFF7ED",
   },
   chipText: {
     fontSize: 12,
@@ -963,13 +983,13 @@ const styles = StyleSheet.create({
     gap: 14,
     borderWidth: 1,
     borderColor: "#EBEBF5",
-    shadowColor: "#7C5CFC",
+    shadowColor: "#EA580C",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
     shadowRadius: 20,
     elevation: 3,
   },
-  loadingText: { fontSize: 14, color: "#7C5CFC", fontWeight: "600" },
+  loadingText: { fontSize: 14, color: "#EA580C", fontWeight: "600" },
   errorCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
@@ -1014,12 +1034,12 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 22,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
     borderWidth: 1.5,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
   },
   emptyTitle: { fontSize: 17, fontWeight: "800", color: "#1A1A2E" },
   emptySub: {
@@ -1070,12 +1090,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     zIndex: 3,
   },
-  companyTagText: { fontSize: 10, fontWeight: "800", color: "#7C5CFC" },
+  companyTagText: { fontSize: 10, fontWeight: "800", color: "#EA580C" },
   badgeCount: {
     flexDirection: "row",
     alignItems: "center",
@@ -1083,11 +1103,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
   },
-  badgeCountText: { fontSize: 11, color: "#7C5CFC", fontWeight: "700" },
+  badgeCountText: { fontSize: 11, color: "#EA580C", fontWeight: "700" },
   cardRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1113,14 +1133,14 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: 28,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
   },
   leftAvatarInitials: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
   cardBodyCompact: {
     flex: 1,
@@ -1142,7 +1162,7 @@ const styles = StyleSheet.create({
   cardCoverPlaceholder: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1222,14 +1242,14 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: 14,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarFloatInitials: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
 
   /* Card body */
@@ -1273,7 +1293,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     borderWidth: 1,
     borderColor: "#EBEBF5",
   },
@@ -1286,7 +1306,7 @@ const styles = StyleSheet.create({
   /* Divider */
   cardDivider: {
     height: 1,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
   },
 
   /* Footer row */
@@ -1326,8 +1346,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 11,
     borderRadius: 999,
-    backgroundColor: "#7C5CFC",
-    shadowColor: "#7C5CFC",
+    backgroundColor: "#EA580C",
+    shadowColor: "#EA580C",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,

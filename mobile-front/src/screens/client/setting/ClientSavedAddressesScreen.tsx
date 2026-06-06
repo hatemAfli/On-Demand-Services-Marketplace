@@ -130,7 +130,7 @@ export const ClientSavedAddressesScreen: React.FC = () => {
           <View style={styles.card}>
             <View style={styles.headerRow}>
               <View style={styles.iconWrap}>
-                <Ionicons name="location-outline" size={20} color="#4F46E5" />
+                <Ionicons name="location-outline" size={20} color="#EA580C" />
               </View>
               <View style={styles.headerTextWrap}>
                 <Text style={[styles.title, isRTL && styles.rtlText]}>
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   backButton: { paddingVertical: 8, paddingHorizontal: 8 },
-  backText: { color: "#4F46E5", fontSize: 16, fontWeight: "600" },
+  backText: { color: "#EA580C", fontSize: 16, fontWeight: "600" },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -278,10 +278,10 @@ const styles = StyleSheet.create({
     minWidth: 200,
     height: 48,
     borderRadius: 999,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#EA580C",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#4338CA",
+    shadowColor: "#C2410C",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
     shadowRadius: 10,

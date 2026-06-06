@@ -16,6 +16,11 @@ import type { ClientStackParamList } from "../../../navigation/types";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import { api } from "../../../services/api";
 
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
+
 type Props = NativeStackScreenProps<ClientStackParamList, "ClientCompanyProfile">;
 
 type CompanyProvider = {
@@ -131,22 +136,26 @@ export const ClientCompanyProfileScreen: React.FC<Props> = ({
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="chevron-back" size={20} color="#1A1A2E" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {t("client.companyProfile.title")}
-        </Text>
-        <View style={{ width: 36 }} />
+        <View style={styles.headerSide}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {t("client.companyProfile.title")}
+          </Text>
+        </View>
+        <View style={styles.headerSide} />
       </View>
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#7C5CFC" />
+          <ActivityIndicator size="large" color={ACCENT} />
         </View>
       ) : error || !profile ? (
         <View style={styles.center}>
@@ -169,13 +178,13 @@ export const ClientCompanyProfileScreen: React.FC<Props> = ({
                   <Image source={{ uri: profile.logo }} style={styles.logo} />
                 ) : (
                   <View style={styles.logoPlaceholder}>
-                    <Ionicons name="business" size={26} color="#7C5CFC" />
+                    <Ionicons name="business" size={26} color={ACCENT} />
                   </View>
                 )}
               </View>
               <View style={styles.heroInfo}>
                 <View style={styles.companyBadge}>
-                  <Ionicons name="business" size={10} color="#7C5CFC" />
+                  <Ionicons name="business" size={10} color={ACCENT} />
                   <Text style={styles.companyBadgeText}>
                     {t("client.companyProfile.companyTag")}
                   </Text>
@@ -248,7 +257,7 @@ export const ClientCompanyProfileScreen: React.FC<Props> = ({
                     {t("client.companyProfile.anyProviderSub")}
                   </Text>
                 </View>
-                <Ionicons name="arrow-forward" size={18} color="#7C5CFC" />
+                <Ionicons name="arrow-forward" size={18} color={ACCENT} />
               </TouchableOpacity>
 
               {/* Provider list */}
@@ -330,16 +339,25 @@ export const ClientCompanyProfileScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F4F3FA" },
+  root: { flex: 1, backgroundColor: SCREEN_BG },
   header: {
     backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#EBEBF5",
+  },
+  headerSide: {
+    width: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   backBtn: {
     width: 36,
@@ -349,14 +367,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "#EBEBF5",
-    backgroundColor: "#F4F3FA",
+    backgroundColor: SCREEN_BG,
   },
   headerTitle: {
-    flex: 1,
-    textAlign: "center",
     fontSize: 17,
     fontWeight: "800",
     color: "#1A1A2E",
+    textAlign: "center",
   },
   center: {
     flex: 1,
@@ -371,7 +388,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: "#7C5CFC",
+    backgroundColor: ACCENT,
   },
   retryText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
 
@@ -399,7 +416,7 @@ const styles = StyleSheet.create({
   logoPlaceholder: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#EDE9FE",
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -412,11 +429,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: ACCENT_LIGHT,
     borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderColor: ACCENT_BORDER,
   },
-  companyBadgeText: { fontSize: 10, fontWeight: "800", color: "#7C5CFC" },
+  companyBadgeText: { fontSize: 10, fontWeight: "800", color: ACCENT },
   companyName: {
     fontSize: 18,
     fontWeight: "800",
@@ -430,7 +447,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: "#F4F3FA",
+    borderTopColor: SCREEN_BG,
     paddingTop: 12,
   },
   heroStat: { flexDirection: "row", alignItems: "center", gap: 5 },
@@ -463,7 +480,7 @@ const styles = StyleSheet.create({
     color: "#9B9BB0",
     textTransform: "uppercase",
   },
-  priceValue: { fontSize: 20, fontWeight: "800", color: "#7C5CFC" },
+  priceValue: { fontSize: 20, fontWeight: "800", color: ACCENT },
 
   /* Any provider CTA */
   anyProviderCard: {
@@ -473,14 +490,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: "#C4B5FD",
+    borderColor: ACCENT_BORDER,
     padding: 14,
   },
   anyProviderIcon: {
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: "#7C5CFC",
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -521,11 +538,11 @@ const styles = StyleSheet.create({
   avatarPlaceholder: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#EDE9FE",
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarInitials: { fontSize: 15, fontWeight: "800", color: "#7C5CFC" },
+  avatarInitials: { fontSize: 15, fontWeight: "800", color: ACCENT },
   providerBody: { flex: 1, gap: 6 },
   providerNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   providerName: { fontSize: 15, fontWeight: "800", color: "#1A1A2E", flexShrink: 1 },
@@ -542,7 +559,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 9,
     borderRadius: 999,
-    backgroundColor: "#7C5CFC",
+    backgroundColor: ACCENT,
   },
   viewBtnText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
 
@@ -552,11 +569,11 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 20,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#C4B5FD",
+    borderColor: ACCENT_BORDER,
   },
   emptyTitle: { fontSize: 16, fontWeight: "800", color: "#1A1A2E" },
   emptySub: {

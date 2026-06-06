@@ -11,13 +11,16 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { InvitationStatus, UserRole } from '@prisma/client';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
+import { clientIp } from '../../../common/utils/client-ip';
 import { GetEmployeesDto } from './dto/get-employees.dto';
 import { InviteProviderDto } from './dto/invite-provider.dto';
 import { RespondInvitationDto } from './dto/respond-invitation.dto';
@@ -60,8 +63,9 @@ export class EmployeesController {
   sendInvitation(
     @CurrentUser() user: AuthUser,
     @Body() dto: InviteProviderDto,
+    @Req() req: Request,
   ) {
-    return this.employeesService.sendInvitation(user.id, dto);
+    return this.employeesService.sendInvitation(user.id, dto, clientIp(req));
   }
 
   @Delete('invitations/:invitationId')
@@ -69,8 +73,9 @@ export class EmployeesController {
   cancelInvitation(
     @CurrentUser() user: AuthUser,
     @Param('invitationId', ParseUUIDPipe) invitationId: string,
+    @Req() req: Request,
   ) {
-    return this.employeesService.cancelInvitation(user.id, invitationId);
+    return this.employeesService.cancelInvitation(user.id, invitationId, clientIp(req));
   }
 
   @Get(':providerId')
@@ -86,8 +91,9 @@ export class EmployeesController {
   removeEmployee(
     @CurrentUser() user: AuthUser,
     @Param('providerId', ParseUUIDPipe) providerId: string,
+    @Req() req: Request,
   ) {
-    return this.employeesService.removeEmployee(user.id, providerId);
+    return this.employeesService.removeEmployee(user.id, providerId, clientIp(req));
   }
 }
 

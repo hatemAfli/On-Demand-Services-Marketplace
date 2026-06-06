@@ -28,6 +28,11 @@ import {
   statusPillStyle,
 } from "./complaintUi";
 
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
+
 type Props = NativeStackScreenProps<
   ClientStackParamList,
   "ClientComplaintDetail"
@@ -71,7 +76,7 @@ function DetailRow({ icon, label, value, isLast = false }: DetailRowProps) {
   return (
     <View style={[styles.detailRow, isLast && styles.detailRowLast]}>
       <View style={styles.detailIconWrap}>
-        <Ionicons name={icon} size={14} color="#7C5CFC" />
+        <Ionicons name={icon} size={14} color="#EA580C" />
       </View>
       <View style={styles.detailTextCol}>
         <Text style={styles.detailLabel}>{label}</Text>
@@ -116,6 +121,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("client.screenTitles.ClientComplaintDetail"),
+      headerTitleAlign: "center",
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -125,6 +131,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
           <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
         </TouchableOpacity>
       ),
+      headerRight: () => <View style={{ width: 40, marginRight: 8 }} />,
     });
   }, [navigation, t]);
 
@@ -151,7 +158,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
       <View
         style={[styles.root, styles.centered, { paddingBottom: insets.bottom }]}
       >
-        <ActivityIndicator size="large" color="#7C5CFC" />
+        <ActivityIndicator size="large" color="#EA580C" />
       </View>
     );
   }
@@ -167,7 +174,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
         </View>
         <Text style={styles.errorText}>{t("client.complaints.loadError")}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={load}>
-          <Ionicons name="refresh-outline" size={14} color="#7C5CFC" />
+          <Ionicons name="refresh-outline" size={14} color="#EA580C" />
           <Text style={styles.retryBtnText}>{t("common.retry")}</Text>
         </TouchableOpacity>
       </View>
@@ -291,7 +298,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
           {/* Category + status */}
           <View style={styles.cardHeaderRow}>
             <View style={styles.catIconWrap}>
-              <Ionicons name={cat.icon as any} size={17} color="#7C5CFC" />
+              <Ionicons name={cat.icon as any} size={17} color="#EA580C" />
             </View>
             <Text style={styles.categoryLabel}>{cat.label}</Text>
             <View
@@ -342,7 +349,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
       <View style={styles.card}>
         <View style={styles.sectionTitleRow}>
           <View style={styles.sectionIconWrap}>
-            <Ionicons name="information-circle-outline" size={13} color="#7C5CFC" />
+            <Ionicons name="information-circle-outline" size={13} color="#EA580C" />
           </View>
           <Text style={styles.sectionTitle}>
             {t("client.complaints.detail.complaintInfo")}
@@ -362,7 +369,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
       <View style={styles.card}>
         <View style={styles.sectionTitleRow}>
           <View style={styles.sectionIconWrap}>
-            <Ionicons name="calendar-outline" size={13} color="#7C5CFC" />
+            <Ionicons name="calendar-outline" size={13} color="#EA580C" />
           </View>
           <Text style={styles.sectionTitle}>
             {t("client.complaints.detail.appointmentInfo")}
@@ -392,7 +399,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
             <Text style={styles.viewAppointmentBtnText}>
               {t("client.complaints.detail.viewAppointment")}
             </Text>
-            <Ionicons name="chevron-forward" size={16} color="#7C5CFC" />
+            <Ionicons name="chevron-forward" size={16} color="#EA580C" />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -401,7 +408,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
       <View style={styles.card}>
         <View style={styles.sectionTitleRow}>
           <View style={styles.sectionIconWrap}>
-            <Ionicons name="document-text-outline" size={13} color="#7C5CFC" />
+            <Ionicons name="document-text-outline" size={13} color="#EA580C" />
           </View>
           <Text style={styles.sectionTitle}>
             {t("client.complaints.description")}
@@ -415,7 +422,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
         <View style={styles.card}>
           <View style={styles.sectionTitleRow}>
             <View style={styles.sectionIconWrap}>
-              <Ionicons name="images-outline" size={13} color="#7C5CFC" />
+              <Ionicons name="images-outline" size={13} color="#EA580C" />
             </View>
             <Text style={styles.sectionTitle}>
               {t("client.complaints.evidence")}
@@ -430,7 +437,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
             photos={row.evidenceUrls}
             accessibilityLabelPrefix={t("client.complaints.evidence")}
             horizontalInset={64}
-            activeDotColor="#7C5CFC"
+            activeDotColor="#EA580C"
           />
         </View>
       ) : null}
@@ -492,7 +499,7 @@ export const ClientComplaintDetailScreen: React.FC<Props> = ({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -530,12 +537,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
   },
   retryBtnText: {
-    color: "#7C5CFC",
+    color: "#EA580C",
     fontWeight: "700",
     fontSize: 14,
   },
@@ -573,7 +580,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 10,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -604,7 +611,7 @@ const styles = StyleSheet.create({
 
   heroDivider: {
     height: 1,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     marginVertical: 14,
   },
 
@@ -618,16 +625,16 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     flexShrink: 0,
   },
   avatarPlaceholder: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1.5,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -635,7 +642,7 @@ const styles = StyleSheet.create({
   avatarInitial: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
   metaTextCol: {
     flex: 1,
@@ -682,7 +689,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 8,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -691,7 +698,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 11,
     fontWeight: "800",
-    color: "#7C5CFC",
+    color: "#EA580C",
     textTransform: "uppercase",
     letterSpacing: 1,
   },
@@ -699,14 +706,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 999,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
   },
   countPillText: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
   bodyText: {
     fontSize: 14,
@@ -721,7 +728,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F4F3FA",
+    borderBottomColor: "#F1F5F9",
   },
   detailRowLast: {
     borderBottomWidth: 0,
@@ -731,7 +738,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 9,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 1,
@@ -763,14 +770,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
   },
   viewAppointmentBtnText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
 
   /* ── Admin response ── */
@@ -815,7 +822,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     borderWidth: 1,
     borderColor: "#EBEBF5",
   },

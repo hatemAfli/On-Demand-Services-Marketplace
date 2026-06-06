@@ -375,12 +375,12 @@ function ClientReviewPreviewCard({ item }: { item: ReviewItem }) {
   );
 }
 
-// ─── Design tokens (aligned with ClientSearchProviderScreen violet theme) ───
+// ─── Design tokens (aligned with ClientSearchProviderScreen orange theme) ───
 const C = {
-  screenBg: "#F4F3FA",
-  accent: "#7C5CFC",
-  accentPale: "#EDE9FE",
-  accentBorder: "#C4B5FD",
+  screenBg: "#F1F5F9",
+  accent: "#EA580C",
+  accentPale: "#FFF7ED",
+  accentBorder: "#FFEDD5",
   /** Filled stars stay warm for readability (matches search result cards). */
   star: "#F59E0B",
   card: "#FFFFFF",
@@ -577,9 +577,9 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({ route }) => {
   const [galleryLightboxOpen, setGalleryLightboxOpen] = useState(false);
   const [galleryLightboxIndex, setGalleryLightboxIndex] = useState(0);
 
-  /** Card horizontal inset: ScrollView margins (16×2) + contentCard padding (20×2). */
+  /** Horizontal inset: content area side padding (16×2). */
   const galleryCarouselLayout = useMemo(() => {
-    const cardInset = 16 * 2 + 20 * 2;
+    const cardInset = 16 * 2;
     const slideW = Math.max(220, windowWidth - cardInset);
     const slideH = Math.round(slideW * 0.54);
     const snapInterval = slideW + GALLERY_CAROUSEL_GAP;
@@ -787,7 +787,7 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({ route }) => {
   // Animated header on scroll (light toolbar)
   const headerBg = scrollY.interpolate({
     inputRange: [HEADER_SCROLL_START, HEADER_SCROLL_END],
-    outputRange: ["rgba(244,243,250,0)", "rgba(244,243,250,0.97)"],
+    outputRange: ["rgba(241,245,249,0)", "rgba(241,245,249,0.97)"],
     extrapolate: "clamp",
   });
   const headerTitleOpacity = scrollY.interpolate({
@@ -869,13 +869,15 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({ route }) => {
         ]}
         pointerEvents="box-none"
       >
-        <TouchableOpacity
-          style={styles.backBtnLight}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="chevron-back" size={22} color={C.text} />
-        </TouchableOpacity>
+        <View style={styles.headerSide}>
+          <TouchableOpacity
+            style={styles.backBtnLight}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="chevron-back" size={22} color={C.text} />
+          </TouchableOpacity>
+        </View>
         <Animated.Text
           style={[
             styles.floatingHeaderTitleLight,
@@ -885,48 +887,50 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({ route }) => {
         >
           {data.owner.displayName}
         </Animated.Text>
-        <View style={styles.headerRightActions}>
-          <TouchableOpacity
-            style={[
-              styles.headerGlassBtn,
-              (!canOpenChat || openingChat) && { opacity: 0.45 },
-            ]}
-            onPress={() => void openChatWithProvider()}
-            disabled={!canOpenChat || openingChat}
-            activeOpacity={0.8}
-            accessibilityLabel="Message provider"
-          >
-            {openingChat ? (
-              <ActivityIndicator size="small" color={C.accent} />
-            ) : (
-              <Ionicons name="chatbubble-outline" size={20} color={C.accent} />
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.headerFavoriteBtn,
-              isFavorite && styles.headerFavoriteBtnActive,
-              !ownerId && { opacity: 0.5 },
-            ]}
-            onPress={() => {
-              void toggleFavorite();
-            }}
-            disabled={!ownerId || favoriteLoading}
-            activeOpacity={0.85}
-          >
-            {favoriteLoading ? (
-              <ActivityIndicator
-                size="small"
-                color={isFavorite ? "#FFFFFF" : "#EF4444"}
-              />
-            ) : (
-              <Ionicons
-                name={isFavorite ? "heart" : "heart-outline"}
-                size={18}
-                color={isFavorite ? "#FFFFFF" : "#EF4444"}
-              />
-            )}
-          </TouchableOpacity>
+        <View style={styles.headerSide}>
+          <View style={styles.headerRightActions}>
+            <TouchableOpacity
+              style={[
+                styles.headerGlassBtn,
+                (!canOpenChat || openingChat) && { opacity: 0.45 },
+              ]}
+              onPress={() => void openChatWithProvider()}
+              disabled={!canOpenChat || openingChat}
+              activeOpacity={0.8}
+              accessibilityLabel="Message provider"
+            >
+              {openingChat ? (
+                <ActivityIndicator size="small" color={C.accent} />
+              ) : (
+                <Ionicons name="chatbubble-outline" size={20} color={C.accent} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.headerFavoriteBtn,
+                isFavorite && styles.headerFavoriteBtnActive,
+                !ownerId && { opacity: 0.5 },
+              ]}
+              onPress={() => {
+                void toggleFavorite();
+              }}
+              disabled={!ownerId || favoriteLoading}
+              activeOpacity={0.85}
+            >
+              {favoriteLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={isFavorite ? "#FFFFFF" : "#EF4444"}
+                />
+              ) : (
+                <Ionicons
+                  name={isFavorite ? "heart" : "heart-outline"}
+                  size={18}
+                  color={isFavorite ? "#FFFFFF" : "#EF4444"}
+                />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </Animated.View>
 
@@ -942,8 +946,7 @@ export const ClientProviderProfileScreen: React.FC<Props> = ({ route }) => {
           paddingTop: insets.top + 8,
         }}
       >
-        {/* ── Main content card ── */}
-        <View style={styles.contentCard}>
+        <View style={styles.content}>
           {/* Owner identity block */}
           <View style={styles.identityBlock}>
             <View style={styles.avatarWrapper}>
@@ -1524,10 +1527,14 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 10,
     zIndex: 100,
+  },
+  headerSide: {
+    width: 88,
+    alignItems: "center",
+    justifyContent: "center",
   },
   backBtnLight: {
     width: 36,
@@ -1540,10 +1547,10 @@ const styles = StyleSheet.create({
     borderColor: C.cardBorder,
   },
   floatingHeaderTitleLight: {
+    flex: 1,
     fontSize: 16,
     fontWeight: "800",
     color: C.text,
-    flex: 1,
     textAlign: "center",
   },
   headerFavoriteBtn: {
@@ -1593,27 +1600,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  // Main content card
-  contentCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 28,
-    marginHorizontal: 16,
-    marginTop: 4,
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 20,
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 24,
     gap: 20,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#1A1A2E",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.07,
-        shadowRadius: 14,
-      },
-      android: { elevation: 3 },
-    }),
   },
 
   // Identity
@@ -1685,7 +1676,7 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 22,
-    backgroundColor: "#F9F8FF",
+    backgroundColor: C.accentPale,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -1822,7 +1813,7 @@ const styles = StyleSheet.create({
   // Stats
   statsRow: {
     flexDirection: "row",
-    backgroundColor: "#F9F8FF",
+    backgroundColor: C.accentPale,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: C.cardBorder,
@@ -1835,7 +1826,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 9,
-    backgroundColor: "#F9F8FF",
+    backgroundColor: C.accentPale,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -1855,7 +1846,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#F9F8FF",
+    backgroundColor: C.accentPale,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
@@ -1933,7 +1924,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
-    backgroundColor: "#F9F8FF",
+    backgroundColor: C.accentPale,
     borderWidth: 1,
     borderColor: C.cardBorder,
   },
@@ -2129,7 +2120,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 5,
     borderRadius: 4,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: C.accentPale,
     overflow: "hidden",
   },
   reviewsBreakdownFill: {
@@ -2153,7 +2144,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1.5,
     borderColor: C.accentBorder,
-    backgroundColor: "#F9F8FF",
+    backgroundColor: C.accentPale,
   },
   reviewsSeeAllTxt: {
     fontSize: 14,
@@ -2281,7 +2272,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     ...Platform.select({
       ios: {
-        shadowColor: "#7C5CFC",
+        shadowColor: "#EA580C",
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.28,
         shadowRadius: 14,

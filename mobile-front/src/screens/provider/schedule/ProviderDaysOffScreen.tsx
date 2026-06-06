@@ -29,6 +29,12 @@ import { api, type ProviderDayOffItem } from "../../../services/api";
 
 type Props = NativeStackScreenProps<ProviderStackParamList, "ProviderDaysOff">;
 
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
+
 export type DayOffRow = {
   id: string;
   date: string;
@@ -275,7 +281,7 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FAFAF9" />
+      <StatusBar barStyle="dark-content" backgroundColor={SCREEN_BG} />
 
       {/* ── Header ── */}
       <View style={styles.header}>
@@ -285,7 +291,7 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.85}
         >
-          <Ionicons name="chevron-back" size={20} color="#1A1A2E" />
+          <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Days Off</Text>
@@ -300,7 +306,7 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
 
       {loading ? (
         <View style={styles.loaderWrap}>
-          <ActivityIndicator size="large" color="#7C5CFC" />
+          <ActivityIndicator size="large" color={ACCENT} />
           <Text style={styles.loaderText}>Loading your calendar…</Text>
         </View>
       ) : (
@@ -323,7 +329,7 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
                   style={styles.monthArrow}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="chevron-back" size={18} color="#7C5CFC" />
+                  <Ionicons name="chevron-back" size={18} color={ACCENT} />
                 </TouchableOpacity>
                 <Text style={styles.monthTitle}>{monthTitle}</Text>
                 <TouchableOpacity
@@ -331,7 +337,7 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
                   style={styles.monthArrow}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="chevron-forward" size={18} color="#7C5CFC" />
+                  <Ionicons name="chevron-forward" size={18} color={ACCENT} />
                 </TouchableOpacity>
               </View>
 
@@ -441,7 +447,7 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
               <View style={styles.legend}>
                 <View style={styles.legendItem}>
                   <View
-                    style={[styles.legendDot, { backgroundColor: "#7C5CFC" }]}
+                    style={[styles.legendDot, { backgroundColor: ACCENT }]}
                   />
                   <Text style={styles.legendText}>Today</Text>
                 </View>
@@ -473,7 +479,7 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
             {upcomingBlocked.length === 0 ? (
               <View style={styles.emptyWrap}>
                 <View style={styles.emptyIconRing}>
-                  <Ionicons name="sunny-outline" size={24} color="#7C5CFC" />
+                  <Ionicons name="sunny-outline" size={24} color={ACCENT} />
                 </View>
                 <Text style={styles.emptyHintTitle}>All clear!</Text>
                 <Text style={styles.emptyHint}>
@@ -657,7 +663,7 @@ export const ProviderDaysOffScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: "#FAFAF9",
+    backgroundColor: SCREEN_BG,
   },
 
   /* ── Header ── */
@@ -667,7 +673,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: SCREEN_PAD,
     paddingVertical: 12,
-    backgroundColor: "#FAFAF9",
+    backgroundColor: SCREEN_BG,
   },
   backBtn: {
     width: 40,
@@ -754,11 +760,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: "#F5F3FF",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#EDE9FE",
+    borderColor: "#FFF7ED",
   },
   monthTitle: {
     fontSize: 16,
@@ -784,7 +790,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   weekdayTextWeekend: {
-    color: "#C4B5FD",
+    color: "#FB923C",
   },
 
   weekRow: {
@@ -797,7 +803,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FAFAF9",
+    backgroundColor: SCREEN_BG,
     position: "relative",
     gap: 2,
   },
@@ -806,11 +812,11 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   dayCellWeekend: {
-    backgroundColor: "#F5F3FF",
+    backgroundColor: "#FFF7ED",
   },
   dayCellToday: {
-    backgroundColor: "#7C5CFC",
-    shadowColor: "#7C5CFC",
+    backgroundColor: ACCENT,
+    shadowColor: ACCENT_DARK,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -910,9 +916,9 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1.5,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
@@ -1016,10 +1022,10 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: "#7C5CFC",
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#7C5CFC",
+    shadowColor: ACCENT_DARK,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 14,
@@ -1085,13 +1091,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: "#EBEBF5",
-    backgroundColor: "#FAFAF9",
+    backgroundColor: SCREEN_BG,
     alignItems: "center",
     gap: 2,
   },
   stripChipSel: {
-    borderColor: "#7C5CFC",
-    backgroundColor: "#EDE9FE",
+    borderColor: "#EA580C",
+    backgroundColor: "#FFF7ED",
   },
   stripChipBlocked: {
     borderColor: "#FECACA",
@@ -1102,7 +1108,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#9B9BB0",
   },
-  stripChipTopSel: { color: "#7C5CFC" },
+  stripChipTopSel: { color: "#EA580C" },
   stripChipTopBlocked: { color: "#F87171" },
   stripChipDay: {
     fontSize: 17,
@@ -1110,7 +1116,7 @@ const styles = StyleSheet.create({
     color: "#1A1A2E",
     fontVariant: ["tabular-nums"],
   },
-  stripChipDaySel: { color: "#7C5CFC" },
+  stripChipDaySel: { color: "#EA580C" },
   stripChipDayBlocked: { color: "#DC2626" },
   stripBlockedDot: {
     width: 5,
@@ -1137,7 +1143,7 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === "ios" ? 13 : 11,
     fontSize: 14,
     color: "#1A1A2E",
-    backgroundColor: "#FAFAF9",
+    backgroundColor: SCREEN_BG,
     marginBottom: 18,
     fontWeight: "500",
   },
@@ -1148,10 +1154,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#7C5CFC",
+    backgroundColor: ACCENT,
     borderRadius: 999,
     paddingVertical: 16,
-    shadowColor: "#7C5CFC",
+    shadowColor: ACCENT_DARK,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 14,

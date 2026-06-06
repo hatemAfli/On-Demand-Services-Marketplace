@@ -16,11 +16,14 @@ import {
   ComplaintStatus,
   Locale,
   NotificationType,
+  PlatformAuditAction,
   Prisma,
   ProviderType,
 } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
+import type { PlatformAuditContext } from '../platform-audit/platform-audit.types';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
 import { GetComplaintsDto } from './dto/get-complaints.dto';
 import { ReviewComplaintDto } from './dto/review-complaint.dto';
@@ -120,6 +123,7 @@ export class ComplaintsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly audit: PlatformAuditService,
   ) {}
 
   /** Ensures evidence URLs point at this client's objects in `complaints_photos`. */
@@ -521,34 +525,39 @@ export class ComplaintsService {
       forwardTarget: { not: ComplaintForwardTarget.COMPANY },
     };
 
-    const [total, open, underReview, resolvedThisMonth, categoryCounts] =
-      await Promise.all([
-        this.prisma.complaint.count({ where: platformScope }),
-        this.prisma.complaint.count({
-          where: { ...platformScope, status: ComplaintStatus.OPEN },
-        }),
-        this.prisma.complaint.count({
-          where: { ...platformScope, status: ComplaintStatus.UNDER_REVIEW },
-        }),
-        this.prisma.complaint.count({
-          where: {
-            ...platformScope,
-            status: ComplaintStatus.RESOLVED,
-            resolvedAt: { gte: monthStart },
-          },
-        }),
-        Promise.all(
-          categories.map((category) =>
-            this.prisma.complaint.count({
-              where: { ...platformScope, category },
-            }),
-          ),
-        ),
-      ]);
+    const [byStatus, byCategoryRows, resolvedThisMonth] = await Promise.all([
+      this.prisma.complaint.groupBy({
+        by: ['status'],
+        where: platformScope,
+        _count: { _all: true },
+      }),
+      this.prisma.complaint.groupBy({
+        by: ['category'],
+        where: platformScope,
+        _count: { _all: true },
+      }),
+      this.prisma.complaint.count({
+        where: {
+          ...platformScope,
+          status: ComplaintStatus.RESOLVED,
+          resolvedAt: { gte: monthStart },
+        },
+      }),
+    ]);
 
+    const statusCounts = new Map(
+      byStatus.map((row) => [row.status, row._count._all]),
+    );
+    const total = byStatus.reduce((sum, row) => sum + row._count._all, 0);
+    const open = statusCounts.get(ComplaintStatus.OPEN) ?? 0;
+    const underReview = statusCounts.get(ComplaintStatus.UNDER_REVIEW) ?? 0;
+
+    const categoryCounts = new Map(
+      byCategoryRows.map((row) => [row.category, row._count._all]),
+    );
     const byCategory = categories.reduce(
-      (acc, category, index) => {
-        acc[category] = categoryCounts[index] ?? 0;
+      (acc, category) => {
+        acc[category] = categoryCounts.get(category) ?? 0;
         return acc;
       },
       {} as Record<ComplaintCategory, number>,
@@ -609,6 +618,7 @@ export class ComplaintsService {
     adminUserId: string,
     complaintId: string,
     dto: ReviewComplaintDto,
+    ctx?: PlatformAuditContext,
   ): Promise<Complaint> {
     const platformAdmin = await this.prisma.platformAdmin.findUnique({
       where: { id: adminUserId },
@@ -725,6 +735,19 @@ export class ComplaintsService {
         data: { complaintId: complaintId, screen: 'ProviderComplaints' },
       });
     }
+
+    const actor = await this.audit.actorName(adminUserId);
+    this.audit.logIf(
+      { actorAdminId: adminUserId, ipAddress: ctx?.ipAddress },
+      PlatformAuditAction.COMPLAINT_REVIEWED,
+      `${actor} updated complaint status from ${prevStatus} to ${dto.status}.`,
+      {
+        complaintId,
+        previousStatus: prevStatus,
+        newStatus: dto.status,
+        decision: decision ?? null,
+      },
+    );
 
     return updated;
   }

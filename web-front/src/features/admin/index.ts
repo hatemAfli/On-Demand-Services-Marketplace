@@ -24,4 +24,5 @@ export {
   AdminReviewDetailPage,
   FaqAdminPage,
   SupportMessagesAdminPage,
+  ActivityLogsAdminPage,
 } from './pages'

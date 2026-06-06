@@ -20,6 +20,9 @@ import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { api } from "../../services/api";
 import { getPasswordRecoveryRedirectUrl, supabase } from "../../services/supabase";
 
+const ACCENT = "#EA580C";
+const SCREEN_BG = "#F1F5F9";
+
 interface ForgotPasswordScreenProps {
   navigation: NativeStackNavigationProp<AuthStackParamList, "ForgotPassword">;
 }
@@ -100,7 +103,11 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
       <View style={[styles.topBackContainer, { top: insets.top + 8 }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
           <Text style={styles.backText}>← {t("common.back")}</Text>
         </TouchableOpacity>
       </View>
@@ -111,26 +118,36 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: insets.top + 64, paddingBottom: insets.bottom + 16 },
+            {
+              paddingTop: insets.top + 64,
+              paddingBottom: 16 + insets.bottom,
+            },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.panel}>
+            <View style={styles.heroIconWrap}>
+              <Ionicons name="key-outline" size={22} color={ACCENT} />
+            </View>
             <Text style={styles.title}>{t("auth.forgotPasswordTitle")}</Text>
             <Text style={styles.subtitle}>{t("auth.forgotPasswordSubtitle")}</Text>
-            <Input
-              label={t("common.email")}
-              placeholder={t("common.email")}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              leftIcon="mail-outline"
-              error={error}
-            />
+
+            <View style={styles.form}>
+              <Input
+                label={t("common.email")}
+                placeholder={t("common.email")}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                leftIcon="mail-outline"
+                error={error}
+              />
+            </View>
+
             <TouchableOpacity
-              style={styles.sendButton}
+              style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
               onPress={onSendLink}
               activeOpacity={0.9}
               disabled={loading}
@@ -138,11 +155,13 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <View style={styles.sendButtonContent}>
-                  <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
-                  <Text style={styles.sendButtonText}>
+                <View style={styles.primaryButtonContent}>
+                  <Text style={styles.primaryButtonText}>
                     {t("auth.sendPasswordResetLink")}
                   </Text>
+                  <View style={styles.primaryButtonIconWrap}>
+                    <Ionicons name="mail-outline" size={18} color="#FFFFFF" />
+                  </View>
                 </View>
               )}
             </TouchableOpacity>
@@ -150,13 +169,21 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
 
           {sentTo ? (
             <View style={styles.sentCard}>
-              <Ionicons name="mail-open-outline" size={24} color="#4F46E5" />
+              <View style={styles.sentIconWrap}>
+                <Ionicons name="mail-open-outline" size={22} color={ACCENT} />
+              </View>
               <Text style={styles.sentTitle}>{t("auth.resetLinkSentTitle")}</Text>
               <Text style={styles.sentText}>
                 {t("auth.resetLinkSentMessage", { email: sentTo })}
               </Text>
             </View>
           ) : null}
+
+          <View style={styles.footer}>
+            <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+              <Text style={styles.footerLink}>{t("auth.backToLogin")}</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -173,73 +200,149 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F1F5F9" },
+  root: {
+    flex: 1,
+    backgroundColor: SCREEN_BG,
+  },
   topBackContainer: {
     position: "absolute",
     left: 24,
     zIndex: 10,
   },
-  container: { flex: 1 },
-  scrollContent: { flexGrow: 1, paddingHorizontal: 24, justifyContent: "center" },
-  backButton: { paddingVertical: 8, paddingHorizontal: 8 },
-  backText: { color: "#4F46E5", fontSize: 16, fontWeight: "600" },
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 0,
+    justifyContent: "center",
+  },
+  backButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  backText: {
+    color: ACCENT,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  panel: {
+    width: "100%",
+    alignSelf: "stretch",
+    backgroundColor: SCREEN_BG,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+    marginTop: 8,
+  },
+  heroIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FFEDD5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
   title: {
     fontSize: 24,
-    lineHeight: 28,
-    fontWeight: "700",
+    lineHeight: 30,
+    fontWeight: "800",
     color: "#0F172A",
     letterSpacing: -0.4,
   },
-  subtitle: { marginTop: 6, marginBottom: 14, fontSize: 12, color: "#64748B" },
-  panel: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    width: "100%",
-    maxWidth: 420,
-    alignSelf: "center",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 1,
+  subtitle: {
+    marginTop: 8,
+    marginBottom: 20,
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#64748B",
   },
-  sendButton: {
-    alignSelf: "center",
-    minWidth: 190,
-    height: 48,
-    borderRadius: 999,
-    backgroundColor: "#6366F1",
+  form: {
+    marginBottom: 20,
+  },
+  primaryButton: {
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#4338CA",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
     shadowRadius: 10,
     elevation: 3,
   },
-  sendButtonContent: {
+  primaryButtonDisabled: {
+    opacity: 0.65,
+  },
+  primaryButtonContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  sendButtonText: {
+  primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
     letterSpacing: 0.2,
   },
+  primaryButtonIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   sentCard: {
-    marginTop: 18,
+    marginTop: 8,
+    marginHorizontal: 20,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#C7D2FE",
-    backgroundColor: "#EEF2FF",
-    padding: 14,
+    borderColor: "#FFEDD5",
+    backgroundColor: "#FFF7ED",
+    padding: 16,
     gap: 8,
   },
-  sentTitle: { fontSize: 16, fontWeight: "700", color: "#312E81" },
-  sentText: { fontSize: 13, color: "#3730A3" },
+  sentIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#FFEDD5",
+  },
+  sentTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#9A3412",
+  },
+  sentText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: "#C2410C",
+  },
+  footer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  footerText: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+  footerLink: {
+    fontSize: 13,
+    color: ACCENT,
+    fontWeight: "600",
+  },
 });

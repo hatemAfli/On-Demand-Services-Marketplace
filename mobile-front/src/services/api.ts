@@ -3,7 +3,7 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 import * as SecureStore from "expo-secure-store";
 import { CONFIG } from "../constants";
-import type { UserRole } from "../types";
+import type { AccountStatus, UserRole } from "../types";
 import i18n from "../i18n";
 import { supabase } from "./supabase";
 
@@ -118,6 +118,30 @@ export type AdminComplaintListItem = {
 export type AdminComplaintsListResponse = {
   items: AdminComplaintListItem[];
   total: number;
+};
+
+export type AppointmentStats = {
+  total: number;
+  byStatus: Record<string, number>;
+  completedToday: number;
+  disputedActive: number;
+  averageDurationMinutes: number;
+};
+
+export type ComplaintStats = {
+  total: number;
+  open: number;
+  underReview: number;
+  resolvedThisMonth: number;
+  byCategory: Record<string, number>;
+};
+
+export type ReviewStats = {
+  total: number;
+  averageRating: number;
+  hidden: number;
+  withReply: number;
+  byRating: Record<string, number>;
 };
 
 /** Provider-facing complaint row (no client PII). */
@@ -311,6 +335,42 @@ export type ProviderCalendarAppointment = {
     city: string;
     address: string | null;
   };
+};
+
+/** Aggregated provider overview (`GET /providers/me/dashboard`). */
+export type ProviderDashboardResponse = {
+  profile: {
+    firstName: string;
+    lastName: string;
+    photoUrl: string | null;
+    type: string;
+    companyName: string | null;
+    averageRating: number;
+    totalReviews: number;
+  };
+  complaints: {
+    totalComplaints: number;
+    activeComplaints: number;
+  };
+  performance: {
+    acceptPct: number;
+    completePct: number;
+    badgeKey: string;
+  };
+  kpi: {
+    todayJobs: number;
+    yesterdayJobs: number;
+    completedToday: number;
+    weekCompleted: number;
+    remainingToday: number;
+    jobsTrendPct: number | null;
+    jobsTrend: "up" | "down" | "same";
+  };
+  activityTrend: { date: string; label: string; count: number }[];
+  pipelineBreakdown: { status: AppointmentStatus; count: number }[];
+  upcoming: ProviderCalendarAppointment[];
+  pendingInvitations: number;
+  unreadMessages: number;
 };
 
 type CalendarTranslationRow = { locale: string; name: string };
@@ -512,6 +572,11 @@ export const api = {
   completeRegistration: (data: any) =>
     apiClient.post("/auth/complete-registration", data),
   getCurrentUser: () => apiClient.get("/auth/me"),
+  updateMyIdentity: (data: {
+    firstName?: string;
+    lastName?: string;
+    phoneNumber?: string;
+  }) => apiClient.patch("/auth/me/identity", data),
   lookupMagicLoginAccount: (data: { email: string }) =>
     apiClient.post<{ exists: boolean }>("/auth/magic-login/lookup", data),
   checkEmailChangeAvailability: (data: { email: string }) =>
@@ -562,6 +627,8 @@ export const api = {
 
   // Provider endpoints
   getProviderProfile: () => apiClient.get("/providers/me"),
+  getProviderDashboard: () =>
+    apiClient.get<ProviderDashboardResponse>("/providers/me/dashboard"),
   updateProviderProfile: (data: any) => apiClient.patch("/providers/me", data),
 
   /** Provider weekly availability (GET/PATCH `/availability/me`). */
@@ -813,6 +880,28 @@ export const api = {
     skip?: number;
     take?: number;
   }) => apiClient.get("/admin/users", { params }),
+
+  getAdminUserById: (id: string) => apiClient.get(`/admin/users/${id}`),
+
+  updateAdminUserStatus: (
+    id: string,
+    body: { status: AccountStatus; reason?: string },
+  ) => apiClient.patch(`/admin/users/${id}/status`, body),
+
+  listAdminCompanies: (params?: { skip?: number; take?: number }) =>
+    apiClient.get<{ items: unknown[]; total: number }>("/admin/companies", {
+      params,
+    }),
+
+  getAppointmentStats: () =>
+    apiClient.get<AppointmentStats>("/admin/appointments/stats"),
+
+  getComplaintStats: () => apiClient.get<ComplaintStats>("/complaints/stats"),
+
+  getReviewStats: () => apiClient.get<ReviewStats>("/admin/reviews/stats"),
+
+  getAdminSupportMessageStats: () =>
+    apiClient.get<{ newCount: number }>("/admin/support-messages/stats"),
 
   listAdminVerificationRequests: (params?: {
     status?: string;

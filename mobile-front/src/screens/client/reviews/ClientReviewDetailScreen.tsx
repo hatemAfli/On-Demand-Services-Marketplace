@@ -40,9 +40,10 @@ type Props = NativeStackScreenProps<ClientStackParamList, "ClientReviewDetail">;
 const STAR_GOLD = "#F59E0B";
 const STAR_EMPTY = "#D1D5DB";
 const MAX_COMMENT = 1000;
-const BRAND = "#7C5CFC";
-const BRAND_LIGHT = "#EDE9FE";
-const BRAND_MID = "#C4B5FD";
+const BRAND = "#EA580C";
+const BRAND_LIGHT = "#FFF7ED";
+const BRAND_MID = "#FFEDD5";
+const BRAND_DARK = "#C2410C";
 const SUCCESS = "#059669";
 const DANGER = "#DC2626";
 const DANGER_BG = "#FEF2F2";
@@ -178,6 +179,7 @@ export const ClientReviewDetailScreen: React.FC<Props> = ({
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("client.screenTitles.ClientReviewDetail"),
+      headerTitleAlign: "center",
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -187,6 +189,7 @@ export const ClientReviewDetailScreen: React.FC<Props> = ({
           <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
         </TouchableOpacity>
       ),
+      headerRight: () => <View style={{ width: 40, marginRight: 8 }} />,
     });
   }, [navigation, t]);
 
@@ -323,7 +326,7 @@ export const ClientReviewDetailScreen: React.FC<Props> = ({
             <View style={styles.replyBox}>
               <View style={styles.replyHeader}>
                 <View style={styles.replyIconWrap}>
-                  <Ionicons name="chatbubble-ellipses" size={14} color="#4F46E5" />
+                  <Ionicons name="chatbubble-ellipses" size={14} color={BRAND} />
                 </View>
                 <Text style={styles.replyLabel}>
                   {t("client.reviews.providerReplyLabel")}
@@ -471,13 +474,13 @@ export const ClientReviewDetailScreen: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   // ── Layout ──────────────────────────────────────────────────────────────────
-  root: { flex: 1, backgroundColor: "#F7F6FB" },
+  root: { flex: 1, backgroundColor: "#F1F5F9" },
   scroll: { padding: 16, gap: 0 },
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F7F6FB",
+    backgroundColor: "#F1F5F9",
   },
   loadingCard: {
     alignItems: "center",
@@ -485,7 +488,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 32,
-    shadowColor: "#7C5CFC",
+    shadowColor: BRAND,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1,
     shadowRadius: 16,
@@ -503,7 +506,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     overflow: "hidden",
-    shadowColor: "#7C5CFC",
+    shadowColor: BRAND,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 14,
@@ -592,11 +595,11 @@ const styles = StyleSheet.create({
 
   // ── Reply box ────────────────────────────────────────────────────────────────
   replyBox: {
-    backgroundColor: "#F0EEFF",
+    backgroundColor: BRAND_LIGHT,
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#DDD6FE",
+    borderColor: BRAND_MID,
     gap: 8,
     marginBottom: 14,
   },
@@ -609,20 +612,20 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 7,
-    backgroundColor: "#DDD6FE",
+    backgroundColor: BRAND_MID,
     alignItems: "center",
     justifyContent: "center",
   },
   replyLabel: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#4F46E5",
+    color: BRAND,
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
   replyText: {
     fontSize: 14,
-    color: "#312E81",
+    color: BRAND_DARK,
     lineHeight: 21,
     fontWeight: "400",
   },
@@ -700,7 +703,7 @@ const styles = StyleSheet.create({
   },
   commentInputFocused: {
     borderColor: BRAND_MID,
-    backgroundColor: "#FDFCFF",
+    backgroundColor: "#FFFBF7",
   },
   charBarTrack: {
     height: 3,

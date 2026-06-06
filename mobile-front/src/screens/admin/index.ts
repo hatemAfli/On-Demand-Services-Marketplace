@@ -1,8 +1,10 @@
 export { AdminNavigator } from "./AdminNavigator";
-export { AdminDashboardScreen } from "./AdminDashboardScreen";
+export { AdminDashboardScreen } from "./dashboard/AdminDashboardScreen";
 export { AdminUsersScreen } from "./users/AdminUsersScreen";
+export { AdminUserDetailScreen } from "./users/AdminUserDetailScreen";
 export { AdminValidationsScreen } from "./validations/AdminValidationsScreen";
 export { AdminValidationProviderDetailScreen } from "./validations/AdminValidationProviderDetailScreen";
 export { AdminComplaintDetailScreen } from "./complaints/AdminComplaintDetailScreen";
 export { AdminComplaintsScreen } from "./complaints/AdminComplaintsScreen";
-export { AdminProfileScreen } from "./AdminProfileScreen";
+export { AdminProfileScreen } from "./profile/AdminProfileScreen";
+export { AdminEditProfileScreen } from "./profile/AdminEditProfileScreen";

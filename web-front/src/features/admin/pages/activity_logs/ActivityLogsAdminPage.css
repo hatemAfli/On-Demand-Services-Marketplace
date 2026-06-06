@@ -1,0 +1,92 @@
+.activity-logs-page {
+  max-width: 1200px;
+}
+
+.activity-logs-page__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+  .activity-logs-page__stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+.activity-logs-page__stat {
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.activity-logs-page__stat strong {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.activity-logs-page__stat span {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.activity-logs-page__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+}
+
+.activity-logs-page__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.activity-logs-page__field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #595959;
+}
+
+.activity-logs-page__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.activity-logs-page__table-wrap {
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.activity-logs-page__action-tag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.activity-logs-page__summary {
+  color: #334155;
+  font-size: 14px;
+}
+
+.activity-logs-page__meta {
+  font-size: 12px;
+  color: #94a3b8;
+  font-family: ui-monospace, monospace;
+}

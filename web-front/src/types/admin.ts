@@ -182,3 +182,49 @@ export interface ReviewStats {
   withReply: number
   byRating: Record<1 | 2 | 3 | 4 | 5, number>
 }
+
+export type PlatformAuditAction =
+  | 'USER_STATUS_UPDATED'
+  | 'VERIFICATION_APPROVED'
+  | 'VERIFICATION_REJECTED'
+  | 'VERIFICATION_UNDER_REVIEW'
+  | 'VERIFICATION_DOCUMENT_REVIEWED'
+  | 'APPOINTMENT_DISPUTED'
+  | 'APPOINTMENT_INTERVENED'
+  | 'COMPLAINT_REVIEWED'
+  | 'REVIEW_HIDDEN'
+  | 'REVIEW_RESTORED'
+  | 'REVIEW_DELETED'
+  | 'SERVICE_CATEGORY_CREATED'
+  | 'SERVICE_CATEGORY_UPDATED'
+  | 'SERVICE_CATEGORY_DELETED'
+  | 'SERVICE_CREATED'
+  | 'SERVICE_UPDATED'
+  | 'SERVICE_DELETED'
+  | 'LEGAL_DOCUMENT_CREATED'
+  | 'LEGAL_DOCUMENT_UPDATED'
+  | 'LEGAL_DOCUMENT_VERSION_ADDED'
+  | 'LEGAL_DOCUMENT_PUBLISHED'
+  | 'LEGAL_DOCUMENT_DELETED'
+  | 'FAQ_CREATED'
+  | 'FAQ_UPDATED'
+  | 'FAQ_DELETED'
+  | 'SUPPORT_MESSAGE_STATUS_UPDATED'
+  | 'DATA_EXPORT'
+
+export interface PlatformActivityLogEntry {
+  id: string
+  action: PlatformAuditAction
+  summary: string
+  actorName: string
+  ipAddress: string | null
+  metadata: Record<string, unknown> | null
+  createdAt: string
+  displayId: string
+}
+
+export interface PlatformActivityLogStats {
+  total: number
+  today: number
+  thisWeek: number
+}

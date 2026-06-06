@@ -6,12 +6,14 @@ import {
 import {
   ComplaintForwardTarget,
   ComplaintStatus,
+  CompanyAuditAction,
   Locale,
   NotificationType,
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../../config/prisma.config';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { CompanyAuditService } from '../audit/company-audit.service';
 import { ListCompanyComplaintsDto } from './dto/list-company-complaints.dto';
 import { ReviewCompanyComplaintDto } from './dto/review-company-complaint.dto';
 
@@ -66,6 +68,7 @@ export class CompanyComplaintsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly audit: CompanyAuditService,
   ) {}
 
   private async resolveCompanyId(companyAdminUserId: string): Promise<string> {
@@ -215,6 +218,7 @@ export class CompanyComplaintsService {
     companyAdminUserId: string,
     complaintId: string,
     dto: ReviewCompanyComplaintDto,
+    ipAddress?: string,
   ) {
     const allowed: ComplaintStatus[] = [
       ComplaintStatus.UNDER_REVIEW,
@@ -225,7 +229,7 @@ export class CompanyComplaintsService {
       throw new BadRequestException('Invalid status for company review');
     }
 
-    const { complaint } = await this.assertCompanyComplaint(
+    const { companyId, complaint } = await this.assertCompanyComplaint(
       companyAdminUserId,
       complaintId,
     );
@@ -320,6 +324,26 @@ export class CompanyComplaintsService {
           : 'Your provider\'s company has added a response to your complaint.'),
       data: { complaintId, screen: 'ClientComplaintDetail' },
     });
+
+    const statusVerb =
+      dto.status === ComplaintStatus.RESOLVED
+        ? 'resolved'
+        : dto.status === ComplaintStatus.DISMISSED
+          ? 'dismissed'
+          : 'marked as under review';
+    const actor = await this.audit.actorFirstName(companyAdminUserId);
+    await this.audit.log(
+      companyId,
+      companyAdminUserId,
+      CompanyAuditAction.COMPLAINT_REVIEWED,
+      `${actor} ${statusVerb} complaint #CMP-${complaintId.slice(0, 8).toUpperCase()}.`,
+      {
+        complaintId,
+        status: dto.status,
+        previousStatus: prevStatus,
+      },
+      ipAddress,
+    );
 
     return updated;
   }

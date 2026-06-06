@@ -8,9 +8,12 @@ import {
   LegalDocumentStatus,
   LegalDocumentType,
   Locale,
+  PlatformAuditAction,
 } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { localeFallbackChain } from '../../common/i18n/locale';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
+import type { PlatformAuditContext } from '../platform-audit/platform-audit.types';
 import { AddLegalDocumentVersionDto } from './dto/add-legal-document-version.dto';
 import { CreateLegalDocumentDto } from './dto/create-legal-document.dto';
 import { PatchLegalDocumentVersionDto } from './dto/patch-legal-document-version.dto';
@@ -18,7 +21,10 @@ import { UpdateLegalDocumentDto } from './dto/update-legal-document.dto';
 
 @Injectable()
 export class LegalDocumentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: PlatformAuditService,
+  ) {}
 
   listForAdmin() {
     return this.prisma.legalDocument.findMany({
@@ -74,7 +80,11 @@ export class LegalDocumentsService {
     return null;
   }
 
-  async create(dto: CreateLegalDocumentDto, createdByAdminId: string) {
+  async create(
+    dto: CreateLegalDocumentDto,
+    createdByAdminId: string,
+    ctx?: PlatformAuditContext,
+  ) {
     const existing = await this.prisma.legalDocument.findUnique({
       where: { type: dto.type },
     });
@@ -85,7 +95,7 @@ export class LegalDocumentsService {
     const publish = dto.publish === true;
     const now = new Date();
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const doc = await tx.legalDocument.create({
         data: {
           type: dto.type,
@@ -132,9 +142,25 @@ export class LegalDocumentsService {
         },
       });
     });
+
+    const actor = await this.audit.actorName(ctx?.actorAdminId ?? createdByAdminId);
+    this.audit.logIf(
+      { actorAdminId: ctx?.actorAdminId ?? createdByAdminId, ipAddress: ctx?.ipAddress },
+      publish
+        ? PlatformAuditAction.LEGAL_DOCUMENT_PUBLISHED
+        : PlatformAuditAction.LEGAL_DOCUMENT_CREATED,
+      `${actor} ${publish ? 'created and published' : 'created'} legal document (${dto.type}).`,
+      { documentType: dto.type, published: publish },
+    );
+
+    return result;
   }
 
-  async updateDocument(documentId: string, dto: UpdateLegalDocumentDto) {
+  async updateDocument(
+    documentId: string,
+    dto: UpdateLegalDocumentDto,
+    ctx?: PlatformAuditContext,
+  ) {
     if (dto.titleEn === undefined && dto.titleAr === undefined) {
       throw new BadRequestException('No fields to update');
     }
@@ -183,6 +209,19 @@ export class LegalDocumentsService {
           },
         },
       });
+    }).then((result) => {
+      const actor = ctx
+        ? this.audit.actorName(ctx.actorAdminId)
+        : Promise.resolve('Admin');
+      return actor.then((name) => {
+        this.audit.logIf(
+          ctx,
+          PlatformAuditAction.LEGAL_DOCUMENT_UPDATED,
+          `${name} updated legal document draft titles.`,
+          { documentId },
+        );
+        return result;
+      });
     });
   }
 
@@ -190,6 +229,7 @@ export class LegalDocumentsService {
     documentId: string,
     dto: AddLegalDocumentVersionDto,
     createdByAdminId: string,
+    ctx?: PlatformAuditContext,
   ) {
     const doc = await this.prisma.legalDocument.findUnique({
       where: { id: documentId },
@@ -205,7 +245,7 @@ export class LegalDocumentsService {
     const publish = dto.publish === true;
     const now = new Date();
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       if (publish) {
         await tx.legalDocumentVersion.updateMany({
           where: {
@@ -262,6 +302,18 @@ export class LegalDocumentsService {
         },
       });
     });
+
+    const actor = await this.audit.actorName(ctx?.actorAdminId ?? createdByAdminId);
+    this.audit.logIf(
+      { actorAdminId: ctx?.actorAdminId ?? createdByAdminId, ipAddress: ctx?.ipAddress },
+      publish
+        ? PlatformAuditAction.LEGAL_DOCUMENT_PUBLISHED
+        : PlatformAuditAction.LEGAL_DOCUMENT_VERSION_ADDED,
+      `${actor} ${publish ? 'added and published' : 'added'} legal document version ${nextVersion}.`,
+      { documentId, version: nextVersion, published: publish },
+    );
+
+    return result;
   }
 
   async patchVersion(
@@ -269,6 +321,7 @@ export class LegalDocumentsService {
     versionId: string,
     dto: PatchLegalDocumentVersionDto,
     createdByAdminId: string,
+    ctx?: PlatformAuditContext,
   ) {
     const version = await this.prisma.legalDocumentVersion.findFirst({
       where: { id: versionId, documentId },
@@ -295,7 +348,7 @@ export class LegalDocumentsService {
 
     const now = new Date();
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       if (hasAnyChanges) {
         if (version.status !== LegalDocumentStatus.DRAFT) {
           throw new BadRequestException('Only draft content can be edited');
@@ -372,14 +425,35 @@ export class LegalDocumentsService {
         },
       });
     });
+
+    const actor = await this.audit.actorName(ctx?.actorAdminId ?? createdByAdminId);
+    this.audit.logIf(
+      { actorAdminId: ctx?.actorAdminId ?? createdByAdminId, ipAddress: ctx?.ipAddress },
+      publish
+        ? PlatformAuditAction.LEGAL_DOCUMENT_PUBLISHED
+        : PlatformAuditAction.LEGAL_DOCUMENT_UPDATED,
+      `${actor} ${publish ? 'published' : 'updated'} legal document version ${version.version}.`,
+      { documentId, versionId, version: version.version, published: publish },
+    );
+
+    return result;
   }
 
-  async remove(documentId: string) {
+  async remove(documentId: string, ctx?: PlatformAuditContext) {
     const result = await this.prisma.legalDocument.deleteMany({
       where: { id: documentId },
     });
     if (result.count === 0) {
       throw new NotFoundException('Legal document not found');
     }
+    const actor = ctx
+      ? await this.audit.actorName(ctx.actorAdminId)
+      : 'Admin';
+    this.audit.logIf(
+      ctx,
+      PlatformAuditAction.LEGAL_DOCUMENT_DELETED,
+      `${actor} deleted legal document.`,
+      { documentId },
+    );
   }
 }

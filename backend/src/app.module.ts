@@ -25,6 +25,8 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { CompanyModule } from './modules/company/company.module';
 import { SupportMessagesModule } from './modules/support-messages/support-messages.module';
 import { FaqModule } from './modules/faq/faq.module';
+import { PlatformAuditModule } from './modules/platform-audit/platform-audit.module';
+import { PlatformActivityLogsModule } from './modules/platform-activity-logs/platform-activity-logs.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -60,6 +62,8 @@ import { AppService } from './app.service';
     CompanyModule,
     FaqModule,
     SupportMessagesModule,
+    PlatformAuditModule,
+    PlatformActivityLogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

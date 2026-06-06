@@ -638,7 +638,7 @@ const en = {
       ProviderHome:
         "Your provider home will show a snapshot of activity and shortcuts. Coming soon.",
       ProviderDashboard:
-        "Analytics and KPIs for your services will appear here. Coming soon.",
+        "Overview of your jobs, performance, and shortcuts.",
       ProviderServices:
         "Manage the services you offer, pricing, and availability. Coming soon.",
       ProviderMessages:
@@ -653,7 +653,7 @@ const en = {
         "View your bookings by week and open appointment details.",
       ProviderAppointmentDetail: "Appointment details.",
       ProviderSubscriptionPlan:
-        "Manage your plan, billing, and subscription options. Coming soon.",
+        "This feature will be added in future releases.",
       ProviderRatings:
         "Reviews and ratings you receive will be summarized here. Coming soon.",
       ProviderReviews:
@@ -705,6 +705,73 @@ const en = {
       statusDeclined: "Declined",
       statusAccepted: "Accepted",
       statusExpired: "Expired",
+    },
+    dashboard: {
+      loading: "Loading your overview…",
+      refresh: "Refresh",
+      loadError: "Could not load dashboard. Tap to retry.",
+      eyebrow: "Your overview",
+      fallbackName: "Provider",
+      rating: "{{count}} reviews",
+      weekCompleted: "Done this week",
+      openComplaints: "Open reports",
+      kpi: {
+        today: "Today's jobs",
+        completedToday: "Completed today",
+        acceptRate: "Accept rate",
+        completeRate: "Completion",
+        last7Days: "Last 7 days",
+        remaining: "{{count}} still scheduled",
+      },
+      trend: {
+        same: "Same as yesterday",
+        up: "↗ {{pct}}% vs yesterday",
+        down: "↘ {{pct}}% vs yesterday",
+      },
+      sections: {
+        activity: "Last 7 days",
+        pipeline: "Upcoming pipeline",
+        performance: "Performance",
+        shortcuts: "Quick actions",
+        upcoming: "Next appointments",
+      },
+      perf: {
+        rating: "Rating",
+        accept: "Accept",
+        complete: "Complete",
+      },
+      badge: {
+        excellent: "Excellent",
+        great: "Great",
+        good: "Good",
+        needsAttention: "Needs attention",
+      },
+      complaintsTotal: "{{count}} total reports",
+      actions: {
+        calendar: "Calendar",
+        schedule: "Hours",
+        reviews: "Reviews",
+        complaints: "Reports",
+        services: "Services",
+        messages: "Messages",
+        invitations: "Invitations",
+      },
+      viewCalendar: "Calendar",
+      upcomingEmpty: "No upcoming visits",
+      upcomingEmptySub: "New bookings will show here once scheduled.",
+      backToHome: "Back to home",
+      status: {
+        PENDING: "Pending",
+        CONFIRMED: "Confirmed",
+        RESCHEDULED: "Rescheduled",
+        EN_ROUTE: "En route",
+        IN_PROGRESS: "In progress",
+        COMPLETED: "Completed",
+        CANCELLED_CLIENT: "Cancelled",
+        CANCELLED_PROVIDER: "Cancelled",
+        REFUSED: "Refused",
+        DISPUTED: "Disputed",
+      },
     },
     sidebar: {
       mySpace: "My space",

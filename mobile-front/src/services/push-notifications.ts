@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 import type React from "react";
 import { api } from "./api";
+import { navigateAdminPushNotification } from "../screens/admin/profile/adminNotificationNavigation";
 
 /**
  * Remote push is disabled in Expo Go on Android (SDK 53+).
@@ -112,7 +113,15 @@ export function useNotificationNavigation(
               ? data.appointmentId
               : undefined;
 
-          if (!screen || !navigationRef.current?.isReady?.()) {
+          if (!navigationRef.current?.isReady?.()) {
+            return;
+          }
+
+          if (navigateAdminPushNotification(data)) {
+            return;
+          }
+
+          if (!screen) {
             return;
           }
 

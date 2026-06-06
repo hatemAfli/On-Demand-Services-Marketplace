@@ -6,12 +6,17 @@ import {
   ParseUUIDPipe,
   Patch,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import type { User } from '@prisma/client';
+import type { Request } from 'express';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { clientIp } from '../../common/utils/client-ip';
 import {
   ListAdminSupportMessagesQueryDto,
   UpdateSupportMessageStatusDto,
@@ -41,9 +46,14 @@ export class AdminSupportMessagesController {
 
   @Patch(':id/status')
   updateStatus(
+    @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSupportMessageStatusDto,
+    @Req() req: Request,
   ) {
-    return this.service.updateStatus(id, dto.status);
+    return this.service.updateStatus(id, dto.status, {
+      actorAdminId: user.id,
+      ipAddress: clientIp(req),
+    });
   }
 }

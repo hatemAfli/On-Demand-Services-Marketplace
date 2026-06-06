@@ -42,7 +42,7 @@ function StatValue({
   if (loading) {
     return (
       <View style={statStyles.valueWrap}>
-        <ActivityIndicator size="small" color="#4F46E5" />
+        <ActivityIndicator size="small" color="#EA580C" />
       </View>
     );
   }
@@ -75,6 +75,7 @@ export const ClientSettingsScreen: React.FC = () => {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("client.screenTitles.ClientSettings"),
+      headerTitleAlign: "center",
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -84,6 +85,7 @@ export const ClientSettingsScreen: React.FC = () => {
           <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
         </TouchableOpacity>
       ),
+      headerRight: () => <View style={{ width: 40, marginRight: 8 }} />,
     });
   }, [navigation, t]);
 
@@ -208,7 +210,7 @@ export const ClientSettingsScreen: React.FC = () => {
               <Text style={styles.username}>{handle}</Text>
               <View style={styles.badgeRow}>
                 <View style={styles.memberBadge}>
-                  <FontAwesome6 name="crown" size={8} color="#4F46E5" />
+                  <FontAwesome6 name="crown" size={8} color="#EA580C" />
                   <Text style={styles.memberBadgeText}>
                     {t("client.settings.goldMember")}
                   </Text>
@@ -248,8 +250,8 @@ export const ClientSettingsScreen: React.FC = () => {
           <View style={styles.card}>
             <SettingsRow
               icon="user"
-              iconBackground="#EEF2FF"
-              iconColor="#4F46E5"
+              iconBackground="#FFF7ED"
+              iconColor="#EA580C"
               title={t("client.settings.menuProfile")}
               subtitle={t("client.settings.menuProfileHint")}
               onPress={() => navigation.navigate("ClientEditProfile")}
@@ -284,8 +286,8 @@ export const ClientSettingsScreen: React.FC = () => {
             <View style={styles.cardDivider} />
             <SettingsRow
               icon="location-dot"
-              iconBackground="#F5F3FF"
-              iconColor="#7C3AED"
+              iconBackground="#FFF7ED"
+              iconColor="#EA580C"
               title={t("client.settings.savedAddresses")}
               subtitle={t("client.settings.savedAddressesHint")}
               onPress={() => navigation.navigate("ClientSavedAddresses")}
@@ -300,8 +302,8 @@ export const ClientSettingsScreen: React.FC = () => {
           <View style={styles.card}>
             <View style={styles.row}>
               <View style={styles.rowLeft}>
-                <View style={[styles.rowIcon, { backgroundColor: "#EEF2FF" }]}>
-                  <FontAwesome6 name="language" size={15} color="#4F46E5" />
+                <View style={[styles.rowIcon, { backgroundColor: "#FFF7ED" }]}>
+                  <FontAwesome6 name="language" size={15} color="#EA580C" />
                 </View>
                 <View style={styles.rowTextBlock}>
                   <Text style={styles.rowTitle}>
@@ -376,7 +378,7 @@ export const ClientSettingsScreen: React.FC = () => {
               <Switch
                 value={inAppNotificationsEnabled}
                 onValueChange={setInAppNotificationsEnabled}
-                trackColor={{ false: "#CBD5E1", true: "#60A5FA" }}
+                trackColor={{ false: "#CBD5E1", true: "#FDBA74" }}
                 thumbColor="#FFFFFF"
               />
             </View>
@@ -401,7 +403,7 @@ export const ClientSettingsScreen: React.FC = () => {
               <Switch
                 value={emailNotificationsEnabled}
                 onValueChange={setEmailNotificationsEnabled}
-                trackColor={{ false: "#CBD5E1", true: "#60A5FA" }}
+                trackColor={{ false: "#CBD5E1", true: "#FDBA74" }}
                 thumbColor="#FFFFFF"
               />
             </View>
@@ -425,8 +427,8 @@ export const ClientSettingsScreen: React.FC = () => {
             <View style={styles.cardDivider} />
             <SettingsRow
               icon="file-lines"
-              iconBackground="#EEF2FF"
-              iconColor="#4F46E5"
+              iconBackground="#FFF7ED"
+              iconColor="#EA580C"
               title={t("client.settings.menuTerms")}
               subtitle={t("client.settings.menuTermsHint")}
               onPress={() => navigation.navigate("ClientTerms")}
@@ -434,8 +436,8 @@ export const ClientSettingsScreen: React.FC = () => {
             <View style={styles.cardDivider} />
             <SettingsRow
               icon="shield-halved"
-              iconBackground="#FAF5FF"
-              iconColor="#A855F7"
+              iconBackground="#FFF7ED"
+              iconColor="#EA580C"
               title={t("client.settings.menuPrivacy")}
               subtitle={t("client.settings.menuPrivacyHint")}
               onPress={() => navigation.navigate("ClientPrivacy")}
@@ -443,8 +445,8 @@ export const ClientSettingsScreen: React.FC = () => {
             <View style={styles.cardDivider} />
             <SettingsRow
               icon="circle-question"
-              iconBackground="#EEF2FF"
-              iconColor="#4F46E5"
+              iconBackground="#FFF7ED"
+              iconColor="#EA580C"
               title={t("support.menuFaq")}
               subtitle={t("support.menuFaqHint")}
               onPress={() => navigation.navigate("ClientFaq")}

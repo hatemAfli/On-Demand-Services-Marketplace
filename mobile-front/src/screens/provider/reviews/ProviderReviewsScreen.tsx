@@ -30,6 +30,11 @@ import type { ProviderStackParamList } from "../../../navigation/types";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 
 const PAGE_SIZE = 10;
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
 const STAR_GOLD = "#F59E0B";
 const STAR_EMPTY = "#D1D5DB";
 
@@ -184,7 +189,7 @@ function BreakdownBars({ rows }: { rows: BreakdownRow[] }) {
             : 0;
         const barColor =
           row.star >= 4
-            ? COLORS.primary
+            ? ACCENT
             : row.star === 3
               ? "#F59E0B"
               : COLORS.error;
@@ -418,16 +423,20 @@ export const ProviderReviewsScreen: React.FC = () => {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("provider.screenTitles.ProviderReviews"),
+      headerTitleAlign: "center",
       headerStyle: { backgroundColor: COLORS.white },
       headerLeft: () => (
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.headerBack}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <Ionicons name="chevron-back" size={24} color={COLORS.text.primary} />
-        </TouchableOpacity>
+        <View style={styles.headerSide}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.headerBack}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
+          </TouchableOpacity>
+        </View>
       ),
+      headerRight: () => <View style={styles.headerSide} />,
     });
   }, [navigation, t]);
 
@@ -574,7 +583,7 @@ export const ProviderReviewsScreen: React.FC = () => {
           </Text>
           {isTopProvider ? (
             <View style={styles.topBadge}>
-              <Ionicons name="ribbon" size={16} color={COLORS.primaryDark} />
+              <Ionicons name="ribbon" size={16} color={ACCENT_DARK} />
               <Text style={styles.topBadgeText}>
                 {t("provider.reviews.topProvider")}
               </Text>
@@ -651,7 +660,7 @@ export const ProviderReviewsScreen: React.FC = () => {
   if (loading && items.length === 0) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color={ACCENT} />
       </View>
     );
   }
@@ -686,7 +695,7 @@ export const ProviderReviewsScreen: React.FC = () => {
         ListFooterComponent={
           <View style={styles.footer}>
             {loadingMore ? (
-              <ActivityIndicator color={COLORS.primary} />
+              <ActivityIndicator color={ACCENT} />
             ) : !hasMore && items.length > 0 ? (
               <Text style={styles.footerMuted}>{t("provider.reviews.noMore")}</Text>
             ) : null}
@@ -735,18 +744,23 @@ function FilterChipsRow({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.white },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  root: { flex: 1, backgroundColor: SCREEN_BG },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: SCREEN_BG },
   muted: { color: COLORS.text.secondary, fontSize: 15 },
-  headerBack: { marginLeft: 4, padding: 4 },
+  headerSide: {
+    width: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerBack: { padding: 4 },
   listContent: { paddingHorizontal: 16, paddingTop: 8 },
   headerBlock: { marginBottom: 8 },
   summaryCard: {
-    backgroundColor: COLORS.gray[50],
+    backgroundColor: ACCENT_LIGHT,
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: ACCENT_BORDER,
     alignItems: "center",
     marginBottom: 16,
   },
@@ -770,12 +784,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "rgba(79, 70, 229, 0.12)",
+    backgroundColor: ACCENT_LIGHT,
+    borderWidth: 1,
+    borderColor: ACCENT_BORDER,
   },
   topBadgeText: {
     fontSize: 13,
     fontWeight: "700",
-    color: COLORS.primaryDark,
+    color: ACCENT_DARK,
   },
   breakdownCard: {
     borderRadius: 14,
@@ -828,8 +844,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   filterChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: ACCENT,
+    borderColor: ACCENT,
   },
   filterChipText: {
     fontSize: 13,
@@ -848,15 +864,15 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.gray[50],
   },
   sortChipActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: "rgba(79, 70, 229, 0.1)",
+    borderColor: ACCENT_BORDER,
+    backgroundColor: ACCENT_LIGHT,
   },
   sortChipText: {
     fontSize: 13,
     fontWeight: "600",
     color: COLORS.text.secondary,
   },
-  sortChipTextActive: { color: COLORS.primaryDark },
+  sortChipTextActive: { color: ACCENT_DARK },
   listSectionTitle: {
     fontSize: 16,
     fontWeight: "800",
@@ -899,12 +915,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 8,
-    backgroundColor: "rgba(79, 70, 229, 0.12)",
+    backgroundColor: ACCENT_LIGHT,
+    borderWidth: 1,
+    borderColor: ACCENT_BORDER,
   },
   serviceChipText: {
     fontSize: 12,
     fontWeight: "700",
-    color: COLORS.primaryDark,
+    color: ACCENT,
   },
   reviewDate: {
     marginTop: 4,
@@ -920,7 +938,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 14,
     fontWeight: "700",
-    color: COLORS.primary,
+    color: ACCENT,
   },
   noComment: {
     fontSize: 14,
@@ -946,7 +964,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 14,
     fontWeight: "700",
-    color: COLORS.primary,
+    color: ACCENT,
   },
   replyEditor: { marginTop: 10 },
   replyInput: {
@@ -975,7 +993,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: COLORS.primary,
+    backgroundColor: ACCENT,
   },
   sendReplyBtnDisabled: { backgroundColor: COLORS.gray[300] },
   sendReplyBtnText: {

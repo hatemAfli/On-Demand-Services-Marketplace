@@ -6,10 +6,13 @@ import {
 import {
   AppointmentStatus,
   NotificationType,
+  PlatformAuditAction,
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
+import type { PlatformAuditContext } from '../platform-audit/platform-audit.types';
 import { GetAdminAppointmentsDto } from './dto/get-admin-appointments.dto';
 import { InterveneAppointmentDto } from './dto/intervene-appointment.dto';
 import { incrementGivenServiceCompletedJobs } from './helpers/increment-given-service-completed-jobs';
@@ -72,6 +75,7 @@ export class AdminAppointmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly audit: PlatformAuditService,
   ) {}
 
   async list(dto: GetAdminAppointmentsDto) {
@@ -101,39 +105,39 @@ export class AdminAppointmentsService {
 
     const statuses = Object.values(AppointmentStatus);
 
-    const [total, statusCounts, completedToday, disputedActive, durationAgg] =
-      await Promise.all([
-        this.prisma.appointment.count(),
-        Promise.all(
-          statuses.map((status) =>
-            this.prisma.appointment.count({ where: { status } }),
-          ),
-        ),
-        this.prisma.appointment.count({
-          where: {
-            status: AppointmentStatus.COMPLETED,
-            completedAt: { gte: todayStart },
-          },
-        }),
-        this.prisma.appointment.count({
-          where: { status: AppointmentStatus.DISPUTED },
-        }),
-        this.prisma.appointment.aggregate({
-          where: {
-            status: AppointmentStatus.COMPLETED,
-            durationMinutes: { not: null },
-          },
-          _avg: { durationMinutes: true },
-        }),
-      ]);
+    const [statusGroups, completedToday, durationAgg] = await Promise.all([
+      this.prisma.appointment.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+      }),
+      this.prisma.appointment.count({
+        where: {
+          status: AppointmentStatus.COMPLETED,
+          completedAt: { gte: todayStart },
+        },
+      }),
+      this.prisma.appointment.aggregate({
+        where: {
+          status: AppointmentStatus.COMPLETED,
+          durationMinutes: { not: null },
+        },
+        _avg: { durationMinutes: true },
+      }),
+    ]);
 
     const byStatus = statuses.reduce(
-      (acc, status, index) => {
-        acc[status] = statusCounts[index] ?? 0;
+      (acc, status) => {
+        acc[status] = 0;
         return acc;
       },
       {} as Record<AppointmentStatus, number>,
     );
+    for (const row of statusGroups) {
+      byStatus[row.status] = row._count._all;
+    }
+
+    const total = statusGroups.reduce((sum, row) => sum + row._count._all, 0);
+    const disputedActive = byStatus[AppointmentStatus.DISPUTED] ?? 0;
 
     return {
       total,
@@ -158,7 +162,10 @@ export class AdminAppointmentsService {
     return appointment;
   }
 
-  async flagAsDisputed(id: string): Promise<AdminAppointmentPayload> {
+  async flagAsDisputed(
+    id: string,
+    ctx?: PlatformAuditContext,
+  ): Promise<AdminAppointmentPayload> {
     const existing = await this.prisma.appointment.findUnique({
       where: { id },
       include: {
@@ -199,12 +206,23 @@ export class AdminAppointmentsService {
       });
     }
 
+    const actor = ctx
+      ? await this.audit.actorName(ctx.actorAdminId)
+      : 'Admin';
+    this.audit.logIf(
+      ctx,
+      PlatformAuditAction.APPOINTMENT_DISPUTED,
+      `${actor} flagged appointment as disputed.`,
+      { appointmentId: id },
+    );
+
     return updated;
   }
 
   async intervene(
     id: string,
     dto: InterveneAppointmentDto,
+    ctx?: PlatformAuditContext,
   ): Promise<AdminAppointmentPayload> {
     const existing = await this.prisma.appointment.findUnique({
       where: { id },
@@ -293,6 +311,16 @@ export class AdminAppointmentsService {
         });
       }
 
+      const actor = ctx
+        ? await this.audit.actorName(ctx.actorAdminId)
+        : 'Admin';
+      this.audit.logIf(
+        ctx,
+        PlatformAuditAction.APPOINTMENT_INTERVENED,
+        `${actor} force-completed appointment.`,
+        { appointmentId: id, action: dto.action, reason: dto.reason.trim() },
+      );
+
       return updated;
     }
 
@@ -324,6 +352,16 @@ export class AdminAppointmentsService {
         data: { appointmentId: id, screen: 'ProviderAppointmentDetail' },
       });
     }
+
+    const actor = ctx
+      ? await this.audit.actorName(ctx.actorAdminId)
+      : 'Admin';
+    this.audit.logIf(
+      ctx,
+      PlatformAuditAction.APPOINTMENT_INTERVENED,
+      `${actor} force-cancelled appointment.`,
+      { appointmentId: id, action: dto.action, reason: dto.reason.trim() },
+    );
 
     return updated;
   }

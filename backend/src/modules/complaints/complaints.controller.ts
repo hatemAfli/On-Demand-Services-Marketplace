@@ -12,11 +12,12 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { clientIp } from '../../common/utils/client-ip';
 import { ComplaintsService } from './complaints.service';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
 import { GetComplaintsDto } from './dto/get-complaints.dto';
@@ -90,6 +91,9 @@ export class ComplaintsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ReviewComplaintDto,
   ) {
-    return this.complaintsService.reviewComplaint(req.user.id, id, dto);
+    return this.complaintsService.reviewComplaint(req.user.id, id, dto, {
+      actorAdminId: req.user.id,
+      ipAddress: clientIp(req),
+    });
   }
 }

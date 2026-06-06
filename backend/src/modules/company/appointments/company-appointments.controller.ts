@@ -6,13 +6,16 @@ import {
   ParseUUIDPipe,
   Patch,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
+import { clientIp } from '../../../common/utils/client-ip';
 import { CompanyAppointmentsService } from './company-appointments.service';
 import { AssignProviderDto } from './dto/assign-provider.dto';
 import { GetRescheduleOptionsDto } from './dto/get-reschedule-options.dto';
@@ -72,8 +75,9 @@ export class CompanyAppointmentsController {
     @CurrentUser() user: AuthUser,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: RespondCompanyAppointmentDto,
+    @Req() req: Request,
   ) {
-    return this.service.respond(user.id, id, dto);
+    return this.service.respond(user.id, id, dto, clientIp(req));
   }
 
   @Patch(':id/assign')
@@ -81,7 +85,8 @@ export class CompanyAppointmentsController {
     @CurrentUser() user: AuthUser,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: AssignProviderDto,
+    @Req() req: Request,
   ) {
-    return this.service.assignProvider(user.id, id, dto);
+    return this.service.assignProvider(user.id, id, dto, clientIp(req));
   }
 }

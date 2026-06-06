@@ -483,7 +483,6 @@ export interface ListCompanyReviewsParams {
 
 // ─── Company settings ────────────────────────────────────────────────────────────
 
-export type DashboardTheme = 'LIGHT' | 'DARK' | 'SYSTEM'
 export type CompanyBranchStatus = 'OPERATIONAL' | 'COMING_SOON' | 'INACTIVE'
 
 export interface CompanySettingsProfile {
@@ -496,8 +495,6 @@ export interface CompanySettingsProfile {
   about: string
   serviceZones: string[]
   logo: string | null
-  brandColor: string
-  dashboardTheme: DashboardTheme
 }
 
 export interface CompanyBranch {
@@ -513,22 +510,6 @@ export interface CompanyBranch {
   updatedAt: string
 }
 
-export interface CompanyNotificationPreferences {
-  newOrderAlerts: boolean
-  providerStatusUpdates: boolean
-  weeklyReport: boolean
-  systemAnnouncements: boolean
-}
-
-export interface CompanyTeamMember {
-  id: string
-  name: string
-  email: string
-  status: string
-  role: string
-  phoneNumber: string | null
-}
-
 export interface CompanyAuditLogEntry {
   id: string
   action: string
@@ -542,12 +523,6 @@ export interface CompanyAuditLogEntry {
 export interface CompanySettingsResponse {
   profile: CompanySettingsProfile
   branches: CompanyBranch[]
-  notifications: CompanyNotificationPreferences
-  team: {
-    members: CompanyTeamMember[]
-    employeeCount: number
-    multiAdminSupported: boolean
-  }
   auditPreview: CompanyAuditLogEntry[]
 }
 
@@ -642,4 +617,103 @@ export interface ReviewCompanyComplaintPayload {
   status: 'UNDER_REVIEW' | 'RESOLVED' | 'DISMISSED'
   companyNotes?: string
   companyResponse?: string
+}
+
+// ─── Company dashboard ───────────────────────────────────────────────────────────
+
+export interface CompanyDashboardTrendPoint {
+  date: string
+  label: string
+  orders: number
+}
+
+export interface CompanyDashboardRevenuePoint {
+  date: string
+  label: string
+  amount: number
+}
+
+export interface CompanyDashboardLiveOrder {
+  id: string
+  shortId: string
+  status: CompanyAppointmentStatus
+  scheduledDate: string
+  scheduledTime: string
+  serviceName: string
+  clientName: string
+  providerId: string | null
+  providerName: string | null
+  providerPhotoUrl: string | null
+  needsAssignment: boolean
+  hasComplaint: boolean
+}
+
+export interface CompanyDashboardTopProvider {
+  id: string
+  displayName: string
+  photoUrl: string | null
+  averageRating: number
+  totalReviews: number
+  completedJobs: number
+  isTopProvider: boolean
+  rank: number
+}
+
+export interface CompanyDashboardActivity {
+  id: string
+  action: string
+  summary: string
+  actorName: string
+  createdAt: string
+}
+
+export interface CompanyDashboardAlert {
+  id: string
+  tone: 'urgent' | 'info' | 'neutral'
+  title: string
+  message: string
+  path: string
+}
+
+export interface CompanyDashboardData {
+  company: {
+    companyName: string
+    logo: string | null
+    averageRating: number
+    totalReviews: number
+    cancellationRate: number
+    averageResponseTime: number | null
+  }
+  orders: {
+    today: number
+    yesterday: number
+    trendPct: number | null
+    todayCompleted: number
+    todayPending: number
+    inProgress: number
+    pendingAssignment: number
+    disputed: number
+    activeLive: number
+  }
+  team: {
+    employeeCount: number
+    activeServices: number
+  }
+  ratings: {
+    averageRating: number
+    totalReviews: number
+  }
+  complaints: {
+    open: number
+    underReview: number
+    total: number
+  }
+  ordersTrend: CompanyDashboardTrendPoint[]
+  revenueTrend: CompanyDashboardRevenuePoint[]
+  todayRevenue: number
+  liveOrders: CompanyDashboardLiveOrder[]
+  topProviders: CompanyDashboardTopProvider[]
+  activity: CompanyDashboardActivity[]
+  alerts: CompanyDashboardAlert[]
+  generatedAt: string
 }

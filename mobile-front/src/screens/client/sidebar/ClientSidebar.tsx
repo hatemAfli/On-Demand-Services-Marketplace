@@ -22,6 +22,11 @@ import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import { useMessagingUnreadTotal } from "../../../hooks/useMessagingUnreadTotal";
 import { useNotificationsRealtime } from "../../../context/NotificationsRealtimeContext";
 
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const ACCENT_DARK = "#C2410C";
+
 const SIDEBAR_BADGE_CAP = 10;
 
 function formatSidebarBadgeCount(count: number): string {
@@ -207,7 +212,7 @@ export const ClientSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
                   <Ionicons
                     name={item.icon}
                     size={20}
-                    color={isActive ? "#4338ca" : "#64748b"}
+                    color={isActive ? ACCENT : "#64748b"}
                   />
                   {item.key === "ConversationList" && messagingUnread > 0 ? (
                     <View style={styles.menuBadge}>
@@ -228,7 +233,7 @@ export const ClientSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
                 <Ionicons
                   name={I18nManager.isRTL ? "chevron-back" : "chevron-forward"}
                   size={16}
-                  color={isActive ? "#6366f1" : "#9ca3af"}
+                  color={isActive ? ACCENT : "#9ca3af"}
                 />
               </TouchableOpacity>
             );
@@ -243,14 +248,14 @@ export const ClientSidebar: React.FC<Props> = ({ isOpen, onClose }) => {
             onPress={handleLogout}
             activeOpacity={0.85}
           >
-            <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+            <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
             <Text style={[styles.itemLabel, styles.logoutLabel]}>
               {t("client.sidebar.logout")}
             </Text>
             <Ionicons
               name={I18nManager.isRTL ? "chevron-back" : "chevron-forward"}
               size={16}
-              color="#f87171"
+              color="#FFFFFF"
             />
           </TouchableOpacity>
         </View>
@@ -399,8 +404,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   itemRowActive: {
-    backgroundColor: "#eef2ff",
-    borderColor: "#c7d2fe",
+    backgroundColor: ACCENT_LIGHT,
+    borderColor: ACCENT_BORDER,
   },
   itemLabel: {
     flex: 1,
@@ -409,7 +414,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   itemLabelActive: {
-    color: "#312e81",
+    color: ACCENT_DARK,
   },
   itemIconWrap: {
     position: "relative",
@@ -455,12 +460,11 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   logoutRow: {
-    backgroundColor: "#fff1f2",
-    borderWidth: 1,
-    borderColor: "#fecdd3",
+    backgroundColor: ACCENT,
+    borderWidth: 0,
     marginTop: 4,
   },
   logoutLabel: {
-    color: "#b91c1c",
+    color: "#FFFFFF",
   },
 });

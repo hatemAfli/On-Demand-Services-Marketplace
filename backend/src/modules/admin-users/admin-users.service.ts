@@ -11,6 +11,9 @@ import {
   UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
+import type { PlatformAuditContext } from '../platform-audit/platform-audit.types';
+import { PlatformAuditAction } from '@prisma/client';
 import { ListAdminUsersQueryDto } from './dto/list-admin-users-query.dto';
 import { UpdateAdminUserStatusDto } from './dto/update-admin-user-status.dto';
 
@@ -22,7 +25,10 @@ function decimalToNumber(value: Prisma.Decimal | number | null | undefined): num
 
 @Injectable()
 export class AdminUsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: PlatformAuditService,
+  ) {}
 
   async list(query: ListAdminUsersQueryDto) {
     const take = query.take ?? 20;
@@ -302,6 +308,7 @@ export class AdminUsersService {
     targetUserId: string,
     adminUserId: string,
     dto: UpdateAdminUserStatusDto,
+    ctx?: PlatformAuditContext,
   ) {
     if (targetUserId === adminUserId) {
       throw new ForbiddenException('You cannot change your own account status');
@@ -356,6 +363,20 @@ export class AdminUsersService {
         updatedAt: true,
       },
     });
+
+    const actor = await this.audit.actorName(adminUserId);
+    this.audit.logIf(
+      { actorAdminId: adminUserId, ipAddress: ctx?.ipAddress },
+      PlatformAuditAction.USER_STATUS_UPDATED,
+      `${actor} changed user status from ${user.status} to ${dto.status}.`,
+      {
+        targetUserId,
+        email: updated.email,
+        previousStatus: user.status,
+        newStatus: dto.status,
+        reason: dto.reason?.trim() || null,
+      },
+    );
 
     return {
       ...updated,

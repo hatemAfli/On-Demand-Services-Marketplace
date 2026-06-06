@@ -281,16 +281,18 @@ export const ConversationListScreen: React.FC = () => {
         >
           <Ionicons name="chevron-back" size={22} color={COLORS.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Messages</Text>
-        {totalUnread > 0 ? (
-          <View style={styles.headerBadge}>
-            <Text style={styles.headerBadgeText}>
-              {totalUnread > 99 ? "99+" : String(totalUnread)}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Messages</Text>
+        </View>
+        <View style={styles.headerRight}>
+          {totalUnread > 0 ? (
+            <View style={styles.headerBadge}>
+              <Text style={styles.headerBadgeText}>
+                {totalUnread > 99 ? "99+" : String(totalUnread)}
+              </Text>
+            </View>
+          ) : null}
+        </View>
       </View>
 
       {loading ? (
@@ -355,14 +357,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: {
+  headerCenter: {
     flex: 1,
-    marginLeft: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
     fontSize: 20,
     fontWeight: "800",
     color: COLORS.text.primary,
+    textAlign: "center",
   },
-  headerSpacer: { width: 36 },
+  headerRight: {
+    width: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerBadge: {
     minWidth: 24,
     height: 24,

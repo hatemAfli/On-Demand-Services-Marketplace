@@ -12,6 +12,9 @@ import type {
   PaginatedResponse,
   ReviewStats,
   ReviewVisibility,
+  PlatformAuditAction,
+  PlatformActivityLogEntry,
+  PlatformActivityLogStats,
 } from '../types/admin'
 
 const baseURL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api').replace(
@@ -104,6 +107,15 @@ export type ReviewComplaintPayload = {
   decision?: ComplaintDecision
 }
 
+export type GetPlatformActivityLogsParams = {
+  take?: number
+  skip?: number
+  action?: PlatformAuditAction
+  search?: string
+  from?: string
+  to?: string
+}
+
 export const adminApi = {
   getAdminAppointments: (
     params?: GetAdminAppointmentsParams,
@@ -168,6 +180,17 @@ export const adminApi = {
 
   getReviewStats: (): Promise<AxiosResponse<ReviewStats>> =>
     adminApiClient.get('/admin/reviews/stats'),
+
+  getActivityLogStats: (): Promise<AxiosResponse<PlatformActivityLogStats>> =>
+    adminApiClient.get('/admin/activity-logs/stats'),
+
+  getActivityLogs: (
+    params?: GetPlatformActivityLogsParams,
+  ): Promise<AxiosResponse<PaginatedResponse<PlatformActivityLogEntry>>> =>
+    adminApiClient.get('/admin/activity-logs', { params }),
+
+  exportActivityLogsCsv: (): Promise<AxiosResponse<Blob>> =>
+    adminApiClient.get('/admin/activity-logs/export', { responseType: 'blob' }),
 }
 
 export default adminApiClient

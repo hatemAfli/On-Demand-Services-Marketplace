@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AxiosError } from 'axios'
 import {
   FaBars,
+  FaBriefcase,
   FaBuilding,
+  FaCalendarCheck,
   FaChartPie,
-  FaChevronDown,
+  FaClock,
   FaCloudArrowUp,
-  FaEllipsisVertical,
   FaFileInvoiceDollar,
+  FaHeadset,
   FaMagnifyingGlass,
   FaMapLocationDot,
   FaPen,
@@ -26,23 +28,13 @@ import type {
   CompanyAuditLogEntry,
   CompanyBranch,
   CompanyBranchStatus,
-  CompanyNotificationPreferences,
   CompanySettingsProfile,
-  CompanyTeamMember,
-  DashboardTheme,
   UpsertCompanyBranchPayload,
 } from '../../../../types/company'
 import './CompanySettingsPage.css'
 
-type SectionId = 'general' | 'locations' | 'roles' | 'notifications'
-const SECTION_IDS: SectionId[] = ['general', 'locations', 'roles', 'notifications']
-
-const STATUS_CLS: Record<string, string> = {
-  ACTIVE: 'green',
-  PENDING: 'gray',
-  SUSPENDED: 'orange',
-  BANNED: 'orange',
-}
+type SectionId = 'general' | 'locations'
+const SECTION_IDS: SectionId[] = ['general', 'locations']
 
 const BRANCH_STATUS_CLS: Record<string, string> = {
   OPERATIONAL: 'green',
@@ -53,16 +45,12 @@ const BRANCH_STATUS_CLS: Record<string, string> = {
 const BRANCH_ICONS = [FaBuilding, FaStore, FaWarehouse]
 const BRANCH_ICON_CLS = ['blue', 'orange', 'gray']
 
-const NOTIF_ITEMS: Array<{
-  key: keyof CompanyNotificationPreferences
-  label: string
-  sub: string
-}> = [
-  { key: 'newOrderAlerts', label: 'New Order Alerts', sub: 'Email & push when a new booking is made.' },
-  { key: 'providerStatusUpdates', label: 'Provider Status Updates', sub: 'Notify when providers go online/offline.' },
-  { key: 'weeklyReport', label: 'Weekly Performance Report', sub: 'Send summary every Monday.' },
-  { key: 'systemAnnouncements', label: 'System Announcements', sub: 'Product updates and maintenance alerts.' },
-]
+const LOGO_MAX_BYTES = 2 * 1024 * 1024
+const LOGO_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml'
+
+function notifyBrandingUpdated() {
+  window.dispatchEvent(new CustomEvent('company-branding-updated'))
+}
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof AxiosError) {
@@ -72,13 +60,6 @@ function errorMessage(err: unknown, fallback: string): string {
     if (typeof msg === 'string') return msg
   }
   return fallback
-}
-
-function accountStatusLabel(status: string): string {
-  if (status === 'ACTIVE') return 'Active'
-  if (status === 'PENDING') return 'Pending'
-  if (status === 'SUSPENDED') return 'Suspended'
-  return status
 }
 
 function formatAuditTime(iso: string): string {
@@ -107,6 +88,11 @@ function auditIcon(action: string) {
   if (action.includes('NOTIFICATION')) return { icon: <FaRegBell />, cls: 'blue' }
   if (action.includes('EXPORT')) return { icon: <FaFileInvoiceDollar />, cls: 'green' }
   if (action.includes('PROFILE')) return { icon: <FaPen />, cls: 'blue' }
+  if (action.includes('APPOINTMENT')) return { icon: <FaCalendarCheck />, cls: 'orange' }
+  if (action.includes('COMPLAINT')) return { icon: <FaHeadset />, cls: 'red' }
+  if (action.includes('EMPLOYEE')) return { icon: <FaUsers />, cls: 'blue' }
+  if (action.includes('SERVICE')) return { icon: <FaBriefcase />, cls: 'purple' }
+  if (action.includes('SCHEDULE')) return { icon: <FaClock />, cls: 'gray' }
   return { icon: <FaShieldHalved />, cls: 'red' }
 }
 
@@ -145,13 +131,9 @@ export function CompanySettingsPage() {
 
   const [profile, setProfile] = useState<CompanySettingsProfile | null>(null)
   const [branches, setBranches] = useState<CompanyBranch[]>([])
-  const [notifications, setNotifications] = useState<CompanyNotificationPreferences | null>(null)
-  const [team, setTeam] = useState<CompanyTeamMember[]>([])
   const [auditLogs, setAuditLogs] = useState<CompanyAuditLogEntry[]>([])
-  const [multiAdminSupported, setMultiAdminSupported] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [userSearch, setUserSearch] = useState('')
 
   const [branchModalOpen, setBranchModalOpen] = useState(false)
   const [editingBranch, setEditingBranch] = useState<CompanyBranch | null>(null)
@@ -162,8 +144,8 @@ export function CompanySettingsPage() {
   const [allAuditLogs, setAllAuditLogs] = useState<CompanyAuditLogEntry[]>([])
   const [auditTotal, setAuditTotal] = useState(0)
 
-  const [logoModalOpen, setLogoModalOpen] = useState(false)
-  const [logoUrlInput, setLogoUrlInput] = useState('')
+  const [logoUploading, setLogoUploading] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
 
   const loadSettings = useCallback(async () => {
     setLoading(true)
@@ -172,11 +154,7 @@ export function CompanySettingsPage() {
       const data = await companyApi.getCompanySettings()
       setProfile(data.profile)
       setBranches(data.branches)
-      setNotifications(data.notifications)
-      setTeam(data.team.members)
-      setMultiAdminSupported(data.team.multiAdminSupported)
       setAuditLogs(data.auditPreview)
-      setLogoUrlInput(data.profile.logo ?? '')
     } catch (err) {
       setError(errorMessage(err, 'Could not load company settings.'))
     } finally {
@@ -187,11 +165,6 @@ export function CompanySettingsPage() {
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
-
-  useEffect(() => {
-    if (!profile?.brandColor) return
-    document.documentElement.style.setProperty('--company-brand', profile.brandColor)
-  }, [profile?.brandColor])
 
   const persistProfile = useCallback(async (payload: Partial<CompanySettingsProfile>) => {
     setSaveState('saving')
@@ -237,21 +210,49 @@ export function CompanySettingsPage() {
     })
   }
 
-  const saveBranding = async (payload: {
-    logo?: string | null
-    brandColor?: string
-    dashboardTheme?: DashboardTheme
-  }) => {
+  const saveBranding = async (payload: { logo?: string | null }) => {
     setSaveState('saving')
     try {
       const updated = await companyApi.updateCompanyBranding(payload)
       setProfile((prev) => (prev ? { ...prev, ...updated } : prev))
       setSaveState('saved')
+      notifyBrandingUpdated()
       const preview = await companyApi.getCompanyAuditLogs({ take: 5 })
       setAuditLogs(preview.items)
     } catch (err) {
       setSaveState('error')
       setError(errorMessage(err, 'Could not save branding.'))
+    }
+  }
+
+  const handleLogoFile = async (file: File | undefined) => {
+    if (!file) return
+    if (file.size > LOGO_MAX_BYTES) {
+      setError('Logo must be 2 MB or smaller.')
+      return
+    }
+    const allowed = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
+    if (!allowed.includes(file.type)) {
+      setError('Only PNG, JPEG, WebP, and SVG images are allowed.')
+      return
+    }
+
+    setLogoUploading(true)
+    setError(null)
+    setSaveState('saving')
+    try {
+      const updated = await companyApi.uploadCompanyLogo(file)
+      setProfile((prev) => (prev ? { ...prev, ...updated } : prev))
+      setSaveState('saved')
+      notifyBrandingUpdated()
+      const preview = await companyApi.getCompanyAuditLogs({ take: 5 })
+      setAuditLogs(preview.items)
+    } catch (err) {
+      setSaveState('error')
+      setError(errorMessage(err, 'Could not upload logo.'))
+    } finally {
+      setLogoUploading(false)
+      if (logoInputRef.current) logoInputRef.current.value = ''
     }
   }
 
@@ -269,24 +270,7 @@ export function CompanySettingsPage() {
     })
     await saveBranding({
       logo: profile.logo,
-      brandColor: profile.brandColor,
-      dashboardTheme: profile.dashboardTheme,
     })
-  }
-
-  const toggleNotification = async (key: keyof CompanyNotificationPreferences) => {
-    if (!notifications) return
-    const next = !notifications[key]
-    setNotifications({ ...notifications, [key]: next })
-    try {
-      const updated = await companyApi.updateCompanyNotifications({ [key]: next })
-      setNotifications(updated)
-      const preview = await companyApi.getCompanyAuditLogs({ take: 5 })
-      setAuditLogs(preview.items)
-    } catch (err) {
-      setNotifications({ ...notifications, [key]: !next })
-      setError(errorMessage(err, 'Could not update notifications.'))
-    }
   }
 
   const openBranchModal = (branch?: CompanyBranch) => {
@@ -366,17 +350,6 @@ export function CompanySettingsPage() {
     setActiveTab(current)
   }, [])
 
-  const filteredTeam = useMemo(() => {
-    const q = userSearch.trim().toLowerCase()
-    if (!q) return team
-    return team.filter(
-      (u) =>
-        u.name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.role.toLowerCase().includes(q),
-    )
-  }, [team, userSearch])
-
   const sectionVisible = useCallback(
     (keywords: string[]) => {
       const q = searchQuery.trim().toLowerCase()
@@ -442,8 +415,6 @@ export function CompanySettingsPage() {
               {([
                 { id: 'general', icon: <FaRegBuilding />, label: 'General & Branding' },
                 { id: 'locations', icon: <FaMapLocationDot />, label: 'Locations' },
-                { id: 'roles', icon: <FaShieldHalved />, label: 'Roles' },
-                { id: 'notifications', icon: <FaRegBell />, label: 'Notifications' },
               ] as { id: SectionId; icon: React.ReactNode; label: string }[]).map((t) => (
                 <button
                   key={t.id}
@@ -583,52 +554,23 @@ export function CompanySettingsPage() {
                           )}
                         </div>
                         <div className="st-logo-actions">
-                          <button type="button" className="st-upload-btn" onClick={() => setLogoModalOpen(true)}>
-                            Upload New
+                          <input
+                            ref={logoInputRef}
+                            type="file"
+                            accept={LOGO_ACCEPT}
+                            className="st-logo-file-input"
+                            onChange={(e) => void handleLogoFile(e.target.files?.[0])}
+                          />
+                          <button
+                            type="button"
+                            className="st-upload-btn"
+                            disabled={logoUploading}
+                            onClick={() => logoInputRef.current?.click()}
+                          >
+                            {logoUploading ? 'Uploading…' : 'Upload New'}
                           </button>
                           <p>Recommended: 400×400px, PNG or SVG. Max 2MB.</p>
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="st-brand-section">
-                      <label className="st-label">Brand Color</label>
-                      <div className="st-color-row">
-                        <div
-                          className="st-color-swatch"
-                          style={{ background: profile?.brandColor ?? '#7621C2' }}
-                        />
-                        <input
-                          type="text"
-                          className="st-input st-color-input"
-                          value={profile?.brandColor ?? '#7621C2'}
-                          onChange={(e) => updateProfileField('brandColor', e.target.value)}
-                          onBlur={() => void saveBranding({ brandColor: profile?.brandColor })}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="st-brand-section">
-                      <label className="st-label">Dashboard Theme</label>
-                      <div className="st-theme-grid">
-                        {([
-                          { theme: 'LIGHT' as DashboardTheme, label: 'Light', preview: 'light' },
-                          { theme: 'DARK' as DashboardTheme, label: 'Dark', preview: 'dark' },
-                          { theme: 'SYSTEM' as DashboardTheme, label: 'System', preview: 'system' },
-                        ]).map((t) => (
-                          <button
-                            key={t.theme}
-                            type="button"
-                            className={`st-theme-btn${profile?.dashboardTheme === t.theme ? ' active' : ''}`}
-                            onClick={() => {
-                              updateProfileField('dashboardTheme', t.theme)
-                              void saveBranding({ dashboardTheme: t.theme })
-                            }}
-                          >
-                            <div className={`st-theme-preview ${t.preview}`} />
-                            <span>{t.label}</span>
-                          </button>
-                        ))}
                       </div>
                     </div>
                   </div>
@@ -702,135 +644,6 @@ export function CompanySettingsPage() {
                     )}
                   </tbody>
                 </table>
-              </div>
-            </section>
-          ) : null}
-
-          {sectionVisible(['roles', 'users', 'permissions', 'team']) ? (
-            <section id="roles" className="st-section">
-              <div className="st-roles-grid">
-                <div className="st-card st-role-editor">
-                  <h2>User Roles</h2>
-                  <p>Manage access levels for your team.</p>
-
-                  {!multiAdminSupported ? (
-                    <div className="st-info-banner">
-                      Your account is the company owner. Multi-admin seats will be available in a future release.
-                    </div>
-                  ) : null}
-
-                  <div className="st-field" style={{ marginBottom: '16px' }}>
-                    <label className="st-label">Select Role to Edit</label>
-                    <div className="st-select-wrap">
-                      <select className="st-select" defaultValue="Owner" disabled>
-                        <option>Owner</option>
-                      </select>
-                      <FaChevronDown className="st-select-arrow" />
-                    </div>
-                  </div>
-
-                  <div className="st-perm-group">
-                    <h3>Owner permissions</h3>
-                    {[
-                      'Can manage billing & subscription',
-                      'Can invite new users',
-                      'Can view audit logs',
-                      'Can export company data',
-                    ].map((label) => (
-                      <div key={label} className="st-perm-row">
-                        <input type="checkbox" defaultChecked className="st-checkbox" disabled />
-                        <label>{label}</label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="st-card st-users-card">
-                  <div className="st-users-toolbar">
-                    <div className="st-search-wrap sm">
-                      <FaMagnifyingGlass className="st-search-icon" />
-                      <input
-                        type="text"
-                        placeholder="Search users..."
-                        className="st-search-input"
-                        value={userSearch}
-                        onChange={(e) => setUserSearch(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="st-users-scroll">
-                    <table className="st-table users">
-                      <thead>
-                        <tr>
-                          <th>Name</th>
-                          <th>Email</th>
-                          <th>Status</th>
-                          <th>Role</th>
-                          <th />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredTeam.map((u, idx) => (
-                          <tr key={u.id} className={idx % 2 === 1 ? 'alt' : ''}>
-                            <td>
-                              <div className="st-user-cell">
-                                <span className="st-user-initials">{u.name[0]?.toUpperCase() ?? 'U'}</span>
-                                <span>{u.name}</span>
-                              </div>
-                            </td>
-                            <td className="st-email-col">{u.email}</td>
-                            <td>
-                              <span className={`st-status-badge ${STATUS_CLS[u.status] ?? 'gray'}`}>
-                                {accountStatusLabel(u.status)}
-                              </span>
-                            </td>
-                            <td>{u.role}</td>
-                            <td className="st-action-col">
-                              <button type="button" className="st-dots-btn" disabled aria-label="Actions">
-                                <FaEllipsisVertical />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="st-pagination">
-                    <span>Showing {filteredTeam.length} admin user{filteredTeam.length !== 1 ? 's' : ''}</span>
-                  </div>
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          {sectionVisible(['notifications', 'alerts']) ? (
-            <section id="notifications" className="st-section">
-              <h2>Notification Preferences</h2>
-              <p>Control what updates your team receives.</p>
-
-              <div className="st-notif-list">
-                {notifications
-                  ? NOTIF_ITEMS.map((n) => (
-                      <div key={n.key} className="st-notif-row">
-                        <div>
-                          <div className="st-notif-label">{n.label}</div>
-                          <div className="st-notif-sub">{n.sub}</div>
-                        </div>
-                        <div className="st-toggle-wrap">
-                          <input
-                            type="checkbox"
-                            id={n.key}
-                            className="st-toggle-checkbox"
-                            checked={notifications[n.key]}
-                            onChange={() => void toggleNotification(n.key)}
-                          />
-                          <label htmlFor={n.key} className="st-toggle-label" />
-                        </div>
-                      </div>
-                    ))
-                  : null}
               </div>
             </section>
           ) : null}
@@ -961,46 +774,6 @@ export function CompanySettingsPage() {
                 onClick={() => void saveBranch()}
               >
                 {branchSaving ? 'Saving…' : 'Save branch'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {logoModalOpen ? (
-        <div className="st-modal-overlay" onClick={() => setLogoModalOpen(false)} role="presentation">
-          <div className="st-modal sm" onClick={(e) => e.stopPropagation()}>
-            <div className="st-modal-head">
-              <h3>Update company logo</h3>
-              <button type="button" className="st-modal-close" onClick={() => setLogoModalOpen(false)}>
-                <FaXmark />
-              </button>
-            </div>
-            <div className="st-modal-body">
-              <div className="st-field">
-                <label>Logo URL</label>
-                <input
-                  className="st-input"
-                  value={logoUrlInput}
-                  onChange={(e) => setLogoUrlInput(e.target.value)}
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-            <div className="st-modal-foot">
-              <button type="button" className="st-link-btn" onClick={() => setLogoModalOpen(false)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="st-publish-btn"
-                onClick={() => {
-                  updateProfileField('logo', logoUrlInput.trim() || null)
-                  void saveBranding({ logo: logoUrlInput.trim() || null })
-                  setLogoModalOpen(false)
-                }}
-              >
-                Save logo
               </button>
             </div>
           </div>

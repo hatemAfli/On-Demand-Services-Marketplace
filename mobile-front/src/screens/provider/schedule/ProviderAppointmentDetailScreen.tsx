@@ -22,7 +22,6 @@ import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { COLORS } from "../../../constants";
 import {
   AuthNoticeModal,
   ConfirmModal,
@@ -69,6 +68,12 @@ type TranslationRow = { locale: string; name: string };
 type ConfirmationRow = { role: string; type: string };
 
 const MAX_INTERVENTION_PHOTOS = 10;
+
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
 
 type ProviderAppointmentDetailModel = {
   id: string;
@@ -384,9 +389,9 @@ function statusBannerMeta(status: string): {
       };
     case "IN_PROGRESS":
       return {
-        bg: "#F5F3FF",
-        border: "#DDD6FE",
-        text: "#6D28D9",
+        bg: ACCENT_LIGHT,
+        border: ACCENT_BORDER,
+        text: ACCENT_DARK,
         icon: "construct-outline",
       };
     case "COMPLETED":
@@ -555,7 +560,7 @@ const detailUi = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 10,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -675,7 +680,7 @@ function SectionHeader({
   return (
     <View style={detailUi.sectionHeader}>
       <View style={detailUi.sectionIconWrap}>
-        <Ionicons name={icon} size={15} color="#6366F1" />
+        <Ionicons name={icon} size={15} color={ACCENT} />
       </View>
       <Text style={detailUi.sectionTitle}>{title}</Text>
     </View>
@@ -810,7 +815,7 @@ function PhotoRow({
           disabled={disabled}
           activeOpacity={0.8}
         >
-          <Ionicons name="camera-outline" size={20} color="#6366F1" />
+          <Ionicons name="camera-outline" size={20} color={ACCENT} />
           <Text style={styles.addPhotoLabel}>Add</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -1319,7 +1324,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
   if (loading || !appointment) {
     return (
       <View style={styles.loadingRoot}>
-        <ActivityIndicator size="large" color={COLORS.primary || "#4F46E5"} />
+        <ActivityIndicator size="large" color={ACCENT} />
       </View>
     );
   }
@@ -1385,7 +1390,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
             activeOpacity={0.8}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="chevron-back" size={20} color="#0F172A" />
+            <Ionicons name="chevron-back" size={22} color="#0F172A" />
           </TouchableOpacity>
           <View style={styles.screenHeaderCenter}>
             <Text style={styles.screenHeaderEyebrow}>APPOINTMENT</Text>
@@ -1451,7 +1456,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                   <View style={styles.timelineLoading}>
                     <ActivityIndicator
                       size="small"
-                      color={COLORS.primary || "#6366F1"}
+                      color={ACCENT}
                     />
                     <Text style={styles.timelineLoadingText}>
                       Updating status…
@@ -1613,7 +1618,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                       onPress={openRescheduleSheet}
                       disabled={actionLoading}
                     >
-                      <Ionicons name="time-outline" size={15} color="#6366F1" />
+                      <Ionicons name="time-outline" size={15} color={ACCENT} />
                       <Text style={styles.proposeLinkText}>
                         Propose a different time
                       </Text>
@@ -1738,7 +1743,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
               <View style={styles.actionBlock}>
                 <View style={styles.awaitingCard}>
                   <View style={styles.awaitingIconWrap}>
-                    <Ionicons name="location" size={22} color="#5B21B6" />
+                    <Ionicons name="location" size={22} color={ACCENT_DARK} />
                   </View>
                   <Text style={styles.awaitingText}>
                     Waiting for client to confirm the service has started. The
@@ -1770,7 +1775,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
               <View style={styles.actionBlock}>
                 <View style={styles.awaitingCard}>
                   <View style={styles.awaitingIconWrap}>
-                    <Ionicons name="hourglass" size={22} color="#5B21B6" />
+                    <Ionicons name="hourglass" size={22} color={ACCENT_DARK} />
                   </View>
                   <Text style={styles.awaitingText}>
                     Waiting for client to confirm service completion.
@@ -2035,7 +2040,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
 
               <View style={sheetStyles.sheetHeaderRow}>
                 <View style={sheetStyles.sheetHeaderIcon}>
-                  <Ionicons name="calendar-outline" size={20} color="#6366F1" />
+                  <Ionicons name="calendar-outline" size={20} color={ACCENT} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={sheetStyles.sheetTitle}>Propose New Time</Text>
@@ -2128,7 +2133,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
               <Text style={sheetStyles.sheetSub}>Select time</Text>
               {rescheduleDaysOffLoading && !rescheduleSelectedDayOff ? (
                 <View style={sheetStyles.slotsLoading}>
-                  <ActivityIndicator size="small" color="#6366F1" />
+                  <ActivityIndicator size="small" color={ACCENT} />
                   <Text style={sheetStyles.slotsLoadingText}>
                     Loading schedule…
                   </Text>
@@ -2155,7 +2160,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
                 </View>
               ) : rescheduleSlotsLoading ? (
                 <View style={sheetStyles.slotsLoading}>
-                  <ActivityIndicator size="small" color="#6366F1" />
+                  <ActivityIndicator size="small" color={ACCENT} />
                   <Text style={sheetStyles.slotsLoadingText}>
                     Checking availability…
                   </Text>
@@ -2227,7 +2232,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
               {selectedRescheduleTime && canSendReschedule ? (
                 <View style={sheetStyles.timePreview}>
                   <View style={sheetStyles.timePreviewBadge}>
-                    <Ionicons name="time-outline" size={14} color="#6366F1" />
+                    <Ionicons name="time-outline" size={14} color={ACCENT} />
                     <Text style={sheetStyles.timePreviewText}>
                       {formatLongDate(rescheduleDateKey)} at{" "}
                       {selectedRescheduleTime}
@@ -2294,13 +2299,13 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: SCREEN_BG,
   },
   loadingRoot: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: SCREEN_BG,
   },
   screenHeader: {
     paddingHorizontal: 16,
@@ -2555,7 +2560,7 @@ const styles = StyleSheet.create({
   priceTag: {
     fontSize: 13,
     fontWeight: "800",
-    color: COLORS.primary || "#4F46E5",
+    color: ACCENT,
   },
   actionBlock: {
     marginBottom: 16,
@@ -2599,10 +2604,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#6366F1",
+    backgroundColor: ACCENT,
     borderRadius: 14,
     paddingVertical: 11,
-    shadowColor: "#6366F1",
+    shadowColor: ACCENT_DARK,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
@@ -2756,61 +2761,61 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    backgroundColor: "#F5F3FF",
+    backgroundColor: ACCENT_LIGHT,
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#DDD6FE",
+    borderColor: ACCENT_BORDER,
     marginBottom: 16,
   },
   awaitingIconWrap: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
   awaitingText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#5B21B6",
+    color: ACCENT_DARK,
     flex: 1,
     lineHeight: 19,
   },
   timerCard: {
     alignItems: "center",
-    backgroundColor: "#EEF2FF",
+    backgroundColor: ACCENT_LIGHT,
     borderRadius: 16,
     paddingVertical: 24,
     paddingHorizontal: 20,
     borderWidth: 1,
-    borderColor: "#C7D2FE",
+    borderColor: ACCENT_BORDER,
   },
   timerLabel: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#4338CA",
+    color: ACCENT_DARK,
     letterSpacing: 0.5,
     marginBottom: 8,
   },
   timerLarge: {
     fontSize: 48,
     fontWeight: "800",
-    color: COLORS.primary || "#4F46E5",
+    color: ACCENT,
   },
   timerDivider: {
     width: 40,
     height: 4,
-    backgroundColor: "#C7D2FE",
+    backgroundColor: ACCENT_BORDER,
     borderRadius: 2,
     marginVertical: 16,
   },
   timerSub: {
     fontSize: 12,
     fontWeight: "500",
-    color: "#6366F1",
+    color: ACCENT,
   },
   completedBlock: {
     marginBottom: 0,
@@ -2971,7 +2976,7 @@ const styles = StyleSheet.create({
   proposeLinkText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#6366F1",
+    color: ACCENT,
   },
   photoRowWrap: {
     gap: 8,
@@ -3000,8 +3005,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1.5,
     borderStyle: "dashed",
-    borderColor: "#C7D2FE",
-    backgroundColor: "#EEF2FF",
+    borderColor: ACCENT_BORDER,
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
@@ -3009,7 +3014,7 @@ const styles = StyleSheet.create({
   addPhotoLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#6366F1",
+    color: ACCENT,
   },
 });
 
@@ -3046,7 +3051,7 @@ const sheetStyles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -3083,9 +3088,9 @@ const sheetStyles = StyleSheet.create({
     alignItems: "center",
   },
   dateChipSelected: {
-    backgroundColor: "#6366F1",
-    borderColor: "#6366F1",
-    shadowColor: "#6366F1",
+    backgroundColor: ACCENT,
+    borderColor: ACCENT,
+    shadowColor: ACCENT_DARK,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
@@ -3225,8 +3230,8 @@ const sheetStyles = StyleSheet.create({
     opacity: 0.45,
   },
   slotBtnSelected: {
-    backgroundColor: "#EEF2FF",
-    borderColor: "#6366F1",
+    backgroundColor: ACCENT_LIGHT,
+    borderColor: ACCENT,
   },
   slotBtnText: {
     fontSize: 15,
@@ -3235,7 +3240,7 @@ const sheetStyles = StyleSheet.create({
   },
   slotBtnTextReserved: { color: "#DC2626" },
   slotBtnTextPast: { color: "#94A3B8" },
-  slotBtnTextSelected: { color: "#6366F1" },
+  slotBtnTextSelected: { color: ACCENT },
   slotReservedTag: {
     fontSize: 9,
     fontWeight: "800",
@@ -3253,22 +3258,22 @@ const sheetStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: ACCENT_LIGHT,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
-  timePreviewText: { fontSize: 13, fontWeight: "700", color: "#6366F1" },
+  timePreviewText: { fontSize: 13, fontWeight: "700", color: ACCENT },
   sendBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#6366F1",
+    backgroundColor: ACCENT,
     borderRadius: 14,
     paddingVertical: 13,
     marginTop: 16,
-    shadowColor: "#6366F1",
+    shadowColor: ACCENT_DARK,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,

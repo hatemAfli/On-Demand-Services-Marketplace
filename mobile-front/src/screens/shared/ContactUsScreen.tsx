@@ -40,6 +40,7 @@ export const ContactUsScreen: React.FC = () => {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("support.contactTitle"),
+      headerTitleAlign: "center",
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -49,6 +50,7 @@ export const ContactUsScreen: React.FC = () => {
           <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
         </TouchableOpacity>
       ),
+      headerRight: () => <View style={{ width: 40, marginRight: 8 }} />,
     });
   }, [navigation, t]);
 
@@ -107,7 +109,7 @@ export const ContactUsScreen: React.FC = () => {
         >
           <View style={styles.hero}>
             <View style={styles.heroIconWrap}>
-              <Ionicons name="mail-outline" size={24} color="#0F766E" />
+              <Ionicons name="mail-outline" size={24} color="#EA580C" />
             </View>
             <Text style={[styles.heroTitle, isRTL && styles.rtl]}>
               {t("support.contactHeroTitle")}
@@ -229,13 +231,13 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#CCFBF1",
+    borderColor: "#FFEDD5",
   },
   heroIconWrap: {
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: "#F0FDFA",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 12,
@@ -291,10 +293,15 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: 6,
-    backgroundColor: "#0F766E",
+    backgroundColor: "#EA580C",
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",
+    shadowColor: "#C2410C",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
   submitBtnDisabled: { opacity: 0.7 },
   submitText: {

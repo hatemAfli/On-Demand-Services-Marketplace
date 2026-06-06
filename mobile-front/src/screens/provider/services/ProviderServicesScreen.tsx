@@ -65,18 +65,18 @@ type Nav = NativeStackNavigationProp<
 >;
 
 const COLORS = {
-  bg: "#F8FAFC",
+  bg: "#F1F5F9",
   white: "#FFFFFF",
-  text: "#0F172A",
-  textMuted: "#64748B",
-  textMuted2: "#94A3B8",
-  border: "#E2E8F0",
-  borderLight: "#F1F5F9",
-  surface: "#F8FAFC",
+  text: "#1A1A2E",
+  textMuted: "#6B7280",
+  textMuted2: "#9CA3AF",
+  border: "#E5E7EB",
+  borderLight: "#F3F4F6",
+  surface: "#FFFFFF",
   surface2: "#F1F5F9",
-  primary: "#7C3AED",
-  primaryLight: "#EDE9FE",
-  primaryMid: "#8B5CF6",
+  primary: "#EA580C",
+  primaryLight: "#FFF7ED",
+  primaryMid: "#C2410C",
   success: "#059669",
   successBg: "#ECFDF5",
   successBorder: "#A7F3D0",
@@ -86,13 +86,13 @@ const COLORS = {
   danger: "#DC2626",
   dangerBg: "#FEF2F2",
   dangerBorder: "#FECACA",
-  info: "#2563EB",
+  info: "#0284C7",
   infoBg: "#EFF6FF",
   infoBorder: "#BFDBFE",
-  blue: "#2563EB",
+  blue: "#0284C7",
   pink: "#DB2777",
   gray: "#475569",
-  overlay: "rgba(124,58,237,0.06)",
+  overlay: "rgba(234,88,12,0.06)",
 };
 
 // ─── Status config helper (unchanged) ─────────────────────
@@ -343,15 +343,19 @@ export const ProviderServicesScreen: React.FC = () => {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("provider.screenTitles.ProviderServices"),
+      headerTitleAlign: "center",
       headerLeft: () => (
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={{ marginLeft: 8, padding: 4 }}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-        </TouchableOpacity>
+        <View style={styles.headerSide}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.headerBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons name="chevron-back" size={22} color={COLORS.text} />
+          </TouchableOpacity>
+        </View>
       ),
+      headerRight: () => <View style={styles.headerSide} />,
     });
   }, [navigation, t]);
 
@@ -578,8 +582,14 @@ export const ProviderServicesScreen: React.FC = () => {
 
 // ─── Styles ────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F4F3FA" },
-  container: { flex: 1, backgroundColor: "#F4F3FA" },
+  safe: { flex: 1, backgroundColor: COLORS.bg },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  headerSide: {
+    width: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerBtn: { padding: 4 },
 
   /* ── Loading ── */
   loadingWrap: {
@@ -654,7 +664,7 @@ const styles = StyleSheet.create({
   },
   cardMedia: {
     height: 180,
-    backgroundColor: "#F0EEF8",
+    backgroundColor: COLORS.primaryLight,
     position: "relative",
   },
   serviceImageCover: { width: "100%", height: "100%" },
@@ -662,7 +672,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#EDE9FE",
+    backgroundColor: COLORS.primaryLight,
   },
   cardMediaGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -754,7 +764,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "#F4F3FA",
+    borderTopColor: COLORS.bg,
   },
   cardFooterItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   cardFooterText: { fontSize: 12, color: COLORS.textMuted, fontWeight: "600" },
@@ -864,7 +874,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F4F3FA",
+    borderBottomColor: COLORS.bg,
   },
   requestsCountBadge: {
     minWidth: 22,
@@ -921,12 +931,12 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 8,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: COLORS.bg,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
-  rowDivider: { height: 1, backgroundColor: "#F4F3FA", marginHorizontal: 14 },
+  rowDivider: { height: 1, backgroundColor: COLORS.bg, marginHorizontal: 14 },
 
   /* ── Upgrade / locked section ── */
   upgradeSection: { gap: 10 },

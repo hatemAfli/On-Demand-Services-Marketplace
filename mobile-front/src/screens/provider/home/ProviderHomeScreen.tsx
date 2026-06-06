@@ -439,22 +439,27 @@ function extractClientPhoneFromAppointment(raw: unknown): string | null {
 
 // ─── Design tokens ─────────────────────────────────────────────────────────
 const C = {
-  amber: "#E8A020",
-  amberDark: "#C4860E",
-  amberLight: "#FFF3DC",
-  amberBorder: "#F7D08A",
-  bg: "#F4F3FA",
+  accent: "#EA580C",
+  accentDark: "#C2410C",
+  accentLight: "#FFF7ED",
+  accentBorder: "#FFEDD5",
+  /** Legacy aliases used across this screen */
+  amber: "#EA580C",
+  amberDark: "#C2410C",
+  amberLight: "#FFF7ED",
+  amberBorder: "#FFEDD5",
+  bg: "#F1F5F9",
   surface: "#FFFFFF",
-  dark: "#1A1608",
-  text: "#1C1A0E",
-  sub: "#7A7260",
-  muted: "#B0A898",
-  border: "#EAE7DF",
-  borderLight: "#F2EFE8",
+  dark: "#1A1A2E",
+  text: "#1A1A2E",
+  sub: "#6B7280",
+  muted: "#9CA3AF",
+  border: "#E5E7EB",
+  borderLight: "#F3F4F6",
   success: "#10B981",
   error: "#EF4444",
-  blue: "#3B82F6",
-  purple: "#8B5CF6",
+  blue: "#0284C7",
+  purple: "#EA580C",
 };
 
 const TIPS_CAROUSEL_GAP = 14;
@@ -482,9 +487,9 @@ const PROVIDER_TIPS: ProviderTipItem[] = [
     icon: "shield-checkmark-outline",
     title: "Safety First",
     sub: "Wear safety gear and your ID badge so clients feel confident.",
-    gradient: ["#F5F3FF", "#FFFFFF"],
-    iconColor: C.purple,
-    accent: "#8B5CF6",
+    gradient: ["#FFF7ED", "#FFFFFF"],
+    iconColor: C.accent,
+    accent: C.accent,
   },
   {
     icon: "time-outline",
@@ -1022,7 +1027,7 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionHeaderLeft}>
-              <View style={[styles.sectionDot, { backgroundColor: C.blue }]} />
+              <View style={[styles.sectionDot, { backgroundColor: C.accent }]} />
               <Text style={styles.sectionTitle}>Next Scheduled</Text>
             </View>
             <TouchableOpacity
@@ -1089,12 +1094,17 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionHeaderLeft}>
               <View
-                style={[styles.sectionDot, { backgroundColor: "#FFFFFF" }]}
+                style={[styles.sectionDot, { backgroundColor: C.accent }]}
               />
-              <Text style={[styles.sectionTitle]}>Performance</Text>
+              <Text style={styles.sectionTitle}>Performance</Text>
             </View>
           </View>
-          <View style={styles.performanceCard}>
+          <LinearGradient
+            colors={[C.accent, C.accentDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.performanceCard}
+          >
             <View style={styles.performanceHeaderRow}>
               <View>
                 <Text style={styles.performanceTitle}>Weekly Summary</Text>
@@ -1106,7 +1116,7 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                 <Ionicons
                   name="trending-up-outline"
                   size={13}
-                  color={C.success}
+                  color="#FFFFFF"
                 />
                 <Text style={styles.performanceBadgeText}>
                   {props.performanceBadgeLabel}
@@ -1128,19 +1138,19 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                     value: props.performanceRating,
                     label: "RATING",
                     pct: clampPct((Number(props.performanceRating) / 5) * 100),
-                    color: C.success,
+                    color: "#FFFFFF",
                   },
                   {
                     value: `${props.performanceAcceptPct}%`,
                     label: "ACCEPT",
                     pct: props.performanceAcceptPct,
-                    color: C.amber,
+                    color: C.accentLight,
                   },
                   {
                     value: `${props.performanceCompletePct}%`,
                     label: "COMPLETE",
                     pct: props.performanceCompletePct,
-                    color: C.blue,
+                    color: "#FFEDD5",
                   },
                 ].map((m) => (
                   <View key={m.label} style={styles.performanceMetric}>
@@ -1158,7 +1168,7 @@ function HomeActiveJobsScreen(props: HomeActiveJobsScreenProps) {
                 ))}
               </View>
             )}
-          </View>
+          </LinearGradient>
         </View>
 
         {/* ── Provider Tips ── */}
@@ -1490,9 +1500,9 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: C.bg,
     borderWidth: 1,
-    borderColor: "#EBEBF5",
+    borderColor: C.border,
     alignItems: "center",
     justifyContent: "center",
     overflow: "visible",
@@ -1913,12 +1923,11 @@ const styles = StyleSheet.create({
 
   /* Performance */
   performanceCard: {
-    backgroundColor: "#131108",
     borderRadius: 22,
     padding: 18,
-    shadowColor: "#000",
+    shadowColor: C.accent,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.28,
     shadowRadius: 20,
     elevation: 6,
   },
@@ -1935,7 +1944,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   performanceSub: {
-    color: "#6B6348",
+    color: "rgba(255,255,255,0.82)",
     fontSize: 12,
     fontWeight: "600",
     marginTop: 2,
@@ -1944,14 +1953,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "rgba(16,185,129,0.15)",
+    backgroundColor: "rgba(255,255,255,0.18)",
     borderWidth: 1,
-    borderColor: "rgba(16,185,129,0.3)",
+    borderColor: "rgba(255,255,255,0.35)",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
   },
-  performanceBadgeText: { color: C.success, fontSize: 11, fontWeight: "800" },
+  performanceBadgeText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800" },
   performanceLoading: {
     minHeight: 90,
     alignItems: "center",
@@ -1959,7 +1968,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   performanceLoadingText: {
-    color: "#A39A80",
+    color: "rgba(255,255,255,0.85)",
     fontSize: 12,
     fontWeight: "600",
   },
@@ -1978,13 +1987,13 @@ const styles = StyleSheet.create({
   metricTrack: {
     width: "100%",
     height: 4,
-    backgroundColor: "#2A2610",
+    backgroundColor: "rgba(255,255,255,0.22)",
     borderRadius: 999,
     overflow: "hidden",
   },
   metricFill: { height: 4, borderRadius: 999 },
   metricLabel: {
-    color: "#6B6348",
+    color: "rgba(255,255,255,0.78)",
     fontSize: 9,
     fontWeight: "900",
     letterSpacing: 1,

@@ -1,140 +1,156 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
+import { AxiosError } from 'axios'
 import {
   FaArrowRight,
+  FaArrowRotateRight,
+  FaArrowTrendDown,
   FaArrowTrendUp,
   FaBoxesStacked,
-  FaCircleExclamation,
-  FaCircleInfo,
+  FaChartLine,
   FaClipboardCheck,
-  FaCoins,
-  FaEllipsisVertical,
   FaEnvelope,
-  FaFileExport,
-  FaFilter,
   FaMedal,
   FaPlus,
-  FaSackDollar,
   FaStar,
   FaTriangleExclamation,
   FaUserGroup,
 } from 'react-icons/fa6'
+import companyApi from '../../../../services/companyApi'
+import type { CompanyDashboardData } from '../../../../types/company'
+import {
+  avatarColor,
+  formatMoney,
+  formatRelativeTime,
+  formatTrend,
+  providerInitials,
+  STATUS_UI,
+} from './dashboardUtils'
 import './CompanyDashboardPage.css'
 
-const revenueData = [
-  { day: 'Mon', value: 8500 },
-  { day: 'Tue', value: 9200 },
-  { day: 'Wed', value: 8800 },
-  { day: 'Thu', value: 10500 },
-  { day: 'Fri', value: 11200 },
-  { day: 'Sat', value: 12450 },
-  { day: 'Sun', value: 9800 },
-]
+const REFRESH_MS = 90_000
 
-const liveOrders = [
-  {
-    id: '#ORD-8291',
-    time: '10:42 AM',
-    service: 'Deep Cleaning',
-    customer: 'Sarah Connor',
-    zone: 'Jumeirah 1',
-    provider: 'Maria S.',
-    providerPhoto: 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-6.jpg',
-    status: 'In Progress',
-    statusTone: 'blue',
-    action: 'More',
-  },
-  {
-    id: '#ORD-8292',
-    time: '11:15 AM',
-    service: 'AC Maintenance',
-    customer: 'Ahmed Al-Sayed',
-    zone: 'Downtown',
-    provider: 'Unassigned',
-    providerPhoto: null,
-    status: 'Pending',
-    statusTone: 'yellow',
-    action: 'Assign',
-  },
-  {
-    id: '#ORD-8289',
-    time: '09:30 AM',
-    service: 'Beauty Service',
-    customer: 'Lisa Wong',
-    zone: 'Marina',
-    provider: 'Elena R.',
-    providerPhoto: 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-7.jpg',
-    status: 'Completed',
-    statusTone: 'green',
-    action: 'More',
-  },
-  {
-    id: '#ORD-8285',
-    time: '08:15 AM',
-    service: 'Moving Help',
-    customer: 'James Doe',
-    zone: 'Business Bay',
-    provider: 'Mike T.',
-    providerPhoto: 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-8.jpg',
-    status: 'Dispute',
-    statusTone: 'red',
-    action: 'Review',
-  },
-]
-
-const topProviders = [
-  {
-    name: 'Sarah M.',
-    jobs: 42,
-    rating: 4.9,
-    earned: 'AED 4.2k',
-    avatar: 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-1.jpg',
-    champion: true,
-  },
-  {
-    name: 'John D.',
-    jobs: 38,
-    rating: 4.8,
-    earned: 'AED 3.8k',
-    avatar: 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-2.jpg',
-  },
-  {
-    name: 'Mike R.',
-    jobs: 31,
-    rating: 4.7,
-    earned: 'AED 2.9k',
-    avatar: 'https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-3.jpg',
-  },
-]
+function errorMessage(err: unknown, fallback: string): string {
+  if (err instanceof AxiosError) {
+    const data = err.response?.data as { message?: string | string[] } | undefined
+    const msg = data?.message
+    if (Array.isArray(msg)) return msg[0] ?? fallback
+    if (typeof msg === 'string') return msg
+  }
+  return fallback
+}
 
 export function CompanyDashboardPage() {
-  return (
-    <div className="company-dashboard">
-      <div className="company-info-banner">
-        <div className="company-info-left">
-          <div className="company-info-icon">
-            <FaCircleInfo />
-          </div>
-          <div>
-            <h4>System Update: New Scheduling Features</h4>
-            <p>
-              We updated the calendar view to support drag-and-drop rescheduling.{' '}
-              <a href="#">Learn more</a>
-            </p>
-          </div>
+  const navigate = useNavigate()
+  const [data, setData] = useState<CompanyDashboardData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const brand = '#7621C2'
+
+  const load = useCallback(async (silent = false) => {
+    if (silent) setRefreshing(true)
+    else setLoading(true)
+    setError(null)
+    try {
+      const res = await companyApi.getCompanyDashboard()
+      setData(res)
+      document.documentElement.style.setProperty('--company-brand', brand)
+    } catch (err) {
+      setError(errorMessage(err, 'Could not load dashboard'))
+      if (!silent) setData(null)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load(false)
+    const id = window.setInterval(() => void load(true), REFRESH_MS)
+    return () => window.clearInterval(id)
+  }, [load])
+
+  const trendLabel = useMemo(
+    () => (data ? formatTrend(data.orders.trendPct) : null),
+    [data],
+  )
+
+  const trendUp =
+    data?.orders.trendPct != null && data.orders.trendPct >= 0
+
+  if (loading && !data) {
+    return (
+      <div className="company-dashboard company-dashboard--loading">
+        <div className="cd-loading-card">
+          <div className="cd-loading-spinner" />
+          <p>Loading your dashboard…</p>
         </div>
       </div>
+    )
+  }
+
+  if (error && !data) {
+    return (
+      <div className="company-dashboard">
+        <div className="cd-error-card">
+          <FaTriangleExclamation />
+          <p>{error}</p>
+          <button type="button" onClick={() => void load(false)}>
+            Try again
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!data) return null
+
+  const primaryAlert = data.alerts[0]
+
+  return (
+    <div className="company-dashboard">
+      <div className="cd-toolbar">
+        <button
+          type="button"
+          className="cd-refresh-btn"
+          onClick={() => void load(true)}
+          disabled={refreshing}
+        >
+          <FaArrowRotateRight className={refreshing ? 'spin' : ''} />
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+
+      {primaryAlert ? (
+        <button
+          type="button"
+          className={`cd-alert-banner cd-alert-banner--${primaryAlert.tone}`}
+          onClick={() => navigate(primaryAlert.path)}
+        >
+          <FaTriangleExclamation />
+          <div>
+            <strong>{primaryAlert.title}</strong>
+            <span>{primaryAlert.message}</span>
+          </div>
+          <FaArrowRight />
+        </button>
+      ) : null}
 
       <section className="company-kpi-grid">
-        <article className="company-kpi-card">
+        <article className="company-kpi-card cd-kpi-card">
           <div className="company-kpi-bg-icon">
             <FaClipboardCheck />
           </div>
@@ -142,25 +158,35 @@ export function CompanyDashboardPage() {
             <div className="company-kpi-icon purple">
               <FaBoxesStacked />
             </div>
-            <span className="company-kpi-trend up">
-              <FaArrowTrendUp /> +12%
-            </span>
+            {trendLabel ? (
+              <span
+                className={`company-kpi-trend ${trendUp ? 'up' : 'down'}`}
+              >
+                {trendUp ? <FaArrowTrendUp /> : <FaArrowTrendDown />}
+                {trendLabel}
+              </span>
+            ) : null}
           </div>
-          <h3>Today&apos;s Orders</h3>
+          <h3>Today&apos;s orders</h3>
           <div className="company-kpi-value-wrap">
-            <strong>142</strong>
-            <span>vs 126 yesterday</span>
+            <strong>{data.orders.today}</strong>
+            <span>{data.orders.yesterday} yesterday</span>
           </div>
           <div className="company-kpi-progress">
-            <span style={{ width: '75%' }} />
+            <span
+              style={{
+                width: `${data.orders.today === 0 ? 0 : Math.min(100, (data.orders.todayCompleted / data.orders.today) * 100)}%`,
+                background: brand,
+              }}
+            />
           </div>
           <div className="company-kpi-foot">
-            <span>Pending: 12</span>
-            <span>Completed: 85</span>
+            <span>Pending: {data.orders.todayPending}</span>
+            <span>Completed: {data.orders.todayCompleted}</span>
           </div>
         </article>
 
-        <article className="company-kpi-card">
+        <article className="company-kpi-card cd-kpi-card">
           <div className="company-kpi-bg-icon">
             <FaUserGroup />
           </div>
@@ -168,79 +194,87 @@ export function CompanyDashboardPage() {
             <div className="company-kpi-icon blue">
               <FaUserGroup />
             </div>
-            <span className="company-kpi-cap">45/50 Cap</span>
+            <span className="company-kpi-cap">
+              {data.team.activeServices} services
+            </span>
           </div>
-          <h3>Active Providers</h3>
+          <h3>Your team</h3>
           <div className="company-kpi-value-wrap">
-            <strong>38</strong>
-            <span>Online now</span>
+            <strong>{data.team.employeeCount}</strong>
+            <span>employee providers</span>
           </div>
-          <div className="company-avatar-stack">
-            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-1.jpg" alt="" />
-            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-3.jpg" alt="" />
-            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-4.jpg" alt="" />
-            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-5.jpg" alt="" />
-            <span>+34</span>
+          <div className="cd-kpi-mini-stats">
+            <span>
+              <em>{data.orders.inProgress}</em> in progress
+            </span>
+            <span>
+              <em>{data.orders.pendingAssignment}</em> to assign
+            </span>
           </div>
         </article>
 
-        <article className="company-kpi-card">
+        <article className="company-kpi-card cd-kpi-card">
           <div className="company-kpi-bg-icon">
-            <FaCoins />
+            <FaChartLine />
           </div>
           <div className="company-kpi-head">
             <div className="company-kpi-icon green">
-              <FaSackDollar />
+              <FaStar />
             </div>
             <span className="company-kpi-trend up">
-              <FaArrowTrendUp /> +8.4%
+              {data.ratings.averageRating.toFixed(1)} ★
             </span>
           </div>
-          <h3>Total Revenue (Today)</h3>
+          <h3>Rating & revenue</h3>
           <div className="company-kpi-value-wrap">
-            <strong>AED 12,450</strong>
+            <strong>{formatMoney(data.todayRevenue)}</strong>
+            <span>completed today (est.)</span>
           </div>
           <div className="company-kpi-mini-grid">
             <div>
-              <small>Services</small>
-              <span>9,200</span>
+              <small>Reviews</small>
+              <span>{data.ratings.totalReviews}</span>
             </div>
             <div>
-              <small>Products</small>
-              <span>3,250</span>
+              <small>Open complaints</small>
+              <span>{data.complaints.total}</span>
             </div>
           </div>
         </article>
       </section>
 
       <section className="company-quick-actions">
-        <button>
+        <button type="button" onClick={() => navigate('/company/services')}>
           <span className="quick-icon purple">
             <FaPlus />
           </span>
-          <h4>Create Service</h4>
-          <p>Add new offering</p>
+          <h4>Services</h4>
+          <p>Manage offerings</p>
         </button>
-        <button>
+        <button type="button" onClick={() => navigate('/company/providers')}>
           <span className="quick-icon blue">
             <FaEnvelope />
           </span>
-          <h4>Invite Provider</h4>
-          <p>Send email invite</p>
+          <h4>Invite provider</h4>
+          <p>Grow your team</p>
         </button>
-        <button>
+        <button type="button" onClick={() => navigate('/company/complaints')}>
           <span className="quick-icon orange">
             <FaTriangleExclamation />
           </span>
-          <h4>Review Disputes</h4>
-          <p>3 pending reviews</p>
+          <h4>Complaints</h4>
+          <p>
+            {data.complaints.total > 0
+              ? `${data.complaints.total} open`
+              : 'All clear'}
+          </p>
         </button>
-        <button>
+        <button type="button" onClick={() => navigate('/company/orders')}>
           <span className="quick-icon green">
-            <FaFileExport />
+            <FaClipboardCheck />
           </span>
-          <h4>Export Report</h4>
-          <p>Download CSV</p>
+          <h4>Orders</h4>
+          <p>{data.orders.activeLive} active now</p>
         </button>
       </section>
 
@@ -249,217 +283,350 @@ export function CompanyDashboardPage() {
           <article className="company-card">
             <div className="company-card-head">
               <div>
-                <h3>Live Orders</h3>
-                <p>Real-time status of ongoing services</p>
+                <h3>Live orders</h3>
+                <p>Needs action — updates every {REFRESH_MS / 1000}s</p>
               </div>
-              <div className="company-card-actions">
-                <button>
-                  <FaFilter /> Filter
-                </button>
-                <button className="purple-soft">View All</button>
-              </div>
+              <button
+                type="button"
+                className="purple-soft"
+                onClick={() => navigate('/company/orders')}
+              >
+                View all
+              </button>
             </div>
 
-            <div className="company-orders-table-wrap">
-              <table className="company-orders-table">
-                <thead>
-                  <tr>
-                    <th>Order ID</th>
-                    <th>Service & Customer</th>
-                    <th>Provider</th>
-                    <th>Status</th>
-                    <th className="right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {liveOrders.map((o) => (
-                    <tr key={o.id}>
-                      <td>
-                        <div className="order-id">{o.id}</div>
-                        <div className="order-time">{o.time}</div>
-                      </td>
-                      <td>
-                        <div className="service-cell">
-                          <div className="service-icon">
-                            <FaClipboardCheck />
-                          </div>
-                          <div>
-                            <div className="service-name">{o.service}</div>
-                            <div className="service-meta">
-                              {o.customer} • {o.zone}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        {o.providerPhoto ? (
-                          <div className="provider-cell">
-                            <img src={o.providerPhoto} alt={o.provider} />
-                            <span>{o.provider}</span>
-                          </div>
-                        ) : (
-                          <div className="provider-cell">
-                            <span className="provider-fallback">UN</span>
-                            <span className="provider-empty">Unassigned</span>
-                          </div>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`status-pill ${o.statusTone.toLowerCase()}`}>{o.status}</span>
-                      </td>
-                      <td className="right">
-                        {o.action === 'More' ? (
-                          <button className="icon-btn">
-                            <FaEllipsisVertical />
-                          </button>
-                        ) : (
-                          <button className="assign-btn">{o.action}</button>
-                        )}
-                      </td>
+            {data.liveOrders.length === 0 ? (
+              <div className="cd-empty-inline">
+                <FaClipboardCheck />
+                <p>No active orders right now. New bookings will appear here.</p>
+              </div>
+            ) : (
+              <div className="company-orders-table-wrap">
+                <table className="company-orders-table">
+                  <thead>
+                    <tr>
+                      <th>Order</th>
+                      <th>Service & client</th>
+                      <th>Provider</th>
+                      <th>Status</th>
+                      <th className="right">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {data.liveOrders.map((o) => {
+                      const st = STATUS_UI[o.status]
+                      const colors = o.providerName
+                        ? avatarColor(o.providerName)
+                        : null
+                      return (
+                        <tr key={o.id}>
+                          <td>
+                            <div className="order-id">#{o.shortId}</div>
+                            <div className="order-time">
+                              {o.scheduledDate} · {o.scheduledTime}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="service-cell">
+                              <div className="service-icon">
+                                <FaClipboardCheck />
+                              </div>
+                              <div>
+                                <div className="service-name">
+                                  {o.serviceName}
+                                </div>
+                                <div className="service-meta">{o.clientName}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            {o.providerName ? (
+                              <div className="provider-cell">
+                                {o.providerPhotoUrl ? (
+                                  <img
+                                    src={o.providerPhotoUrl}
+                                    alt=""
+                                  />
+                                ) : (
+                                  <span
+                                    className="provider-fallback"
+                                    style={{
+                                      background: colors?.bg,
+                                      color: colors?.fg,
+                                    }}
+                                  >
+                                    {providerInitials(o.providerName)}
+                                  </span>
+                                )}
+                                <span>{o.providerName}</span>
+                              </div>
+                            ) : (
+                              <div className="provider-cell">
+                                <span className="provider-fallback muted">
+                                  —
+                                </span>
+                                <span className="provider-empty">
+                                  Unassigned
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <span
+                              className={`status-pill ${st.tone}`}
+                            >
+                              {st.label}
+                            </span>
+                          </td>
+                          <td className="right">
+                            {o.needsAssignment ? (
+                              <button
+                                type="button"
+                                className="assign-btn"
+                                onClick={() => navigate('/company/orders')}
+                              >
+                                Assign
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="assign-btn outline"
+                                onClick={() => navigate('/company/orders')}
+                              >
+                                Open
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </article>
 
-            <div className="company-card-footer">
-              <button>
-                View all 142 orders <FaArrowRight />
+          <div className="cd-charts-row">
+            <article className="company-card chart-card cd-chart-half">
+              <div className="company-card-head">
+                <div>
+                  <h3>Orders this week</h3>
+                  <p>Scheduled bookings per day</p>
+                </div>
+              </div>
+              <div className="company-chart-wrap cd-chart-sm">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data.ordersTrend}>
+                    <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fill: '#94a3b8', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      tick={{ fill: '#94a3b8', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip />
+                    <Bar
+                      dataKey="orders"
+                      fill={brand}
+                      radius={[6, 6, 0, 0]}
+                      name="Orders"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </article>
+
+            <article className="company-card chart-card cd-chart-half">
+              <div className="company-card-head">
+                <div>
+                  <h3>Revenue estimate</h3>
+                  <p>Completed jobs (7 days)</p>
+                </div>
+              </div>
+              <div className="company-chart-wrap cd-chart-sm">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={data.revenueTrend}>
+                    <defs>
+                      <linearGradient id="cdRevenueFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={brand} stopOpacity={0.25} />
+                        <stop offset="95%" stopColor={brand} stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fill: '#94a3b8', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: '#94a3b8', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v) => formatMoney(Number(v))}
+                    />
+                    <Tooltip
+                      formatter={(v) => [formatMoney(Number(v ?? 0)), 'Revenue']}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="amount"
+                      stroke={brand}
+                      strokeWidth={2.5}
+                      fill="url(#cdRevenueFill)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div className="company-right-column">
+          <article className="company-card cd-rating-card">
+            <div className="cd-rating-ring" style={{ borderColor: brand }}>
+              <FaStar style={{ color: brand }} />
+              <strong>{data.company.averageRating.toFixed(1)}</strong>
+              <small>{data.company.totalReviews} reviews</small>
+            </div>
+            <div className="cd-rating-meta">
+              <p>
+                Cancellation rate{' '}
+                <strong>{data.company.cancellationRate.toFixed(1)}%</strong>
+              </p>
+              {data.company.averageResponseTime != null ? (
+                <p>
+                  Avg. response{' '}
+                  <strong>
+                    {Math.round(data.company.averageResponseTime)} min
+                  </strong>
+                </p>
+              ) : null}
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => navigate('/company/ratings')}
+              >
+                View ratings
               </button>
             </div>
           </article>
 
-          <article className="company-card chart-card">
-            <div className="company-card-head">
-              <div>
-                <h3>Revenue Trends</h3>
-                <p>Daily earnings over the last 7 days</p>
-              </div>
-            </div>
-            <div className="company-chart-wrap">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={revenueData}>
-                  <defs>
-                    <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#7621C2" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#7621C2" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="#eef2f7" strokeDasharray="3 3" />
-                  <XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => `AED ${v}`}
-                  />
-                  <Tooltip formatter={(v) => [`AED ${String(v ?? 0)}`, 'Revenue']} />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#7621C2"
-                    strokeWidth={3}
-                    fill="url(#revenueFill)"
-                    dot={{ r: 4, fill: '#7621C2', stroke: '#fff', strokeWidth: 2 }}
-                    activeDot={{ r: 5 }}
-                  >
-                    {revenueData.map((entry) => (
-                      <Cell key={entry.day} />
-                    ))}
-                  </Area>
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </article>
-        </div>
-
-        <div className="company-right-column">
           <article className="company-card">
             <div className="company-card-head compact">
-              <h3>Top Providers</h3>
-              <button className="link-btn">View All</button>
+              <h3>Top providers</h3>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => navigate('/company/providers')}
+              >
+                View all
+              </button>
             </div>
-            <div className="provider-ranking-list">
-              {topProviders.map((p) => (
-                <div key={p.name} className="provider-ranking-item">
-                  <div className="provider-main">
-                    <div className="provider-avatar-wrap">
-                      <img src={p.avatar} alt={p.name} />
-                      {p.champion ? (
-                        <span className="medal-dot">
-                          <FaMedal />
-                        </span>
-                      ) : null}
-                    </div>
-                    <div>
-                      <div className="provider-name">{p.name}</div>
-                      <div className="provider-meta">
-                        {p.jobs} Jobs • {p.rating} <FaStar />
+            {data.topProviders.length === 0 ? (
+              <div className="cd-empty-inline small">
+                <p>No employees yet. Invite your first provider.</p>
+              </div>
+            ) : (
+              <div className="provider-ranking-list">
+                {data.topProviders.map((p) => {
+                  const colors = avatarColor(p.displayName)
+                  return (
+                    <div key={p.id} className="provider-ranking-item">
+                      <div className="provider-main">
+                        <div className="provider-avatar-wrap">
+                          {p.photoUrl ? (
+                            <img src={p.photoUrl} alt="" />
+                          ) : (
+                            <span
+                              className="cd-provider-initials"
+                              style={{
+                                background: colors.bg,
+                                color: colors.fg,
+                              }}
+                            >
+                              {providerInitials(p.displayName)}
+                            </span>
+                          )}
+                          {p.rank === 1 ? (
+                            <span className="medal-dot">
+                              <FaMedal />
+                            </span>
+                          ) : null}
+                        </div>
+                        <div>
+                          <div className="provider-name">{p.displayName}</div>
+                          <div className="provider-meta">
+                            {p.completedJobs} jobs · {p.averageRating.toFixed(1)}{' '}
+                            <FaStar />
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="provider-earnings">
-                    <strong>{p.earned}</strong>
-                    <small>Earned</small>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  )
+                })}
+              </div>
+            )}
           </article>
 
           <article className="company-card">
             <div className="company-card-head compact">
-              <h3>Notifications</h3>
-              <button className="link-btn">Mark all read</button>
+              <h3>Recent activity</h3>
             </div>
-            <div className="notice-list">
-              <div className="notice-item active">
-                <span className="notice-dot red" />
-                <div>
-                  <h4>Urgent: Dispute Raised</h4>
-                  <p>Customer filed a complaint for order #ORD-8285 regarding service quality.</p>
-                  <small>10 mins ago</small>
-                </div>
+            {data.activity.length === 0 ? (
+              <div className="cd-empty-inline small">
+                <p>Team actions will show up here.</p>
               </div>
-              <div className="notice-item">
-                <span className="notice-dot blue" />
-                <div>
-                  <h4>New Provider Application</h4>
-                  <p>Ahmed K. has completed onboarding.</p>
-                  <small>2 hours ago</small>
-                </div>
+            ) : (
+              <div className="notice-list">
+                {data.activity.map((item, i) => (
+                  <div
+                    key={item.id}
+                    className={`notice-item${i === 0 ? ' active' : ''}`}
+                  >
+                    <span
+                      className={`notice-dot ${i === 0 ? 'purple' : 'gray'}`}
+                    />
+                    <div>
+                      <h4>{item.summary}</h4>
+                      <p>
+                        {item.actorName} · {item.action.replace(/_/g, ' ')}
+                      </p>
+                      <small>{formatRelativeTime(item.createdAt)}</small>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="notice-item">
-                <span className="notice-dot gray" />
-                <div>
-                  <h4>Weekly Summary Ready</h4>
-                  <p>Your performance report for last week is available.</p>
-                  <small>Yesterday</small>
-                </div>
-              </div>
-            </div>
+            )}
           </article>
 
-          <article className="company-upgrade-card">
-            <div className="upgrade-watermark">
-              <FaCircleExclamation />
-            </div>
-            <span className="upgrade-pill">Growth Plan</span>
-            <h3>Upgrade to Pro</h3>
-            <p>Unlock advanced analytics and unlimited provider seats.</p>
-            <button>View Plans</button>
-          </article>
+          {data.alerts.length > 1 ? (
+            <article className="company-card cd-more-alerts">
+              <h4>More alerts</h4>
+              <ul>
+                {data.alerts.slice(1).map((a) => (
+                  <li key={a.id}>
+                    <button type="button" onClick={() => navigate(a.path)}>
+                      <span>{a.title}</span>
+                      <FaArrowRight />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ) : null}
         </div>
       </section>
 
-      <footer className="company-dashboard-footer">
-        <span>© 2024 HireWise Inc. All rights reserved.</span>
-        <div>
-          <a href="#">Privacy Policy</a>
-          <a href="#">Terms of Service</a>
-          <a href="#">Help Center</a>
-        </div>
-      </footer>
+      <p className="cd-generated-at">
+        Last updated {formatRelativeTime(data.generatedAt)}
+      </p>
     </div>
   )
 }

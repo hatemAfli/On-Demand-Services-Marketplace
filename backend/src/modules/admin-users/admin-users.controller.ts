@@ -9,11 +9,12 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { clientIp } from '../../common/utils/client-ip';
 import { AdminUsersService } from './admin-users.service';
 import { ListAdminUsersQueryDto } from './dto/list-admin-users-query.dto';
 import { UpdateAdminUserStatusDto } from './dto/update-admin-user-status.dto';
@@ -42,6 +43,9 @@ export class AdminUsersController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateAdminUserStatusDto,
   ) {
-    return this.adminUsersService.updateStatus(id, req.user.id, dto);
+    return this.adminUsersService.updateStatus(id, req.user.id, dto, {
+      actorAdminId: req.user.id,
+      ipAddress: clientIp(req),
+    });
   }
 }

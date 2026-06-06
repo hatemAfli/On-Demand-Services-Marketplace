@@ -3,9 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OwnerType, Prisma, ProviderType } from '@prisma/client';
+import { OwnerType, Prisma, ProviderType, CompanyAuditAction } from '@prisma/client';
 import { PrismaService } from '../../../config/prisma.config';
 import { SupabaseService } from '../../../config/supabase.config';
+import { CompanyAuditService } from '../audit/company-audit.service';
 import { UpdateGivenServiceDto } from './dto/update-given-service.dto';
 import type { GalleryUploadFile } from './gallery-upload-file.type';
 
@@ -78,6 +79,7 @@ export class CompanyServicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
+    private readonly audit: CompanyAuditService,
   ) {}
 
   private assertGalleryUrlForGivenService(
@@ -340,10 +342,12 @@ export class CompanyServicesService {
     companyAdminUserId: string,
     givenServiceId: string,
     dto: UpdateGivenServiceDto,
+    ipAddress?: string,
   ) {
-    await this.getGivenServiceForEdit(companyAdminUserId, givenServiceId);
+    const gs = await this.getGivenServiceForEdit(companyAdminUserId, givenServiceId);
+    const companyId = gs.provider.companyId!;
 
-    return this.prisma.givenService.update({
+    const updated = await this.prisma.givenService.update({
       where: { id: givenServiceId },
       data: {
         ...(dto.price !== undefined && { price: dto.price }),
@@ -371,6 +375,22 @@ export class CompanyServicesService {
       },
       include: { galleries: true },
     });
+
+    const serviceName = pickTranslation(gs.service.translations);
+    const providerName =
+      `${gs.provider.user.firstName ?? ''} ${gs.provider.user.lastName ?? ''}`.trim() ||
+      'provider';
+    const actor = await this.audit.actorFirstName(companyAdminUserId);
+    await this.audit.log(
+      companyId,
+      companyAdminUserId,
+      CompanyAuditAction.SERVICE_UPDATED,
+      `${actor} updated "${serviceName}" for ${providerName}.`,
+      { givenServiceId, fields: Object.keys(dto) },
+      ipAddress,
+    );
+
+    return updated;
   }
 
   // ─── toggleGivenServiceActive ─────────────────────────────────────────────
@@ -379,14 +399,30 @@ export class CompanyServicesService {
     companyAdminUserId: string,
     givenServiceId: string,
     active: boolean,
+    ipAddress?: string,
   ): Promise<{ id: string; active: boolean }> {
-    await this.getGivenServiceForEdit(companyAdminUserId, givenServiceId);
+    const gs = await this.getGivenServiceForEdit(companyAdminUserId, givenServiceId);
+    const companyId = gs.provider.companyId!;
 
     const updated = await this.prisma.givenService.update({
       where: { id: givenServiceId },
       data: { active },
       select: { id: true, active: true },
     });
+
+    const serviceName = pickTranslation(gs.service.translations);
+    const providerName =
+      `${gs.provider.user.firstName ?? ''} ${gs.provider.user.lastName ?? ''}`.trim() ||
+      'provider';
+    const actor = await this.audit.actorFirstName(companyAdminUserId);
+    await this.audit.log(
+      companyId,
+      companyAdminUserId,
+      CompanyAuditAction.SERVICE_TOGGLED,
+      `${actor} ${active ? 'enabled' : 'disabled'} "${serviceName}" for ${providerName}.`,
+      { givenServiceId, active },
+      ipAddress,
+    );
 
     return updated;
   }
@@ -397,8 +433,10 @@ export class CompanyServicesService {
     companyAdminUserId: string,
     givenServiceId: string,
     imageUrl: string,
+    ipAddress?: string,
   ) {
-    await this.getGivenServiceForEdit(companyAdminUserId, givenServiceId);
+    const gs = await this.getGivenServiceForEdit(companyAdminUserId, givenServiceId);
+    const companyId = gs.provider.companyId!;
     const trimmed = imageUrl.trim();
     this.assertGalleryUrlForGivenService(givenServiceId, trimmed);
 
@@ -409,17 +447,32 @@ export class CompanyServicesService {
       throw new BadRequestException('Maximum 40 gallery images');
     }
 
-    return this.prisma.serviceGallery.create({
+    const created = await this.prisma.serviceGallery.create({
       data: { givenServiceId, imageUrl: trimmed },
     });
+
+    await this.logGalleryAudit(
+      companyId,
+      companyAdminUserId,
+      pickTranslation(gs.service.translations),
+      `${gs.provider.user.firstName ?? ''} ${gs.provider.user.lastName ?? ''}`.trim() ||
+        'provider',
+      'added a gallery image to',
+      { givenServiceId, galleryId: created.id, action: 'add' },
+      ipAddress,
+    );
+
+    return created;
   }
 
   async uploadGalleryImage(
     companyAdminUserId: string,
     givenServiceId: string,
     file: GalleryUploadFile,
+    ipAddress?: string,
   ) {
-    await this.getGivenServiceForEdit(companyAdminUserId, givenServiceId);
+    const gs = await this.getGivenServiceForEdit(companyAdminUserId, givenServiceId);
+    const companyId = gs.provider.companyId!;
 
     const count = await this.prisma.serviceGallery.count({
       where: { givenServiceId },
@@ -448,9 +501,22 @@ export class CompanyServicesService {
       .storage.from(GALLERY_BUCKET)
       .getPublicUrl(objectPath);
 
-    return this.prisma.serviceGallery.create({
+    const created = await this.prisma.serviceGallery.create({
       data: { givenServiceId, imageUrl: urlData.publicUrl },
     });
+
+    await this.logGalleryAudit(
+      companyId,
+      companyAdminUserId,
+      pickTranslation(gs.service.translations),
+      `${gs.provider.user.firstName ?? ''} ${gs.provider.user.lastName ?? ''}`.trim() ||
+        'provider',
+      'uploaded a gallery image for',
+      { givenServiceId, galleryId: created.id, action: 'upload' },
+      ipAddress,
+    );
+
+    return created;
   }
 
   private galleryExtFromMime(mimetype: string, originalname: string): string {
@@ -470,12 +536,19 @@ export class CompanyServicesService {
   async removeGalleryImage(
     companyAdminUserId: string,
     galleryId: string,
+    ipAddress?: string,
   ): Promise<void> {
     const companyId = await this.resolveCompanyId(companyAdminUserId);
 
     const gallery = await this.prisma.serviceGallery.findUnique({
       where: { id: galleryId },
-      include: { givenService: { select: { ownerId: true, ownerType: true } } },
+      include: {
+        givenService: {
+          include: {
+            service: { include: { translations: true } },
+          },
+        },
+      },
     });
 
     if (!gallery) throw new NotFoundException('Gallery image not found.');
@@ -486,6 +559,7 @@ export class CompanyServicesService {
 
     const provider = await this.prisma.provider.findFirst({
       where: { id: gallery.givenService.ownerId, companyId, type: ProviderType.EMPLOYEE },
+      include: { user: true },
     });
 
     if (!provider) {
@@ -496,6 +570,40 @@ export class CompanyServicesService {
     await this.supabase.removeStorageObjectByPublicUrl(
       GALLERY_BUCKET,
       gallery.imageUrl,
+    );
+
+    const serviceName = pickTranslation(gallery.givenService.service.translations);
+    const providerName =
+      `${provider.user.firstName ?? ''} ${provider.user.lastName ?? ''}`.trim() ||
+      'provider';
+    const actor = await this.audit.actorFirstName(companyAdminUserId);
+    await this.audit.log(
+      companyId,
+      companyAdminUserId,
+      CompanyAuditAction.SERVICE_GALLERY_UPDATED,
+      `${actor} removed a gallery image from "${serviceName}" for ${providerName}.`,
+      { givenServiceId: gallery.givenServiceId, galleryId, action: 'remove' },
+      ipAddress,
+    );
+  }
+
+  private async logGalleryAudit(
+    companyId: string,
+    companyAdminUserId: string,
+    serviceName: string,
+    providerName: string,
+    verb: string,
+    metadata: Prisma.InputJsonValue,
+    ipAddress?: string,
+  ) {
+    const actor = await this.audit.actorFirstName(companyAdminUserId);
+    await this.audit.log(
+      companyId,
+      companyAdminUserId,
+      CompanyAuditAction.SERVICE_GALLERY_UPDATED,
+      `${actor} ${verb} "${serviceName}" for ${providerName}.`,
+      metadata,
+      ipAddress,
     );
   }
 

@@ -23,6 +23,9 @@ import { api } from "../../../services/api";
 import { getStoredClientCoords } from "../../../services/client-location-cache";
 import type { MarketplaceServiceItem } from "../category-services/types";
 
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+
 type SearchHistoryItem = {
   id: string;
   query: string | null;
@@ -279,7 +282,7 @@ export const ClientHomeSearchScreen: React.FC = () => {
                   pressRetentionOffset={{ top: 2, left: 2, right: 2, bottom: 2 }}
                 >
                   <View style={styles.serviceIconWrap}>
-                    <Ionicons name="time-outline" size={14} color="#4F46E5" />
+                    <Ionicons name="time-outline" size={14} color="#EA580C" />
                   </View>
                   <View style={styles.serviceTextWrap}>
                     <Text style={styles.serviceName}>{item.service.name}</Text>
@@ -295,7 +298,7 @@ export const ClientHomeSearchScreen: React.FC = () => {
 
           {loading ? (
             <View style={styles.centerWrap}>
-              <ActivityIndicator color="#4F46E5" />
+              <ActivityIndicator color="#EA580C" />
             </View>
           ) : !normalizedSearch ? (
             <View style={styles.centerWrap}>
@@ -321,7 +324,7 @@ export const ClientHomeSearchScreen: React.FC = () => {
                   onPress={() => void onSelectService(item)}
                 >
                   <View style={styles.serviceIconWrap}>
-                    <Icon name="tools" size={14} color="#4F46E5" />
+                    <Icon name="tools" size={14} color="#EA580C" />
                   </View>
                   <View style={styles.serviceTextWrap}>
                     <Text style={styles.serviceName}>{item.name}</Text>
@@ -330,7 +333,7 @@ export const ClientHomeSearchScreen: React.FC = () => {
                     </Text>
                   </View>
                   {searching ? (
-                    <ActivityIndicator size="small" color="#4F46E5" />
+                    <ActivityIndicator size="small" color="#EA580C" />
                   ) : (
                     <Ionicons
                       name="chevron-forward"
@@ -461,7 +464,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
@@ -478,7 +481,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   recentTitle: { fontSize: 14, fontWeight: "700", color: "#111827" },
-  clearAllText: { fontSize: 12, fontWeight: "600", color: "#4F46E5" },
+  clearAllText: { fontSize: 12, fontWeight: "600", color: "#EA580C" },
   confirmBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.42)",

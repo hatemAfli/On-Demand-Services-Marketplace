@@ -14,7 +14,6 @@ import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ProviderStackParamList } from "../../../navigation/types";
-import { COLORS } from "../../../constants";
 import {
   api,
   type ComplaintDecision,
@@ -25,6 +24,11 @@ import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import { CATEGORY_OPTIONS, getCategoryOption } from "../../client/complaints/categoryMeta";
 
 type Props = NativeStackScreenProps<ProviderStackParamList, "ProviderComplaints">;
+
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
 
 // ─── Helpers (unchanged) ──────────────────────────────────────────────────────
 
@@ -95,7 +99,7 @@ function decisionIcon(decision: ComplaintDecision): { name: React.ComponentProps
     case "WARNING_ISSUED":
       return { name: "warning-outline", color: "#D97706" };
     case "ACCOUNT_SUSPENDED":
-      return { name: "lock-closed-outline", color: "#7C3AED" };
+      return { name: "lock-closed-outline", color: ACCENT };
     case "ACCOUNT_BANNED":
       return { name: "ban-outline", color: "#DC2626" };
     case "REFUND_ISSUED":
@@ -221,15 +225,19 @@ export const ProviderComplaintsScreen: React.FC<Props> = ({ navigation }) => {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("provider.screenTitles.ProviderComplaints"),
+      headerTitleAlign: "center",
       headerLeft: () => (
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={{ marginLeft: 8, padding: 4 }}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <Ionicons name="chevron-back" size={24} color={COLORS.text.primary} />
-        </TouchableOpacity>
+        <View style={styles.headerSide}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.headerBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
+          </TouchableOpacity>
+        </View>
       ),
+      headerRight: () => <View style={styles.headerSide} />,
     });
   }, [navigation, t]);
 
@@ -423,8 +431,14 @@ export const ProviderComplaintsScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  headerSide: {
+    width: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerBtn: { padding: 4 },
   // ── Root ────────────────────────────────────────────────────────────────────
-  root: { flex: 1, backgroundColor: "#F7F6FB" },
+  root: { flex: 1, backgroundColor: SCREEN_BG },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   loadingCard: {
     alignItems: "center",
@@ -533,20 +547,22 @@ const styles = StyleSheet.create({
   sectionHeadText: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#94A3B8",
+    color: ACCENT,
     textTransform: "uppercase",
     letterSpacing: 0.9,
   },
   sectionHeadBadge: {
-    backgroundColor: "#E2E8F0",
+    backgroundColor: ACCENT_LIGHT,
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: ACCENT_BORDER,
   },
   sectionHeadBadgeText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#64748B",
+    color: ACCENT,
   },
 
   // ── Card ─────────────────────────────────────────────────────────────────────

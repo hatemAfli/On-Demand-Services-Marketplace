@@ -8,6 +8,7 @@ import {
 import {
   EmployeeInvitation,
   InvitationStatus,
+  CompanyAuditAction,
   NotificationType,
   Provider,
   ProviderType,
@@ -15,6 +16,7 @@ import {
 import { PrismaService } from '../../../config/prisma.config';
 import { AvailabilityService } from '../../availability/availability.service';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { CompanyAuditService } from '../audit/company-audit.service';
 import { GetEmployeesDto } from './dto/get-employees.dto';
 import { InviteProviderDto } from './dto/invite-provider.dto';
 import { RespondInvitationDto } from './dto/respond-invitation.dto';
@@ -27,6 +29,7 @@ export class EmployeesService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
     private readonly availabilityService: AvailabilityService,
+    private readonly audit: CompanyAuditService,
   ) {}
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -100,6 +103,7 @@ export class EmployeesService {
   async sendInvitation(
     companyAdminUserId: string,
     dto: InviteProviderDto,
+    ipAddress?: string,
   ): Promise<EmployeeInvitation> {
     const companyAdmin = await this.resolveCompanyAdmin(companyAdminUserId);
     const { company } = companyAdmin;
@@ -148,6 +152,16 @@ export class EmployeesService {
       },
     });
 
+    const actor = await this.audit.actorFirstName(companyAdmin.id);
+    await this.audit.log(
+      companyId,
+      companyAdmin.id,
+      CompanyAuditAction.EMPLOYEE_INVITED,
+      `${actor} invited ${provider.firstName} ${provider.lastName} (${dto.email}) to join the team.`,
+      { invitationId: invitation.id, providerId: provider.id, email: dto.email },
+      ipAddress,
+    );
+
     return invitation;
   }
 
@@ -156,6 +170,7 @@ export class EmployeesService {
   async cancelInvitation(
     companyAdminUserId: string,
     invitationId: string,
+    ipAddress?: string,
   ): Promise<void> {
     const companyAdmin = await this.resolveCompanyAdmin(companyAdminUserId);
     const companyId = companyAdmin.company.id;
@@ -187,6 +202,19 @@ export class EmployeesService {
       body: `${companyAdmin.company.companyName} has cancelled their invitation.`,
       data: { invitationId, screen: 'ProviderInvitationsScreen' },
     });
+
+    const providerName =
+      `${invitation.provider.user.firstName ?? ''} ${invitation.provider.user.lastName ?? ''}`.trim() ||
+      'provider';
+    const actor = await this.audit.actorFirstName(companyAdmin.id);
+    await this.audit.log(
+      companyId,
+      companyAdmin.id,
+      CompanyAuditAction.EMPLOYEE_INVITATION_CANCELLED,
+      `${actor} cancelled the invitation sent to ${providerName}.`,
+      { invitationId, providerId: invitation.providerId },
+      ipAddress,
+    );
   }
 
   // ─── getMyInvitations (company admin — all sent) ─────────────────────────────
@@ -386,6 +414,7 @@ export class EmployeesService {
   async removeEmployee(
     companyAdminUserId: string,
     providerId: string,
+    ipAddress?: string,
   ): Promise<void> {
     const companyAdmin = await this.resolveCompanyAdmin(companyAdminUserId);
     const { company } = companyAdmin;
@@ -443,6 +472,19 @@ export class EmployeesService {
       body: `${company.companyName} has removed you from their team. You are now an independent provider.`,
       data: { companyId: company.id, screen: 'ProviderHomeScreen' },
     });
+
+    const providerName =
+      `${provider.user.firstName ?? ''} ${provider.user.lastName ?? ''}`.trim() ||
+      'provider';
+    const actor = await this.audit.actorFirstName(companyAdmin.id);
+    await this.audit.log(
+      company.id,
+      companyAdmin.id,
+      CompanyAuditAction.EMPLOYEE_REMOVED,
+      `${actor} removed ${providerName} from the team.`,
+      { providerId },
+      ipAddress,
+    );
   }
 
   // ─── getCompanyEmployees ──────────────────────────────────────────────────────

@@ -14,6 +14,8 @@ import {
   DocumentType,
 } from '@prisma/client';
 import { GivenServiceService } from '../given-service/given-service.service';
+import { UserAccountService } from '../accounts/user-account.service';
+import { UpdateUserIdentityDto } from '../accounts/dto/update-user-identity.dto';
 
 @Injectable()
 export class AuthService {
@@ -21,6 +23,7 @@ export class AuthService {
     private prisma: PrismaService,
     private supabase: SupabaseService,
     private readonly givenServiceService: GivenServiceService,
+    private readonly userAccountService: UserAccountService,
   ) {}
 
   async completeRegistration(
@@ -403,5 +406,10 @@ export class AuthService {
     }
 
     return { available: true };
+  }
+
+  async updateIdentity(userId: string, dto: UpdateUserIdentityDto) {
+    await this.userAccountService.updateUserIdentity(userId, dto);
+    return this.getCurrentUser({ id: userId });
   }
 }

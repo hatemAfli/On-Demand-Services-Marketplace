@@ -28,16 +28,16 @@ type Props = NativeStackScreenProps<ClientStackParamList, "ClientMyReviews">;
 
 // ─── Design tokens ─────────────────────────────────────────
 const C = {
-  bg:          "#F7F8FC",
+  bg:          "#F1F5F9",
   white:       "#FFFFFF",
   border:      "#EAECF4",
   borderLight: "#F0F2F8",
   text:        "#0F172A",
   textSub:     "#64748B",
   textLight:   "#94A3B8",
-  accent:      "#7C5CFC",
-  accentBg:    "#F5F3FF",
-  accentBdr:   "#DDD6FE",
+  accent:      "#EA580C",
+  accentBg:    "#FFF7ED",
+  accentBdr:   "#FFEDD5",
   gold:        "#F59E0B",
   goldEmpty:   "#E2E8F0",
   success:     "#059669",
@@ -111,6 +111,7 @@ export const ClientMyReviewsScreen: React.FC<Props> = ({ navigation }) => {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("client.screenTitles.ClientMyReviews"),
+      headerTitleAlign: "center",
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -120,6 +121,7 @@ export const ClientMyReviewsScreen: React.FC<Props> = ({ navigation }) => {
           <Ionicons name="chevron-back" size={24} color={C.text} />
         </TouchableOpacity>
       ),
+      headerRight: () => <View style={{ width: 40, marginRight: 8 }} />,
     });
   }, [navigation, t]);
 

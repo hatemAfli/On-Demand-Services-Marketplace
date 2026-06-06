@@ -139,7 +139,7 @@ export const ProviderChangeEmailScreen: React.FC = () => {
           <View style={styles.card}>
             <View style={styles.headerRow}>
               <View style={styles.iconWrap}>
-                <Ionicons name="mail-outline" size={20} color="#4F46E5" />
+                <Ionicons name="mail-outline" size={20} color="#EA580C" />
               </View>
               <View style={styles.headerTextWrap}>
                 <Text style={[styles.title, isRTL && styles.rtlText]}>
@@ -190,7 +190,7 @@ export const ProviderChangeEmailScreen: React.FC = () => {
 
           {sentTo ? (
             <View style={styles.sentCard}>
-              <Ionicons name="mail-open-outline" size={24} color="#4F46E5" />
+              <Ionicons name="mail-open-outline" size={24} color="#EA580C" />
               <Text style={styles.sentTitle}>
                 {t("provider.settings.changeEmailCheckTitle")}
               </Text>
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   backButton: { paddingVertical: 8, paddingHorizontal: 8 },
-  backText: { color: "#4F46E5", fontSize: 16, fontWeight: "600" },
+  backText: { color: "#EA580C", fontSize: 16, fontWeight: "600" },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -274,10 +274,10 @@ const styles = StyleSheet.create({
     minWidth: 200,
     height: 48,
     borderRadius: 999,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#EA580C",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#4338CA",
+    shadowColor: "#C2410C",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
@@ -300,13 +300,13 @@ const styles = StyleSheet.create({
     marginTop: 18,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#C7D2FE",
-    backgroundColor: "#EEF2FF",
+    borderColor: "#FFEDD5",
+    backgroundColor: "#FFF7ED",
     padding: 14,
     gap: 8,
   },
-  sentTitle: { fontSize: 16, fontWeight: "700", color: "#312E81" },
-  sentText: { fontSize: 13, color: "#3730A3" },
+  sentTitle: { fontSize: 16, fontWeight: "700", color: "#9A3412" },
+  sentText: { fontSize: 13, color: "#C2410C" },
   rtlText: {
     textAlign: "right",
     writingDirection: "rtl",

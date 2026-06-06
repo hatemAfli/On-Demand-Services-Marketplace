@@ -5,11 +5,13 @@ import {
 } from '@nestjs/common';
 import {
   AppointmentStatus,
+  CompanyAuditAction,
   DayOfWeek,
   ProviderType,
 } from '@prisma/client';
 import { PrismaService } from '../../../config/prisma.config';
 import { AvailabilityService } from '../../availability/availability.service';
+import { CompanyAuditService } from '../audit/company-audit.service';
 import { CreateDayOffDto } from '../../availability/dto/day-off.dto';
 import { UpsertAvailabilityBulkDto } from '../../availability/dto/upsert-availability.dto';
 import { GetCompanyScheduleDto } from './dto/get-company-schedule.dto';
@@ -46,6 +48,7 @@ export class CompanyScheduleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly availabilityService: AvailabilityService,
+    private readonly audit: CompanyAuditService,
   ) {}
 
   private async resolveCompanyId(companyAdminUserId: string): Promise<string> {
@@ -251,13 +254,27 @@ export class CompanyScheduleService {
     companyAdminUserId: string,
     providerId: string,
     dto: UpsertAvailabilityBulkDto,
+    ipAddress?: string,
   ) {
     const companyId = await this.resolveCompanyId(companyAdminUserId);
     await this.assertCompanyEmployee(companyId, providerId);
-    return this.availabilityService.upsertAvailabilityForEmployee(
+    const result = await this.availabilityService.upsertAvailabilityForEmployee(
       providerId,
       dto,
     );
+
+    const employeeName = await this.employeeDisplayName(providerId);
+    const actor = await this.audit.actorFirstName(companyAdminUserId);
+    await this.audit.log(
+      companyId,
+      companyAdminUserId,
+      CompanyAuditAction.SCHEDULE_AVAILABILITY_UPDATED,
+      `${actor} updated weekly availability for ${employeeName}.`,
+      { providerId, daysUpdated: dto.days?.length ?? 0 },
+      ipAddress,
+    );
+
+    return result;
   }
 
   // ─── Employee days off ──────────────────────────────────────────────────────
@@ -277,26 +294,77 @@ export class CompanyScheduleService {
     companyAdminUserId: string,
     providerId: string,
     dto: CreateDayOffDto,
+    ipAddress?: string,
   ) {
     const companyId = await this.resolveCompanyId(companyAdminUserId);
     await this.assertCompanyEmployee(companyId, providerId);
-    return this.availabilityService.createDayOffForEmployee(providerId, dto);
+    const created = await this.availabilityService.createDayOffForEmployee(
+      providerId,
+      dto,
+    );
+
+    const employeeName = await this.employeeDisplayName(providerId);
+    const actor = await this.audit.actorFirstName(companyAdminUserId);
+    await this.audit.log(
+      companyId,
+      companyAdminUserId,
+      CompanyAuditAction.SCHEDULE_DAY_OFF_CREATED,
+      `${actor} added a day off for ${employeeName} on ${dto.date}.`,
+      { providerId, dayOffId: created.id, date: dto.date, reason: dto.reason ?? null },
+      ipAddress,
+    );
+
+    return created;
   }
 
   async deleteEmployeeDayOff(
     companyAdminUserId: string,
     providerId: string,
     dayOffId: string,
+    ipAddress?: string,
   ) {
     const companyId = await this.resolveCompanyId(companyAdminUserId);
     await this.assertCompanyEmployee(companyId, providerId);
-    return this.availabilityService.deleteDayOffForEmployee(
+
+    const dayOff = await this.prisma.providerDayOff.findUnique({
+      where: { id: dayOffId },
+      select: { id: true, providerId: true, date: true },
+    });
+    if (!dayOff || dayOff.providerId !== providerId) {
+      throw new NotFoundException('Day off not found');
+    }
+
+    const result = await this.availabilityService.deleteDayOffForEmployee(
       providerId,
       dayOffId,
     );
+
+    const employeeName = await this.employeeDisplayName(providerId);
+    const dateStr = dayOff.date.toISOString().slice(0, 10);
+    const actor = await this.audit.actorFirstName(companyAdminUserId);
+    await this.audit.log(
+      companyId,
+      companyAdminUserId,
+      CompanyAuditAction.SCHEDULE_DAY_OFF_DELETED,
+      `${actor} removed a day off for ${employeeName} on ${dateStr}.`,
+      { providerId, dayOffId, date: dateStr },
+      ipAddress,
+    );
+
+    return result;
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  private async employeeDisplayName(providerId: string): Promise<string> {
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: providerId },
+      select: { user: { select: { firstName: true, lastName: true } } },
+    });
+    const name =
+      `${provider?.user?.firstName ?? ''} ${provider?.user?.lastName ?? ''}`.trim();
+    return name || 'employee';
+  }
 
   private collectConflicts(
     employees: Array<{

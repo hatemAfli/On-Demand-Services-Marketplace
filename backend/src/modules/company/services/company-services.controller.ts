@@ -11,16 +11,19 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
+import { clientIp } from '../../../common/utils/client-ip';
 import { AddGalleryImageDto } from './dto/add-gallery-image.dto';
 import { UpdateGivenServiceDto } from './dto/update-given-service.dto';
 import type { GalleryUploadFile } from './gallery-upload-file.type';
@@ -89,11 +92,13 @@ export class CompanyServicesController {
     @CurrentUser() user: AuthUser,
     @Param('givenServiceId', ParseUUIDPipe) givenServiceId: string,
     @Body() dto: UpdateGivenServiceDto,
+    @Req() req: Request,
   ) {
     return this.companyServicesService.updateGivenService(
       user.id,
       givenServiceId,
       dto,
+      clientIp(req),
     );
   }
 
@@ -104,11 +109,13 @@ export class CompanyServicesController {
     @CurrentUser() user: AuthUser,
     @Param('givenServiceId', ParseUUIDPipe) givenServiceId: string,
     @Body('active') active: boolean,
+    @Req() req: Request,
   ) {
     return this.companyServicesService.toggleGivenServiceActive(
       user.id,
       givenServiceId,
       active,
+      clientIp(req),
     );
   }
 
@@ -122,6 +129,7 @@ export class CompanyServicesController {
     @CurrentUser() user: AuthUser,
     @Param('givenServiceId', ParseUUIDPipe) givenServiceId: string,
     @UploadedFile() file?: GalleryUploadFile,
+    @Req() req?: Request,
   ) {
     if (!file?.buffer?.length) {
       throw new BadRequestException('Image file is required.');
@@ -141,6 +149,7 @@ export class CompanyServicesController {
       user.id,
       givenServiceId,
       file,
+      req ? clientIp(req) : undefined,
     );
   }
 
@@ -151,11 +160,13 @@ export class CompanyServicesController {
     @CurrentUser() user: AuthUser,
     @Param('givenServiceId', ParseUUIDPipe) givenServiceId: string,
     @Body() dto: AddGalleryImageDto,
+    @Req() req: Request,
   ) {
     return this.companyServicesService.addGalleryImage(
       user.id,
       givenServiceId,
       dto.imageUrl,
+      clientIp(req),
     );
   }
 
@@ -165,7 +176,8 @@ export class CompanyServicesController {
   removeGalleryImage(
     @CurrentUser() user: AuthUser,
     @Param('galleryId', ParseUUIDPipe) galleryId: string,
+    @Req() req: Request,
   ) {
-    return this.companyServicesService.removeGalleryImage(user.id, galleryId);
+    return this.companyServicesService.removeGalleryImage(user.id, galleryId, clientIp(req));
   }
 }

@@ -38,6 +38,11 @@ import {
   statusPillStyle,
 } from "./complaintUi";
 
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
+
 type Props = NativeStackScreenProps<ClientStackParamList, "ClientMyComplaints">;
 
 type StatusFilter = "ALL" | ComplaintStatus;
@@ -113,6 +118,7 @@ export const ClientMyComplaintsScreen: React.FC<Props> = ({ navigation }) => {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("client.screenTitles.ClientMyComplaints"),
+      headerTitleAlign: "center",
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -122,6 +128,7 @@ export const ClientMyComplaintsScreen: React.FC<Props> = ({ navigation }) => {
           <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
         </TouchableOpacity>
       ),
+      headerRight: () => <View style={{ width: 40, marginRight: 8 }} />,
     });
   }, [navigation, t]);
 
@@ -222,7 +229,7 @@ export const ClientMyComplaintsScreen: React.FC<Props> = ({ navigation }) => {
             {/* Category row + status pill */}
             <View style={styles.cardHeaderRow}>
               <View style={styles.catIconWrap}>
-                <Ionicons name={cat.icon as any} size={16} color="#7C5CFC" />
+                <Ionicons name={cat.icon as any} size={16} color="#EA580C" />
               </View>
               <Text style={styles.categoryLabel} numberOfLines={1}>
                 {cat.label}
@@ -337,7 +344,7 @@ export const ClientMyComplaintsScreen: React.FC<Props> = ({ navigation }) => {
 
       {loading && items.length === 0 ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#7C5CFC" />
+          <ActivityIndicator size="large" color="#EA580C" />
         </View>
       ) : (
         <FlatList
@@ -350,15 +357,15 @@ export const ClientMyComplaintsScreen: React.FC<Props> = ({ navigation }) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#7C5CFC"
-              colors={["#7C5CFC"]}
+              tintColor="#EA580C"
+              colors={["#EA580C"]}
             />
           }
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyInner}>
               <View style={styles.emptyIconWrap}>
-                <Ionicons name="shield-outline" size={32} color="#7C5CFC" />
+                <Ionicons name="shield-outline" size={32} color="#EA580C" />
               </View>
               <Text style={styles.emptyTitle}>
                 {t("client.complaints.emptyTitle")}
@@ -378,7 +385,7 @@ export const ClientMyComplaintsScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
   },
 
   /* ── Filter chips ── */
@@ -400,13 +407,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     borderWidth: 1.5,
     borderColor: "#EBEBF5",
   },
   chipActive: {
-    backgroundColor: "#EDE9FE",
-    borderColor: "#C4B5FD",
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FFEDD5",
   },
   chipText: {
     fontSize: 12,
@@ -414,7 +421,7 @@ const styles = StyleSheet.create({
     color: "#9B9BB0",
   },
   chipTextActive: {
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
 
   /* ── States ── */
@@ -442,9 +449,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 24,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1.5,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
@@ -499,7 +506,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 9,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -536,30 +543,30 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F4F3FA",
+    borderBottomColor: "#F1F5F9",
   },
   avatar: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     flexShrink: 0,
   },
   avatarPlaceholder: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     flexShrink: 0,
   },
   avatarInitial: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
   metaTextCol: {
     flex: 1,
@@ -631,7 +638,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     borderWidth: 1,
     borderColor: "#EBEBF5",
   },

@@ -27,7 +27,6 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
-import { COLORS } from "../../../constants";
 import { useAuth } from "../../../context/AuthContext";
 import { api } from "../../../services/api";
 import { uploadAppointmentRequestPhotos } from "../../../services/appointmentRequestPhotosUpload";
@@ -43,17 +42,17 @@ const BOOKING_DATE_LOCALE = "en-US";
 
 // ─── Design tokens ─────────────────────────────────────────
 const C = {
-  bg: "#f9fafb",
+  bg: "#F1F5F9",
   white: "#ffffff",
   border: "#e5e7eb",
   borderLight: "#f3f4f6",
   text: "#111827",
   textSub: "#6b7280",
   textLight: "#9ca3af",
-  accent: "#2563eb",
-  accentBg: "#eff6ff",
-  accentBorder: "#dbeafe",
-  accentLight: "rgba(37,99,235,0.08)",
+  accent: "#EA580C",
+  accentBg: "#FFF7ED",
+  accentBorder: "#FFEDD5",
+  accentLight: "rgba(234,88,12,0.08)",
   success: "#059669",
   successBg: "#ECFDF5",
   error: "#DC2626",
@@ -705,23 +704,19 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
       <View style={s.root}>
         {/* ── Header ── */}
         <View style={s.header}>
-          <View style={s.headerRow}>
+          <View style={s.headerSide}>
             <TouchableOpacity
               style={s.headerIconBtn}
               onPress={() => navigation.goBack()}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Ionicons name="arrow-back" size={16} color={C.textSub} />
+              <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
             </TouchableOpacity>
-            <Text style={s.headerTitle}>Confirm Booking</Text>
-            <View style={s.headerIconBtn}>
-              <Ionicons
-                name="help-circle-outline"
-                size={18}
-                color={C.textSub}
-              />
-            </View>
           </View>
+          <View style={s.headerCenter}>
+            <Text style={s.headerTitle}>Confirm Booking</Text>
+          </View>
+          <View style={s.headerSide} />
         </View>
 
         <ScrollView
@@ -1093,14 +1088,16 @@ export const ClientSlotPickerScreen: React.FC<Props> = ({
       >
         <SafeAreaView style={s.pickerSafe} edges={["top", "bottom"]}>
           <View style={s.pickerHeader}>
-            <TouchableOpacity
-              onPress={() => setLocationPickerVisible(false)}
-              style={s.pickerBack}
-            >
-              <Ionicons name="close" size={22} color={C.text} />
-            </TouchableOpacity>
+            <View style={s.pickerHeaderSide}>
+              <TouchableOpacity
+                onPress={() => setLocationPickerVisible(false)}
+                style={s.pickerBack}
+              >
+                <Ionicons name="close" size={22} color={C.text} />
+              </TouchableOpacity>
+            </View>
             <Text style={s.pickerTitle}>Pick your location</Text>
-            <View style={{ width: 38 }} />
+            <View style={s.pickerHeaderSide} />
           </View>
 
           <View style={s.pickerMapWrap}>
@@ -1179,15 +1176,20 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.borderLight,
   },
-  headerRow: {
-    flexDirection: "row",
+  headerSide: {
+    width: 40,
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerIconBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: C.bg,
@@ -1195,9 +1197,10 @@ const s = StyleSheet.create({
     borderColor: C.borderLight,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: C.text,
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#1A1A2E",
+    textAlign: "center",
   },
 
   // ── Scroll ───────────────────────────────────────────────
@@ -1302,7 +1305,7 @@ const s = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#F97316",
+    backgroundColor: C.accent,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -1741,11 +1744,15 @@ const s = StyleSheet.create({
   pickerHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
+  },
+  pickerHeaderSide: {
+    width: 38,
+    alignItems: "center",
+    justifyContent: "center",
   },
   pickerBack: {
     width: 38,
@@ -1756,9 +1763,11 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   pickerTitle: {
+    flex: 1,
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "800",
     color: C.text,
+    textAlign: "center",
   },
   pickerMapWrap: {
     flex: 1,
@@ -1806,7 +1815,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F97316",
+    backgroundColor: C.accent,
     borderRadius: 16,
     paddingVertical: 14,
     gap: 8,

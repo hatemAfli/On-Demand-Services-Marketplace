@@ -143,12 +143,50 @@ enum CompanyAuditAction {
   BRANCH_DELETED
   NOTIFICATION_UPDATED
   DATA_EXPORT
+  APPOINTMENT_CONFIRMED
+  APPOINTMENT_REFUSED
+  APPOINTMENT_RESCHEDULED
+  APPOINTMENT_ASSIGNED
+  COMPLAINT_REVIEWED
+  EMPLOYEE_INVITED
+  EMPLOYEE_INVITATION_CANCELLED
+  EMPLOYEE_REMOVED
+  SERVICE_UPDATED
+  SERVICE_TOGGLED
+  SERVICE_GALLERY_UPDATED
+  SCHEDULE_AVAILABILITY_UPDATED
+  SCHEDULE_DAY_OFF_CREATED
+  SCHEDULE_DAY_OFF_DELETED
 }
 
-enum DashboardTheme {
-  LIGHT
-  DARK
-  SYSTEM
+enum PlatformAuditAction {
+  USER_STATUS_UPDATED
+  VERIFICATION_APPROVED
+  VERIFICATION_REJECTED
+  VERIFICATION_UNDER_REVIEW
+  VERIFICATION_DOCUMENT_REVIEWED
+  APPOINTMENT_DISPUTED
+  APPOINTMENT_INTERVENED
+  COMPLAINT_REVIEWED
+  REVIEW_HIDDEN
+  REVIEW_RESTORED
+  REVIEW_DELETED
+  SERVICE_CATEGORY_CREATED
+  SERVICE_CATEGORY_UPDATED
+  SERVICE_CATEGORY_DELETED
+  SERVICE_CREATED
+  SERVICE_UPDATED
+  SERVICE_DELETED
+  LEGAL_DOCUMENT_CREATED
+  LEGAL_DOCUMENT_UPDATED
+  LEGAL_DOCUMENT_VERSION_ADDED
+  LEGAL_DOCUMENT_PUBLISHED
+  LEGAL_DOCUMENT_DELETED
+  FAQ_CREATED
+  FAQ_UPDATED
+  FAQ_DELETED
+  SUPPORT_MESSAGE_STATUS_UPDATED
+  DATA_EXPORT
 }
 
 enum NotificationType {
@@ -410,7 +448,6 @@ model CompanyAdmin {
   user            User                 @relation(fields: [id], references: [id], onDelete: Cascade)
   company         Company?             @relation
   sentInvitations EmployeeInvitation[]
-  notificationPreference CompanyNotificationPreference?
   auditLogs              CompanyAuditLog[]              @relation("CompanyAuditActor")
 
   @@map("company_admins")
@@ -435,8 +472,6 @@ model Company {
   email          String?  @map("email")
   phone          String?  @map("phone")
   about          String?  @db.Text @map("about")
-  brandColor     String?  @default("#7621C2") @map("brand_color")
-  dashboardTheme DashboardTheme @default(LIGHT) @map("dashboard_theme")
   averageRating  Decimal? @default(0) @db.Decimal(3, 2)
   totalReviews   Int      @default(0) @map("total_reviews")
   cancellationRate    Decimal? @default(0) @map("cancellation_rate") @db.Decimal(5, 2)
@@ -473,20 +508,6 @@ model CompanyBranch {
   @@map("company_branches")
 }
 
-model CompanyNotificationPreference {
-  id                    String   @id @default(uuid()) @db.Uuid
-  companyAdminId        String   @unique @map("company_admin_id") @db.Uuid
-  newOrderAlerts        Boolean  @default(true) @map("new_order_alerts")
-  providerStatusUpdates Boolean  @default(false) @map("provider_status_updates")
-  weeklyReport          Boolean  @default(true) @map("weekly_report")
-  systemAnnouncements   Boolean  @default(true) @map("system_announcements")
-  updatedAt             DateTime @updatedAt @map("updated_at")
-
-  companyAdmin CompanyAdmin @relation(fields: [companyAdminId], references: [id], onDelete: Cascade)
-
-  @@map("company_notification_preferences")
-}
-
 model CompanyAuditLog {
   id           String             @id @default(uuid()) @db.Uuid
   companyId    String             @map("company_id") @db.Uuid
@@ -517,8 +538,25 @@ model PlatformAdmin {
   user                         User                   @relation(fields: [id], references: [id], onDelete: Cascade)
   createdLegalDocumentVersions LegalDocumentVersion[]
   handledComplaints            Complaint[]
+  auditLogs                    PlatformAuditLog[]     @relation("PlatformAuditActor")
 
   @@map("platform_admins")
+}
+
+model PlatformAuditLog {
+  id           String              @id @default(uuid()) @db.Uuid
+  actorAdminId String?             @map("actor_admin_id") @db.Uuid
+  action       PlatformAuditAction
+  summary      String
+  metadata     Json?
+  ipAddress    String?             @map("ip_address")
+  createdAt    DateTime            @default(now()) @map("created_at")
+
+  actorAdmin PlatformAdmin? @relation("PlatformAuditActor", fields: [actorAdminId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@map("platform_audit_logs")
 }
 
 /// One row per legal document type (TERMS/PRIVACY). Localized fields live in `LegalDocumentTranslation`.

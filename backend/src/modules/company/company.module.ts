@@ -6,6 +6,7 @@ import { CompanyReviewsModule } from './reviews/company-reviews.module';
 import { CompanySettingsModule } from './settings/company-settings.module';
 import { CompanyServicesModule } from './services/company-services.module';
 import { CompanyComplaintsModule } from './complaints/company-complaints.module';
+import { CompanyDashboardModule } from './dashboard/company-dashboard.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CompanyComplaintsModule } from './complaints/company-complaints.module'
     CompanyReviewsModule,
     CompanySettingsModule,
     CompanyComplaintsModule,
+    CompanyDashboardModule,
   ],
   exports: [
     EmployeesModule,
@@ -25,6 +27,7 @@ import { CompanyComplaintsModule } from './complaints/company-complaints.module'
     CompanyReviewsModule,
     CompanySettingsModule,
     CompanyComplaintsModule,
+    CompanyDashboardModule,
   ],
 })
 export class CompanyModule {}

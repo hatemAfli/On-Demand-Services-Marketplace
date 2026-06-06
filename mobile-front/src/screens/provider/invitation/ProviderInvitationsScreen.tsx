@@ -33,6 +33,12 @@ import {
 
 type Nav = NativeStackNavigationProp<ProviderStackParamList, "ProviderInvitations">;
 
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
+
 function showToast(message: string) {
   if (Platform.OS === "android") {
     ToastAndroid.show(message, ToastAndroid.SHORT);
@@ -416,7 +422,7 @@ export const ProviderInvitationsScreen: React.FC = () => {
     return (
       <View style={styles.emptyWrap}>
         <View style={styles.emptyIconCircle}>
-          <Ionicons name="briefcase-outline" size={40} color={COLORS.primary} />
+          <Ionicons name="briefcase-outline" size={40} color={ACCENT} />
         </View>
         <Text style={styles.emptyTitle}>{emptyCopy.title}</Text>
         <Text style={styles.emptySubtitle}>{emptyCopy.subtitle}</Text>
@@ -433,12 +439,12 @@ export const ProviderInvitationsScreen: React.FC = () => {
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Ionicons name="chevron-back" size={24} color={COLORS.text.primary} />
+          <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
+        <Text style={styles.headerTitle} numberOfLines={1}>
           {t("provider.screenTitles.ProviderInvitations")}
         </Text>
-        <View style={styles.headerRight}>
+        <View style={styles.headerSide}>
           {invitations.length > 0 ? (
             <View style={styles.countBadge}>
               <Text style={styles.countBadgeText}>{invitations.length}</Text>
@@ -472,7 +478,7 @@ export const ProviderInvitationsScreen: React.FC = () => {
 
       {loading ? (
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={ACCENT} />
         </View>
       ) : (
         <FlatList
@@ -489,7 +495,7 @@ export const ProviderInvitationsScreen: React.FC = () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => void load("refresh")}
-              tintColor={COLORS.primary}
+              tintColor={ACCENT}
             />
           }
           renderItem={({ item }) => (
@@ -511,12 +517,12 @@ export const ProviderInvitationsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: SCREEN_BG,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingBottom: 12,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
@@ -525,22 +531,25 @@ const styles = StyleSheet.create({
   backBtn: {
     padding: 4,
     width: 40,
+    alignItems: "center",
   },
   headerTitle: {
     flex: 1,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
-    color: COLORS.text.primary,
+    color: "#1A1A2E",
+    textAlign: "center",
   },
-  headerRight: {
+  headerSide: {
     width: 40,
-    alignItems: "flex-end",
+    alignItems: "center",
+    justifyContent: "center",
   },
   countBadge: {
     minWidth: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: COLORS.primary,
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 7,
@@ -570,8 +579,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gray[100],
   },
   filterChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: ACCENT,
+    borderColor: ACCENT,
   },
   filterChipText: {
     fontSize: 13,
@@ -618,12 +627,12 @@ const styles = StyleSheet.create({
   logoFallback: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#EEF2FF",
+    backgroundColor: ACCENT_LIGHT,
   },
   logoInitials: {
     fontSize: 18,
     fontWeight: "800",
-    color: COLORS.primary,
+    color: ACCENT,
   },
   headerText: {
     flex: 1,
@@ -773,7 +782,9 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: ACCENT_LIGHT,
+    borderWidth: 1,
+    borderColor: ACCENT_BORDER,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 18,

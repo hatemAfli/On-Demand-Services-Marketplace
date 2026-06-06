@@ -36,6 +36,12 @@ import {
 import type { MarketplaceServiceItem } from "../category-services/types";
 import { getStoredClientCoords } from "../../../services/client-location-cache";
 
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const ACCENT_SECONDARY = "#F97316";
+const SCREEN_BG = "#F1F5F9";
+
 function clientLocationLine(
   city?: string | null,
   address?: string | null,
@@ -232,14 +238,14 @@ function statusMeta(status: AppointmentStatus): {
     case "IN_PROGRESS":
       return {
         label: "In progress",
-        dot: "#7C5CFC",
+        dot: ACCENT,
         sub: "Service in progress",
         icon: "play-circle-outline",
       };
     case "EN_ROUTE":
       return {
         label: "On the way",
-        dot: "#9333EA",
+        dot: ACCENT_SECONDARY,
         sub: "Provider is heading to you",
         icon: "navigate-outline",
       };
@@ -327,12 +333,12 @@ type PopularNearbyItem = {
 };
 
 const FALLBACK_COLORS = [
-  "#7C5CFC",
+  ACCENT,
   "#F59E0B",
   "#10B981",
   "#3B82F6",
   "#EF4444",
-  "#9333EA",
+  ACCENT_SECONDARY,
   "#EC4899",
   "#6B7280",
 ] as const;
@@ -406,11 +412,11 @@ const POPULAR_CAROUSEL_GAP = 14;
 const POPULAR_HORIZONTAL_PAD = 16;
 
 const POPULAR_CARD_THEMES = [
-  { gradient: ["#EDE9FE", "#FFFFFF"] as [string, string], accent: "#7C5CFC" },
+  { gradient: [ACCENT_LIGHT, "#FFFFFF"] as [string, string], accent: ACCENT },
   { gradient: ["#EFF6FF", "#FFFFFF"] as [string, string], accent: "#3B82F6" },
   { gradient: ["#ECFDF5", "#FFFFFF"] as [string, string], accent: "#059669" },
-  { gradient: ["#FFF7ED", "#FFFFFF"] as [string, string], accent: "#EA580C" },
-  { gradient: ["#F5F3FF", "#FFFFFF"] as [string, string], accent: "#8B5CF6" },
+  { gradient: ["#FEF3C7", "#FFFFFF"] as [string, string], accent: "#D97706" },
+  { gradient: ["#FFEDD5", "#FFFFFF"] as [string, string], accent: ACCENT_SECONDARY },
 ] as const;
 
 function PopularNearbyCarousel({
@@ -474,7 +480,7 @@ function PopularNearbyCarousel({
 
                 {isCompany ? (
                   <View style={popularCarouselStyles.companyTag}>
-                    <Ionicons name="business" size={11} color="#7C5CFC" />
+                    <Ionicons name="business" size={11} color="#EA580C" />
                     <Text style={popularCarouselStyles.companyTagText}>
                       Company
                     </Text>
@@ -696,15 +702,15 @@ const popularCarouselStyles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     zIndex: 2,
   },
   companyTagText: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
   cardRow: {
     flexDirection: "row",
@@ -730,14 +736,14 @@ const popularCarouselStyles = StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: 28,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitials: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
   cardBody: {
     flex: 1,
@@ -797,7 +803,7 @@ const popularCarouselStyles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     borderWidth: 1,
     borderColor: "#EBEBF5",
   },
@@ -820,9 +826,9 @@ const popularCarouselStyles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
   },
-  tagIndigo: { backgroundColor: "#EDE9FE" },
-  tagIndigoText: { color: "#7C5CFC" },
-  tagGray: { backgroundColor: "#F4F3FA" },
+  tagIndigo: { backgroundColor: "#FFF7ED" },
+  tagIndigoText: { color: "#EA580C" },
+  tagGray: { backgroundColor: "#F1F5F9" },
   tagGrayText: { color: "#6B6B80" },
   tagGreen: {
     backgroundColor: "#ECFDF5",
@@ -836,7 +842,7 @@ const popularCarouselStyles = StyleSheet.create({
   },
   cardDivider: {
     height: 1,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     marginTop: 2,
   },
   ctaRow: {
@@ -1251,7 +1257,7 @@ export const ClientHomeScreen: React.FC = () => {
       return (
         <View style={styles.activeOrderContainer}>
           <View style={[styles.activeOrderCard, styles.loadingCard]}>
-            <ActivityIndicator color="#7C5CFC" size="small" />
+            <ActivityIndicator color="#EA580C" size="small" />
             <Text style={styles.loadingText}>Loading your booking…</Text>
           </View>
         </View>
@@ -1374,7 +1380,7 @@ export const ClientHomeScreen: React.FC = () => {
 
       {categoriesLoading ? (
         <View style={styles.centeredPad}>
-          <ActivityIndicator color="#7C5CFC" />
+          <ActivityIndicator color="#EA580C" />
         </View>
       ) : categoriesError ? (
         <Text
@@ -1461,7 +1467,7 @@ export const ClientHomeScreen: React.FC = () => {
           <Ionicons
             name={categoriesExpanded ? "chevron-up" : "chevron-down"}
             size={13}
-            color="#7C5CFC"
+            color="#EA580C"
           />
         </TouchableOpacity>
       ) : null}
@@ -1481,7 +1487,7 @@ export const ClientHomeScreen: React.FC = () => {
       </View>
       {recommendedLoading ? (
         <View style={styles.recommendedLoadingWrap}>
-          <ActivityIndicator color="#7C5CFC" />
+          <ActivityIndicator color="#EA580C" />
         </View>
       ) : recommendedItems.length === 0 ? (
         <View style={styles.recommendedEmptyWrap}>
@@ -1552,7 +1558,7 @@ export const ClientHomeScreen: React.FC = () => {
       </View>
       {popularNearbyLoading ? (
         <View style={styles.popularLoadingWrap}>
-          <ActivityIndicator color="#7C5CFC" />
+          <ActivityIndicator color="#EA580C" />
         </View>
       ) : popularNearbyItems.length === 0 ? (
         <View style={styles.popularEmptyWrap}>
@@ -1586,7 +1592,7 @@ export const ClientHomeScreen: React.FC = () => {
               ]}
             >
               <View style={styles.searchIconWrap}>
-                <Ionicons name="search-outline" size={16} color="#7C5CFC" />
+                <Ionicons name="search-outline" size={16} color="#EA580C" />
               </View>
               <Text style={styles.homeSearchPlaceholder} numberOfLines={1}>
                 {t("client.home.searchPlaceholder")}
@@ -1605,8 +1611,8 @@ export const ClientHomeScreen: React.FC = () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#7C5CFC"
-              colors={["#7C5CFC"]}
+              tintColor="#EA580C"
+              colors={["#EA580C"]}
             />
           }
         >
@@ -1623,16 +1629,14 @@ export const ClientHomeScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#FFFFFF" },
-  container: { flex: 1, backgroundColor: "#F4F3FA" },
+  container: { flex: 1, backgroundColor: "#F1F5F9" },
 
   /* ── Header ── */
   header: {
     paddingTop: 6,
     paddingBottom: 14,
     paddingHorizontal: 16,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#EBEBF5",
+    backgroundColor: SCREEN_BG,
   },
   navHeaderActions: {
     flexDirection: "row",
@@ -1644,7 +1648,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     borderWidth: 1,
     borderColor: "#EBEBF5",
     alignItems: "center",
@@ -1670,15 +1674,15 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     overflow: "hidden",
     borderWidth: 2,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     alignItems: "center",
     justifyContent: "center",
   },
   avatar: { width: "100%", height: "100%" },
-  avatarInitialText: { fontSize: 14, fontWeight: "800", color: "#7C5CFC" },
+  avatarInitialText: { fontSize: 14, fontWeight: "800", color: "#EA580C" },
 
   /* Search bar */
   searchContainer: { flexDirection: "row", alignItems: "center" },
@@ -1687,19 +1691,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: "#EBEBF5",
     paddingHorizontal: 12,
     height: 46,
   },
-  homeSearchBarPressed: { opacity: 0.88, backgroundColor: "#EEEDF8" },
+  homeSearchBarPressed: { opacity: 0.92, backgroundColor: "#F9FAFB" },
   searchIconWrap: {
     width: 28,
     height: 28,
     borderRadius: 9,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -1723,7 +1727,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "#EBEBF5",
-    shadowColor: "#7C5CFC",
+    shadowColor: "#EA580C",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 14,
@@ -1737,7 +1741,7 @@ const styles = StyleSheet.create({
     right: -20,
     width: 90,
     height: 90,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderRadius: 45,
     opacity: 0.6,
   },
@@ -1758,10 +1762,10 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 15,
-    backgroundColor: "#7C5CFC",
+    backgroundColor: "#EA580C",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#7C5CFC",
+    shadowColor: "#EA580C",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
@@ -1787,7 +1791,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 9,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -1795,14 +1799,14 @@ const styles = StyleSheet.create({
   progressBarBackground: {
     width: "100%",
     height: 5,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     borderRadius: 3,
     marginBottom: 12,
     overflow: "hidden",
   },
   progressBarFill: {
     height: "100%",
-    backgroundColor: "#7C5CFC",
+    backgroundColor: "#EA580C",
     borderRadius: 3,
   },
   orderDetails: {
@@ -1837,7 +1841,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 13,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: "#F1F5F9",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -1905,11 +1909,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
   },
-  viewAllButton: { fontSize: 12, fontWeight: "700", color: "#7C5CFC" },
+  viewAllButton: { fontSize: 12, fontWeight: "700", color: "#EA580C" },
 
   /* ── Recommended ── */
   recommendedContainer: { marginTop: 22 },

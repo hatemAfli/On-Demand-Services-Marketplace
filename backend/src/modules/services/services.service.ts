@@ -4,9 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Locale, Prisma } from '@prisma/client';
+import { Locale, PlatformAuditAction, Prisma } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { localeFallbackChain } from '../../common/i18n/locale';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
+import type { PlatformAuditContext } from '../platform-audit/platform-audit.types';
 import type { CreateAdminServiceDto } from './dto/create-admin-service.dto';
 import type { ListServicesAdminQueryDto } from './dto/list-services-admin-query.dto';
 import type { UpdateAdminServiceDto } from './dto/update-admin-service.dto';
@@ -133,7 +135,10 @@ function toCategoryTranslationMap(
 
 @Injectable()
 export class ServicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: PlatformAuditService,
+  ) {}
 
   /** Convenience alias for category-scoped discovery (`GET /services/category/:id`). */
   async findByCategoryId(categoryId: string, locale?: Locale) {
@@ -298,7 +303,7 @@ export class ServicesService {
     };
   }
 
-  async adminCreate(dto: CreateAdminServiceDto) {
+  async adminCreate(dto: CreateAdminServiceDto, ctx?: PlatformAuditContext) {
     await this.ensureCategoryExists(dto.categoryId);
     const en = dto.translations?.en;
     if (!en?.name?.trim()) {
@@ -331,10 +336,23 @@ export class ServicesService {
       },
       select: serviceListSelect,
     });
+    const actor = ctx
+      ? await this.audit.actorName(ctx.actorAdminId)
+      : 'Admin';
+    this.audit.logIf(
+      ctx,
+      PlatformAuditAction.SERVICE_CREATED,
+      `${actor} created catalog service "${en.name.trim()}".`,
+      { serviceId: created.id, categoryId: dto.categoryId },
+    );
     return this.adminFindOne(created.id);
   }
 
-  async adminUpdate(id: string, dto: UpdateAdminServiceDto) {
+  async adminUpdate(
+    id: string,
+    dto: UpdateAdminServiceDto,
+    ctx?: PlatformAuditContext,
+  ) {
     await this.adminFindOne(id);
     const data: Prisma.ServiceUpdateInput = {};
     if (dto.categoryId !== undefined) {
@@ -419,10 +437,19 @@ export class ServicesService {
         });
       }
     }
+    const actor = ctx
+      ? await this.audit.actorName(ctx.actorAdminId)
+      : 'Admin';
+    this.audit.logIf(
+      ctx,
+      PlatformAuditAction.SERVICE_UPDATED,
+      `${actor} updated catalog service.`,
+      { serviceId: id },
+    );
     return this.adminFindOne(updated.id);
   }
 
-  async adminRemove(id: string) {
+  async adminRemove(id: string, ctx?: PlatformAuditContext) {
     await this.adminFindOne(id);
     const verificationCount = await this.prisma.verificationProfilRequest.count({
       where: { serviceId: id },
@@ -433,6 +460,15 @@ export class ServicesService {
       );
     }
     await this.prisma.service.delete({ where: { id } });
+    const actor = ctx
+      ? await this.audit.actorName(ctx.actorAdminId)
+      : 'Admin';
+    this.audit.logIf(
+      ctx,
+      PlatformAuditAction.SERVICE_DELETED,
+      `${actor} deleted catalog service.`,
+      { serviceId: id },
+    );
   }
 
   private async ensureCategoryExists(categoryId: string) {

@@ -3,9 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Locale, Prisma } from '@prisma/client';
+import { Locale, PlatformAuditAction, Prisma } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
 import { localeFallbackChain } from '../../common/i18n/locale';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
+import type { PlatformAuditContext } from '../platform-audit/platform-audit.types';
 import { CreateServiceCategoryDto } from './dto/create-service-category.dto';
 import { UpdateServiceCategoryDto } from './dto/update-service-category.dto';
 import type { ListServiceCategoriesAdminQueryDto } from './dto/list-service-categories-admin-query.dto';
@@ -45,7 +47,10 @@ function toCategoryTranslationMap(
 
 @Injectable()
 export class ServiceCategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: PlatformAuditService,
+  ) {}
 
   async findActiveForMarketplace(locale: Locale = Locale.EN) {
     const requestedLocales = localeFallbackChain(locale);
@@ -126,7 +131,7 @@ export class ServiceCategoriesService {
     };
   }
 
-  async create(dto: CreateServiceCategoryDto) {
+  async create(dto: CreateServiceCategoryDto, ctx?: PlatformAuditContext) {
     const enName = dto.translations?.en?.name?.trim() || dto.name?.trim();
     if (!enName) {
       throw new ConflictException('English category name is required');
@@ -167,11 +172,21 @@ export class ServiceCategoriesService {
             },
           },
         });
-        return {
+        const result = {
           ...created,
           name: pickCategoryName(created.translations, [Locale.EN, Locale.AR], created.slug),
           translations: toCategoryTranslationMap(created.translations),
         };
+        const actor = ctx
+          ? await this.audit.actorName(ctx.actorAdminId)
+          : 'Admin';
+        this.audit.logIf(
+          ctx,
+          PlatformAuditAction.SERVICE_CATEGORY_CREATED,
+          `${actor} created service category "${enName}".`,
+          { categoryId: created.id, slug: created.slug },
+        );
+        return result;
       } catch (e) {
         if (
           e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -187,7 +202,7 @@ export class ServiceCategoriesService {
     throw new ConflictException('Could not allocate a unique slug');
   }
 
-  async update(id: string, dto: UpdateServiceCategoryDto) {
+  async update(id: string, dto: UpdateServiceCategoryDto, ctx?: PlatformAuditContext) {
     await this.ensureExists(id);
     const data: Prisma.ServiceCategoryUpdateInput = {};
     if (dto.slug !== undefined) data.slug = dto.slug.trim();
@@ -242,6 +257,15 @@ export class ServiceCategoriesService {
           });
         }
       }
+      const actor = ctx
+        ? await this.audit.actorName(ctx.actorAdminId)
+        : 'Admin';
+      this.audit.logIf(
+        ctx,
+        PlatformAuditAction.SERVICE_CATEGORY_UPDATED,
+        `${actor} updated service category.`,
+        { categoryId: id },
+      );
       return {
         ...updated,
         name: pickCategoryName(updated.translations, [Locale.EN, Locale.AR], updated.slug),
@@ -263,7 +287,7 @@ export class ServiceCategoriesService {
     }
   }
 
-  async remove(id: string) {
+  async remove(id: string, ctx?: PlatformAuditContext) {
     await this.ensureExists(id);
     const count = await this.prisma.service.count({
       where: { categoryId: id },
@@ -274,6 +298,15 @@ export class ServiceCategoriesService {
       );
     }
     await this.prisma.serviceCategory.delete({ where: { id } });
+    const actor = ctx
+      ? await this.audit.actorName(ctx.actorAdminId)
+      : 'Admin';
+    this.audit.logIf(
+      ctx,
+      PlatformAuditAction.SERVICE_CATEGORY_DELETED,
+      `${actor} deleted service category.`,
+      { categoryId: id },
+    );
   }
 
   private async ensureExists(id: string) {

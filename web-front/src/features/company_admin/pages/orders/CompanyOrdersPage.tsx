@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import './CompanyOrdersPage.css'
 import {
   FaChevronLeft,
@@ -179,6 +180,7 @@ function rescheduleLoadError(err: unknown): string {
 }
 
 export function CompanyOrdersPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState<CompanyAppointment[]>([])
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState<CompanyAppointmentStats | null>(null)
@@ -329,6 +331,15 @@ export function CompanyOrdersPage() {
     setDetail(null)
     setActionMode(null)
   }, [])
+
+  useEffect(() => {
+    const orderId = searchParams.get('order')
+    if (!orderId) return
+    void openDetail(orderId)
+    const next = new URLSearchParams(searchParams)
+    next.delete('order')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams, openDetail])
 
   const syncFromRealtime = useCallback(
     async (raw: unknown) => {

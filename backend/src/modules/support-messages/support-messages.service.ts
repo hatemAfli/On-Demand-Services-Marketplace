@@ -3,9 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { SupportMessageStatus, UserRole } from '@prisma/client';
+import { SupportMessageStatus, UserRole, PlatformAuditAction } from '@prisma/client';
 import type { User } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
+import type { PlatformAuditContext } from '../platform-audit/platform-audit.types';
 import {
   CreateSupportMessageDto,
   ListAdminSupportMessagesQueryDto,
@@ -13,7 +15,10 @@ import {
 
 @Injectable()
 export class SupportMessagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: PlatformAuditService,
+  ) {}
 
   async createForUser(user: User, dto: CreateSupportMessageDto) {
     if (user.role !== UserRole.CLIENT && user.role !== UserRole.PROVIDER) {
@@ -88,13 +93,17 @@ export class SupportMessagesService {
     return row;
   }
 
-  async updateStatus(id: string, status: SupportMessageStatus) {
+  async updateStatus(
+    id: string,
+    status: SupportMessageStatus,
+    ctx?: PlatformAuditContext,
+  ) {
     const existing = await this.prisma.supportMessage.findUnique({
       where: { id },
     });
     if (!existing) throw new NotFoundException('Support message not found');
 
-    return this.prisma.supportMessage.update({
+    const updated = await this.prisma.supportMessage.update({
       where: { id },
       data: {
         status,
@@ -116,6 +125,18 @@ export class SupportMessagesService {
         },
       },
     });
+
+    const actor = ctx
+      ? await this.audit.actorName(ctx.actorAdminId)
+      : 'Admin';
+    this.audit.logIf(
+      ctx,
+      PlatformAuditAction.SUPPORT_MESSAGE_STATUS_UPDATED,
+      `${actor} changed support message status from ${existing.status} to ${status}.`,
+      { messageId: id, previousStatus: existing.status, newStatus: status },
+    );
+
+    return updated;
   }
 
   countNew() {

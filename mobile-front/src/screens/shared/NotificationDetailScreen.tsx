@@ -11,6 +11,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants";
 import type { NotificationDetailParams } from "../../navigation/types";
+
+const ACCENT = "#EA580C";
+const SCREEN_BG = "#F1F5F9";
 import type { NotificationType } from "../../services/api";
 import { getNotificationVisual } from "./NotificationsScreen";
 
@@ -53,16 +56,20 @@ export const NotificationDetailScreen: React.FC = () => {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="chevron-back" size={22} color={COLORS.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notification</Text>
-        <View style={styles.headerSpacer} />
+        <View style={styles.headerSide}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="chevron-back" size={22} color={COLORS.text.primary} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Notification</Text>
+        </View>
+        <View style={styles.headerSide} />
       </View>
 
       <ScrollView
@@ -101,7 +108,7 @@ export const NotificationDetailScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: SCREEN_BG,
   },
   header: {
     height: 56,
@@ -110,7 +117,17 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.gray[100],
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    backgroundColor: COLORS.white,
+  },
+  headerSide: {
+    width: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   backBtn: {
     width: 36,
@@ -123,9 +140,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: COLORS.text.primary,
-  },
-  headerSpacer: {
-    width: 36,
+    textAlign: "center",
   },
   scroll: {
     paddingHorizontal: 20,
@@ -147,7 +162,7 @@ const styles = StyleSheet.create({
   typeBadge: {
     fontSize: 12,
     fontWeight: "700",
-    color: COLORS.primary,
+    color: ACCENT,
     textTransform: "uppercase",
     letterSpacing: 0.6,
     marginBottom: 8,

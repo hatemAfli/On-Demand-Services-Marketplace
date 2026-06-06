@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   AppointmentStatus,
+  CompanyAuditAction,
   NotificationType,
   OwnerType,
   Prisma,
@@ -15,6 +16,7 @@ import { PrismaService } from '../../../config/prisma.config';
 import { AvailabilityService } from '../../availability/availability.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { SupabaseRealtimeService } from '../../supabase/supabase-realtime.service';
+import { CompanyAuditService } from '../audit/company-audit.service';
 import { AssignProviderDto } from './dto/assign-provider.dto';
 import { GetRescheduleOptionsDto } from './dto/get-reschedule-options.dto';
 import { ListCompanyAppointmentsDto } from './dto/list-company-appointments.dto';
@@ -51,6 +53,7 @@ export class CompanyAppointmentsService {
     private readonly availabilityService: AvailabilityService,
     private readonly notificationsService: NotificationsService,
     private readonly realtime: SupabaseRealtimeService,
+    private readonly audit: CompanyAuditService,
   ) {}
 
   private async resolveCompanyId(companyAdminUserId: string): Promise<string> {
@@ -200,6 +203,7 @@ export class CompanyAppointmentsService {
     companyAdminUserId: string,
     id: string,
     dto: RespondCompanyAppointmentDto,
+    ipAddress?: string,
   ) {
     const companyId = await this.resolveCompanyId(companyAdminUserId);
     const appointment = await this.prisma.appointment.findUnique({
@@ -276,6 +280,14 @@ export class CompanyAppointmentsService {
         id,
       );
       this.broadcast(id);
+      await this.logAdminAction(
+        companyId,
+        companyAdminUserId,
+        CompanyAuditAction.APPOINTMENT_CONFIRMED,
+        `accepted order ${this.orderRef(id)}.`,
+        { appointmentId: id, action: dto.action },
+        ipAddress,
+      );
       return updated;
     }
 
@@ -307,6 +319,14 @@ export class CompanyAppointmentsService {
         data: { appointmentId: id, screen: 'ClientAppointmentDetail' },
       });
       this.broadcast(id);
+      await this.logAdminAction(
+        companyId,
+        companyAdminUserId,
+        CompanyAuditAction.APPOINTMENT_REFUSED,
+        `refused order ${this.orderRef(id)}${dto.refusalReason?.trim() ? `: ${dto.refusalReason.trim()}` : '.'}`,
+        { appointmentId: id, action: dto.action, refusalReason: dto.refusalReason ?? null },
+        ipAddress,
+      );
       return updated;
     }
 
@@ -350,15 +370,27 @@ export class CompanyAppointmentsService {
       data: { appointmentId: id, screen: 'ClientAppointmentDetail' },
     });
     this.broadcast(id);
+    await this.logAdminAction(
+      companyId,
+      companyAdminUserId,
+      CompanyAuditAction.APPOINTMENT_RESCHEDULED,
+      `proposed a new time for order ${this.orderRef(id)}: ${this.formatDate(rescheduleDate)} at ${rescheduleTime}.`,
+      {
+        appointmentId: id,
+        action: dto.action,
+        rescheduleDate,
+        rescheduleTime,
+      },
+      ipAddress,
+    );
     return updated;
   }
-
-  // ─── Assign / reassign a provider ─────────────────────────────────────────
 
   async assignProvider(
     companyAdminUserId: string,
     id: string,
     dto: AssignProviderDto,
+    ipAddress?: string,
   ) {
     const companyId = await this.resolveCompanyId(companyAdminUserId);
     const appointment = await this.prisma.appointment.findUnique({
@@ -389,7 +421,12 @@ export class CompanyAppointmentsService {
 
     const provider = await this.prisma.provider.findUnique({
       where: { id: dto.providerId },
-      select: { id: true, companyId: true, type: true },
+      select: {
+        id: true,
+        companyId: true,
+        type: true,
+        user: { select: { firstName: true, lastName: true } },
+      },
     });
     if (
       !provider ||
@@ -490,10 +527,25 @@ export class CompanyAppointmentsService {
     }
 
     this.broadcast(id);
+
+    const providerName =
+      `${provider.user?.firstName ?? ''} ${provider.user?.lastName ?? ''}`.trim() ||
+      'a provider';
+    await this.logAdminAction(
+      companyId,
+      companyAdminUserId,
+      CompanyAuditAction.APPOINTMENT_ASSIGNED,
+      `assigned ${providerName} to order ${this.orderRef(id)}${dto.confirm ? ' and confirmed the booking' : ''}.`,
+      {
+        appointmentId: id,
+        providerId: dto.providerId,
+        confirmed: Boolean(dto.confirm),
+      },
+      ipAddress,
+    );
+
     return updated;
   }
-
-  // ─── Reschedule slot options (union across eligible employees) ───────────
 
   async getRescheduleOptions(
     companyAdminUserId: string,
@@ -607,6 +659,29 @@ export class CompanyAppointmentsService {
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  private orderRef(id: string): string {
+    return `#ORD-${id.slice(0, 8).toUpperCase()}`;
+  }
+
+  private async logAdminAction(
+    companyId: string,
+    actorAdminId: string,
+    action: CompanyAuditAction,
+    messageSuffix: string,
+    metadata: Prisma.InputJsonValue,
+    ipAddress?: string,
+  ): Promise<void> {
+    const actor = await this.audit.actorFirstName(actorAdminId);
+    await this.audit.log(
+      companyId,
+      actorAdminId,
+      action,
+      `${actor} ${messageSuffix}`,
+      metadata,
+      ipAddress,
+    );
+  }
 
   private async getAppointmentForReschedule(companyId: string, id: string) {
     const appointment = await this.prisma.appointment.findUnique({

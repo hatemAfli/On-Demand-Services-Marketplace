@@ -7,6 +7,7 @@ import {
   LegalDocumentsAdminPage,
   LoginPage,
   PlaceholderPage,
+  ActivityLogsAdminPage,
   ServiceCategoriesAdminPage,
   ServicesAdminPage,
   UsersAdminPage,
@@ -177,7 +178,7 @@ function AppShell() {
                 />
                 <Route
                   path="activity-logs"
-                  element={<PlaceholderPage title="Activity logs" />}
+                  element={<ActivityLogsAdminPage />}
                 />
               </Route>
             </Route>

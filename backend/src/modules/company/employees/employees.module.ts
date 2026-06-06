@@ -7,9 +7,10 @@ import {
   ProviderInvitationsController,
 } from './employees.controller';
 import { EmployeesService } from './employees.service';
+import { CompanyAuditModule } from '../audit/company-audit.module';
 
 @Module({
-  imports: [PrismaModule, AvailabilityModule, forwardRef(() => NotificationsModule)],
+  imports: [PrismaModule, AvailabilityModule, forwardRef(() => NotificationsModule), CompanyAuditModule],
   controllers: [EmployeesController, ProviderInvitationsController],
   providers: [EmployeesService],
   exports: [EmployeesService],

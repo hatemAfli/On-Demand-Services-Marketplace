@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -10,28 +12,27 @@ import {
   Query,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
+import type { GalleryUploadFile } from '../services/gallery-upload-file.type';
 import { CompanySettingsService } from './company-settings.service';
 import { ListAuditLogsDto } from './dto/list-audit-logs.dto';
 import { UpdateCompanyBrandingDto } from './dto/update-company-branding.dto';
 import { UpdateCompanyProfileDto } from './dto/update-company-profile.dto';
-import { UpdateNotificationsDto } from './dto/update-notifications.dto';
 import { UpsertBranchDto } from './dto/upsert-branch.dto';
+import { clientIp } from '../../../common/utils/client-ip';
 
 type AuthUser = { id: string; role: UserRole };
-
-function clientIp(req: Request): string | undefined {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') return forwarded.split(',')[0]?.trim();
-  return req.ip;
-}
 
 @Controller('company/settings')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -60,6 +61,33 @@ export class CompanySettingsController {
     @Req() req: Request,
   ) {
     return this.service.updateBranding(user.id, dto, clientIp(req));
+  }
+
+  @Post('branding/logo/upload')
+  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }),
+  )
+  uploadLogo(
+    @CurrentUser() user: AuthUser,
+    @UploadedFile() file: GalleryUploadFile | undefined,
+    @Req() req: Request,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Logo file is required.');
+    }
+    const allowed = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/svg+xml',
+    ]);
+    if (!allowed.has(file.mimetype)) {
+      throw new BadRequestException(
+        'Only JPEG, PNG, WebP, and SVG images are allowed.',
+      );
+    }
+    return this.service.uploadLogo(user.id, file, clientIp(req));
   }
 
   @Get('branches')
@@ -93,15 +121,6 @@ export class CompanySettingsController {
     @Req() req: Request,
   ) {
     return this.service.deleteBranch(user.id, id, clientIp(req));
-  }
-
-  @Patch('notifications')
-  updateNotifications(
-    @CurrentUser() user: AuthUser,
-    @Body() dto: UpdateNotificationsDto,
-    @Req() req: Request,
-  ) {
-    return this.service.updateNotifications(user.id, dto, clientIp(req));
   }
 
   @Get('audit-logs')

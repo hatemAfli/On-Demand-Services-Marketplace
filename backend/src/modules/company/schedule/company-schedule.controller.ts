@@ -8,13 +8,16 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
+import { clientIp } from '../../../common/utils/client-ip';
 import { CreateDayOffDto } from '../../availability/dto/day-off.dto';
 import { UpsertAvailabilityBulkDto } from '../../availability/dto/upsert-availability.dto';
 import { CompanyScheduleService } from './company-schedule.service';
@@ -49,8 +52,14 @@ export class CompanyScheduleController {
     @CurrentUser() user: AuthUser,
     @Param('providerId', ParseUUIDPipe) providerId: string,
     @Body() dto: UpsertAvailabilityBulkDto,
+    @Req() req: Request,
   ) {
-    return this.service.upsertEmployeeAvailability(user.id, providerId, dto);
+    return this.service.upsertEmployeeAvailability(
+      user.id,
+      providerId,
+      dto,
+      clientIp(req),
+    );
   }
 
   @Get('employees/:providerId/days-off')
@@ -68,8 +77,9 @@ export class CompanyScheduleController {
     @CurrentUser() user: AuthUser,
     @Param('providerId', ParseUUIDPipe) providerId: string,
     @Body() dto: CreateDayOffDto,
+    @Req() req: Request,
   ) {
-    return this.service.createEmployeeDayOff(user.id, providerId, dto);
+    return this.service.createEmployeeDayOff(user.id, providerId, dto, clientIp(req));
   }
 
   @Delete('employees/:providerId/days-off/:dayOffId')
@@ -77,7 +87,13 @@ export class CompanyScheduleController {
     @CurrentUser() user: AuthUser,
     @Param('providerId', ParseUUIDPipe) providerId: string,
     @Param('dayOffId', ParseUUIDPipe) dayOffId: string,
+    @Req() req: Request,
   ) {
-    return this.service.deleteEmployeeDayOff(user.id, providerId, dayOffId);
+    return this.service.deleteEmployeeDayOff(
+      user.id,
+      providerId,
+      dayOffId,
+      clientIp(req),
+    );
   }
 }

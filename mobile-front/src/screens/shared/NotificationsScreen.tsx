@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -9,11 +9,17 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants";
 import { useNotificationsRealtime } from "../../context/NotificationsRealtimeContext";
+
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
 import { api, type AppNotification, type NotificationType } from "../../services/api";
+import { navigateFromAdminNotification } from "../admin/profile/adminNotificationNavigation";
 
 type NotificationIconConfig = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -49,7 +55,7 @@ export function getNotificationVisual(type: NotificationType): NotificationIconC
     };
   }
   if (type === "APPOINTMENT_EN_ROUTE") {
-    return { icon: "car-outline", bgColor: "#EDE9FE", iconColor: "#7C3AED" };
+    return { icon: "car-outline", bgColor: ACCENT_LIGHT, iconColor: ACCENT };
   }
   if (type === "APPOINTMENT_PROVIDER_ENDED") {
     return {
@@ -62,7 +68,7 @@ export function getNotificationVisual(type: NotificationType): NotificationIconC
     return { icon: "trophy-outline", bgColor: "#DCFCE7", iconColor: "#16A34A" };
   }
   if (type === "APPOINTMENT_REMINDER_24H" || type === "APPOINTMENT_REMINDER_1H") {
-    return { icon: "alarm-outline", bgColor: "#E0E7FF", iconColor: "#4F46E5" };
+    return { icon: "alarm-outline", bgColor: ACCENT_LIGHT, iconColor: ACCENT };
   }
   if (type === "APPOINTMENT_START_DUE") {
     return { icon: "alert-circle-outline", bgColor: "#FEE2E2", iconColor: "#DC2626" };
@@ -107,8 +113,8 @@ export function getNotificationVisual(type: NotificationType): NotificationIconC
       type === "EMPLOYEE_INVITATION_ACCEPTED";
     return {
       icon: "briefcase-outline",
-      bgColor: positive ? "#E0E7FF" : "#FEE2E2",
-      iconColor: positive ? "#4F46E5" : "#DC2626",
+      bgColor: positive ? ACCENT_LIGHT : "#FEE2E2",
+      iconColor: positive ? ACCENT : "#DC2626",
     };
   }
 
@@ -144,9 +150,31 @@ function formatRelativeTime(createdAt: string): string {
   });
 }
 
-export const NotificationsScreen: React.FC = () => {
+const PAGE_SIZE = 30;
+
+function normalizeNotificationRows(data: unknown): AppNotification[] {
+  if (!Array.isArray(data)) return [];
+  return data.filter(
+    (row): row is AppNotification =>
+      row != null &&
+      typeof row === "object" &&
+      typeof (row as AppNotification).id === "string",
+  );
+}
+
+export type NotificationsScreenProps = {
+  /** When embedded in the platform admin profile stack. */
+  variant?: "admin" | "default";
+};
+
+export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
+  variant = "default",
+}) => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const route = useRoute();
+  const isAdminNotifications =
+    variant === "admin" || route.name === "AdminNotifications";
   const {
     unreadCount,
     refreshUnreadCount,
@@ -156,21 +184,71 @@ export const NotificationsScreen: React.FC = () => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const notificationsRef = useRef<AppNotification[]>([]);
+  const loadingMoreRef = useRef(false);
+
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
       const [listRes] = await Promise.all([
-        api.getMyNotifications(0, 30),
+        api.getMyNotifications(0, PAGE_SIZE),
         refreshUnreadCount(),
       ]);
-      setNotifications(Array.isArray(listRes.data) ? listRes.data : []);
+      const rows = normalizeNotificationRows(listRes.data);
+      setNotifications(rows);
+      setHasMore(rows.length >= PAGE_SIZE);
+    } catch {
+      if (!isRefresh) {
+        setNotifications([]);
+        setHasMore(false);
+      }
     } finally {
       if (isRefresh) setRefreshing(false);
       else setLoading(false);
     }
   }, [refreshUnreadCount]);
+
+  const loadMore = useCallback(async () => {
+    if (
+      loading ||
+      refreshing ||
+      loadingMoreRef.current ||
+      loadingMore ||
+      !hasMore
+    ) {
+      return;
+    }
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const skip = notificationsRef.current.length;
+      const listRes = await api.getMyNotifications(skip, PAGE_SIZE);
+      const rows = normalizeNotificationRows(listRes.data);
+      if (rows.length === 0) {
+        setHasMore(false);
+        return;
+      }
+      setNotifications((prev) => {
+        const seen = new Set(prev.map((n) => n.id));
+        const merged = [...prev];
+        for (const row of rows) {
+          if (!seen.has(row.id)) merged.push(row);
+        }
+        return merged;
+      });
+      setHasMore(rows.length >= PAGE_SIZE);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [loading, refreshing, loadingMore, hasMore]);
 
   useFocusEffect(
     useCallback(() => {
@@ -210,6 +288,11 @@ export const NotificationsScreen: React.FC = () => {
           prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)),
         );
         adjustUnreadCount(-1);
+      }
+
+      if (isAdminNotifications) {
+        navigateFromAdminNotification(navigation, item);
+        return;
       }
 
       if (item.type === "DOCUMENT_ACCEPTED" || item.type === "ACCOUNT_VERIFIED") {
@@ -266,7 +349,7 @@ export const NotificationsScreen: React.FC = () => {
       }
       navigation.navigate(screen, appointmentId ? { appointmentId } : undefined);
     },
-    [navigation, adjustUnreadCount],
+    [navigation, adjustUnreadCount, isAdminNotifications],
   );
 
   const renderRow = useCallback(
@@ -304,7 +387,7 @@ export const NotificationsScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={[styles.loading, { paddingTop: insets.top + 12 }]}>
-        <ActivityIndicator color={COLORS.primary} />
+        <ActivityIndicator color={ACCENT} />
       </View>
     );
   }
@@ -312,17 +395,21 @@ export const NotificationsScreen: React.FC = () => {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onPressBack} activeOpacity={0.85}>
-          <Ionicons name="chevron-back" size={22} color={COLORS.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        {hasUnread ? (
-          <TouchableOpacity onPress={() => void onMarkAllRead()} activeOpacity={0.85}>
-            <Text style={styles.markAll}>Mark all read</Text>
+        <View style={styles.headerSide}>
+          <TouchableOpacity style={styles.backBtn} onPress={onPressBack} activeOpacity={0.85}>
+            <Ionicons name="chevron-back" size={22} color={COLORS.text.primary} />
           </TouchableOpacity>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
+        </View>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Notifications</Text>
+        </View>
+        <View style={[styles.headerSide, styles.headerSideRight]}>
+          {hasUnread ? (
+            <TouchableOpacity onPress={() => void onMarkAllRead()} activeOpacity={0.85}>
+              <Text style={styles.markAll}>Mark all read</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
       <FlatList
@@ -339,8 +426,20 @@ export const NotificationsScreen: React.FC = () => {
             onRefresh={() => {
               void load(true);
             }}
-            tintColor={COLORS.primary}
+            tintColor={ACCENT}
           />
+        }
+        onEndReached={() => {
+          void loadMore();
+        }}
+        onEndReachedThreshold={0.35}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footerLoader}>
+              <ActivityIndicator color={ACCENT} size="small" />
+              <Text style={styles.footerLoaderText}>Loading more…</Text>
+            </View>
+          ) : null
         }
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
@@ -348,7 +447,7 @@ export const NotificationsScreen: React.FC = () => {
               <Ionicons
                 name="notifications-off-outline"
                 size={28}
-                color={COLORS.gray[400]}
+                color={ACCENT}
               />
             </View>
             <Text style={styles.emptyTitle}>No notifications yet</Text>
@@ -365,11 +464,11 @@ export const NotificationsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: SCREEN_BG,
   },
   loading: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: SCREEN_BG,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -380,7 +479,20 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.gray[100],
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    backgroundColor: COLORS.white,
+  },
+  headerSide: {
+    width: 88,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+  headerSideRight: {
+    alignItems: "flex-end",
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   backBtn: {
     width: 36,
@@ -393,14 +505,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: COLORS.text.primary,
+    textAlign: "center",
   },
   markAll: {
     fontSize: 13,
     fontWeight: "700",
-    color: COLORS.primary,
-  },
-  headerSpacer: {
-    width: 72,
+    color: ACCENT,
+    textAlign: "right",
   },
   listContent: {
     paddingHorizontal: 16,
@@ -418,9 +529,9 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   rowUnread: {
-    backgroundColor: "#F8FAFF",
+    backgroundColor: ACCENT_LIGHT,
     borderLeftWidth: 3,
-    borderLeftColor: COLORS.primary,
+    borderLeftColor: ACCENT,
   },
   iconCircle: {
     width: 38,
@@ -458,7 +569,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#3B82F6",
+    backgroundColor: ACCENT,
     marginTop: 8,
   },
   emptyContent: {
@@ -474,7 +585,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: COLORS.gray[100],
+    backgroundColor: ACCENT_LIGHT,
+    borderWidth: 1,
+    borderColor: ACCENT_BORDER,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 14,
@@ -490,5 +603,17 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     fontSize: 13,
     lineHeight: 18,
+  },
+  footerLoader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 16,
+  },
+  footerLoaderText: {
+    fontSize: 13,
+    color: COLORS.text.secondary,
+    fontWeight: "600",
   },
 });

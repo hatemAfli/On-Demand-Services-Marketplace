@@ -40,6 +40,7 @@ export const FaqScreen: React.FC = () => {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("support.faqTitle"),
+      headerTitleAlign: "center",
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -49,6 +50,7 @@ export const FaqScreen: React.FC = () => {
           <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
         </TouchableOpacity>
       ),
+      headerRight: () => <View style={{ width: 40, marginRight: 8 }} />,
     });
   }, [navigation, t]);
 
@@ -90,7 +92,7 @@ export const FaqScreen: React.FC = () => {
       >
         {loading ? (
           <View style={styles.centerBox}>
-            <ActivityIndicator size="large" color="#4F46E5" />
+            <ActivityIndicator size="large" color="#EA580C" />
           </View>
         ) : error ? (
           <View style={styles.emptyCard}>
@@ -98,7 +100,7 @@ export const FaqScreen: React.FC = () => {
           </View>
         ) : items.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Ionicons name="chatbubble-ellipses-outline" size={28} color="#94A3B8" />
+            <Ionicons name="chatbubble-ellipses-outline" size={28} color="#EA580C" />
             <Text style={[styles.emptyText, isRTL && styles.rtl]}>
               {t("support.faqEmpty")}
             </Text>
@@ -141,7 +143,7 @@ export const FaqScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F8FAFC" },
+  safe: { flex: 1, backgroundColor: "#F1F5F9" },
   content: { padding: 20, paddingBottom: 32 },
   centerBox: { paddingVertical: 48, alignItems: "center" },
   emptyCard: {
@@ -168,8 +170,8 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   cardOpen: {
-    borderColor: "#C7D2FE",
-    backgroundColor: "#FDFDFF",
+    borderColor: "#FFEDD5",
+    backgroundColor: "#FFF7ED",
   },
   cardHeader: {
     flexDirection: "row",
@@ -180,14 +182,14 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 8,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
   },
   indexText: {
     fontSize: 11,
     fontWeight: "900",
-    color: "#4F46E5",
+    color: "#EA580C",
   },
   question: {
     flex: 1,

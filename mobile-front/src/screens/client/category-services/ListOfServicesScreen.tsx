@@ -28,39 +28,47 @@ function serviceTitleInitial(title: string): string {
 export const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F1F5F9",
   },
   screenWrap: {
     flex: 1,
     maxWidth: 420,
     alignSelf: "center",
     width: "100%",
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#F1F5F9",
   },
   header: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F1F5F9",
     paddingHorizontal: 24,
     paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
   },
   headerRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 14,
+  },
+  headerSide: {
+    width: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
   },
   circleButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
-    flex: 1,
-    marginHorizontal: 12,
     fontSize: 18,
     fontWeight: "800",
     color: "#111827",
@@ -141,14 +149,14 @@ export const styles = StyleSheet.create({
   cardImageFallback: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
   },
   cardImageLetter: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#4F46E5",
+    color: "#EA580C",
   },
   cardInfo: {
     flex: 1,
@@ -191,7 +199,7 @@ export const styles = StyleSheet.create({
   cardProviderCountText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#4F46E5",
+    color: "#EA580C",
   },
   priceTextRow: {
     flexDirection: "row",
@@ -201,7 +209,7 @@ export const styles = StyleSheet.create({
   priceText: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#4F46E5",
+    color: "#EA580C",
   },
   unitText: {
     fontSize: 10,
@@ -212,7 +220,7 @@ export const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -239,14 +247,14 @@ export const styles = StyleSheet.create({
   sheetImageFallback: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
   },
   sheetImageLetter: {
     fontSize: 52,
     fontWeight: "800",
-    color: "#4F46E5",
+    color: "#EA580C",
   },
   closeButton: {
     position: "absolute",
@@ -300,7 +308,7 @@ export const styles = StyleSheet.create({
     lineHeight: 20,
   },
   readMore: {
-    color: "#4F46E5",
+    color: "#EA580C",
     marginTop: 8,
     fontSize: 12,
     fontWeight: "700",
@@ -335,7 +343,7 @@ export const styles = StyleSheet.create({
   providersCountValue: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#4F46E5",
+    color: "#EA580C",
     minWidth: 40,
     textAlign: "right",
   },
@@ -357,7 +365,7 @@ export const styles = StyleSheet.create({
   bookButton: {
     height: 52,
     borderRadius: 12,
-    backgroundColor: "#4F46E5",
+    backgroundColor: "#EA580C",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -396,32 +404,38 @@ const CategoryServicesHeader: React.FC<CategoryServicesHeaderProps> = ({
   return (
     <View style={[styles.header, { borderBottomWidth: 0 }]}>
       <View style={styles.headerRow}>
-        <TouchableOpacity
-          style={styles.circleButton}
-          onPress={onBack}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <FontAwesome6 name="arrow-left" size={14} color="#4B5563" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <TouchableOpacity
-          style={styles.circleButton}
-          onPress={onToggleFavorite}
-          disabled={favoriteLoading}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          {favoriteLoading ? (
-            <ActivityIndicator size="small" color="#EF4444" />
-          ) : (
-            <Ionicons
-              name={isFavorite ? "heart" : "heart-outline"}
-              size={20}
-              color="#EF4444"
-            />
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerSide}>
+          <TouchableOpacity
+            style={styles.circleButton}
+            onPress={onBack}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {title}
+          </Text>
+        </View>
+        <View style={styles.headerSide}>
+          <TouchableOpacity
+            style={styles.circleButton}
+            onPress={onToggleFavorite}
+            disabled={favoriteLoading}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            {favoriteLoading ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <Ionicons
+                name={isFavorite ? "heart" : "heart-outline"}
+                size={20}
+                color="#EF4444"
+              />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -542,7 +556,7 @@ export const ServiceDiscoveryCard: React.FC<ServiceDiscoveryCardProps> = ({
               </View>
             </View>
             <View style={styles.addButton}>
-              <FontAwesome6 name="plus" size={11} color="#4F46E5" />
+              <FontAwesome6 name="plus" size={11} color="#EA580C" />
             </View>
           </View>
         </View>
@@ -692,13 +706,7 @@ export const ListOfServicesScreen: React.FC<Props> = ({
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.screenWrap}>
-        <View
-          style={{
-            backgroundColor: "#FFFFFF",
-            borderBottomWidth: 1,
-            borderBottomColor: "#F3F4F6",
-          }}
-        >
+        <View style={{ backgroundColor: "#F1F5F9" }}>
           <CategoryServicesHeader
             title={categoryName}
             onBack={() => navigation.goBack()}
@@ -712,7 +720,7 @@ export const ListOfServicesScreen: React.FC<Props> = ({
 
         {loading ? (
           <View style={styles.centerWrap}>
-            <ActivityIndicator size="large" color="#4f46e5" />
+            <ActivityIndicator size="large" color="#EA580C" />
           </View>
         ) : error ? (
           <View style={styles.centerWrap}>

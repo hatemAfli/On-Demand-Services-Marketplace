@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AxiosError } from "axios";
 import {
   FaArrowsRotate,
@@ -220,6 +221,8 @@ function CpTableSkeletonRows({
 }
 
 export function CompanyProvidersPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // ── Data state ──
   const [employees, setEmployees] = useState<CompanyEmployee[]>([]);
   const [total, setTotal] = useState(0);
@@ -432,6 +435,40 @@ export function CompanyProvidersPage() {
     setDrawerTab("overview");
     setDetail(null);
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "invitations") {
+      setInvitationsTabActive(true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const invitationId = searchParams.get("invitation");
+    if (!invitationId || invitationsLoading) return;
+    const inv = invitations.find((i) => i.id === invitationId);
+    if (!inv) return;
+    setInvitationsTabActive(true);
+    openInvitationDrawer(inv);
+    const next = new URLSearchParams(searchParams);
+    next.delete("invitation");
+    next.delete("tab");
+    setSearchParams(next, { replace: true });
+  }, [
+    searchParams,
+    setSearchParams,
+    invitations,
+    invitationsLoading,
+    openInvitationDrawer,
+  ]);
+
+  useEffect(() => {
+    const providerId = searchParams.get("provider");
+    if (!providerId) return;
+    void openDrawer(providerId);
+    const next = new URLSearchParams(searchParams);
+    next.delete("provider");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, openDrawer]);
 
   const handleRemoveEmployee = useCallback(async () => {
     if (!detail) return;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../services/api'
+import { adminApi } from '../services/adminApi'
 import { useAuthStore } from '../stores/authStore'
 
 export type AdminQueueCounts = {
@@ -8,7 +9,7 @@ export type AdminQueueCounts = {
   pendingVerificationTotal: number
   pendingProviderVerifications: number
   pendingCompanyVerifications: number
-  /** Backend endpoint not wired yet — reserved for future */
+  /** Open complaints awaiting platform action */
   openReclamations: number
   refresh: () => Promise<void>
 }
@@ -21,25 +22,20 @@ export function useAdminQueueCounts(): AdminQueueCounts {
     useState(0)
   const [pendingCompanyVerifications, setPendingCompanyVerifications] =
     useState(0)
+  const [openReclamations, setOpenReclamations] = useState(0)
 
   const refresh = useCallback(async () => {
     if (!user || user.role !== 'PLATFORM_ADMIN') {
       setPendingVerificationTotal(0)
       setPendingProviderVerifications(0)
       setPendingCompanyVerifications(0)
+      setOpenReclamations(0)
       setLoading(false)
       return
     }
     setLoading(true)
     try {
-      const [
-        pendAll,
-        reviewAll,
-        pendProv,
-        reviewProv,
-        pendComp,
-        reviewComp,
-      ] = await Promise.all([
+      const [pendAll, reviewAll, pendProv] = await Promise.all([
         api.listAdminVerificationRequests({ status: 'PENDING', take: 1, skip: 0 }),
         api.listAdminVerificationRequests({
           status: 'UNDER_REVIEW',
@@ -52,6 +48,9 @@ export function useAdminQueueCounts(): AdminQueueCounts {
           take: 1,
           skip: 0,
         }),
+      ])
+
+      const [reviewProv, pendComp, reviewComp] = await Promise.all([
         api.listAdminVerificationRequests({
           status: 'UNDER_REVIEW',
           ownerType: 'PROVIDER',
@@ -71,13 +70,18 @@ export function useAdminQueueCounts(): AdminQueueCounts {
           skip: 0,
         }),
       ])
+
+      const complaintStats = await adminApi.getComplaintStats()
+
       setPendingVerificationTotal(pendAll.data.total + reviewAll.data.total)
       setPendingProviderVerifications(pendProv.data.total + reviewProv.data.total)
       setPendingCompanyVerifications(pendComp.data.total + reviewComp.data.total)
+      setOpenReclamations(complaintStats.data.open)
     } catch {
       setPendingVerificationTotal(0)
       setPendingProviderVerifications(0)
       setPendingCompanyVerifications(0)
+      setOpenReclamations(0)
     } finally {
       setLoading(false)
     }
@@ -92,7 +96,7 @@ export function useAdminQueueCounts(): AdminQueueCounts {
     pendingVerificationTotal,
     pendingProviderVerifications,
     pendingCompanyVerifications,
-    openReclamations: 0,
+    openReclamations,
     refresh,
   }
 }

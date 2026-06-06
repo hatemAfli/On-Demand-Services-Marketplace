@@ -16,13 +16,16 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
-import { COLORS } from "../../../constants";
 
 type Props = NativeStackScreenProps<
   ClientStackParamList,
   "ClientBookingConfirmation"
 >;
 
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
 const SUCCESS_BG = "#ECFDF5";
 const SUCCESS_BORDER = "#A7F3D0";
 const CHECK_GREEN = "#059669";
@@ -105,13 +108,13 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
         <Ionicons
           name="sparkles"
           size={18}
-          color="#A78BFA"
+          color={ACCENT}
           style={styles.sparkleA}
         />
         <Ionicons
           name="sparkles"
           size={16}
-          color="#FB7185"
+          color="#F59E0B"
           style={styles.sparkleB}
         />
       </View>
@@ -138,7 +141,7 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
           </View>
 
           <View style={styles.miniTag}>
-            <Ionicons name="heart" size={11} color="#FB7185" />
+            <Ionicons name="heart" size={11} color={ACCENT} />
             <Text style={styles.miniTagText}>All set</Text>
           </View>
         </Animated.View>
@@ -160,7 +163,7 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
           <View style={styles.recapHeader}>
             <View style={styles.recapHeaderLeft}>
               <View style={styles.recapHeaderBadge}>
-                <Ionicons name="receipt-outline" size={14} color="#7C3AED" />
+                <Ionicons name="receipt-outline" size={14} color={ACCENT} />
               </View>
               <View>
                 <Text style={styles.recapHeaderTitle}>Booking details</Text>
@@ -180,8 +183,8 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
 
           {/* Service Row */}
           <View style={styles.recapRow}>
-            <View style={[styles.iconBadge, styles.badgeLavender]}>
-              <Ionicons name="briefcase-outline" size={16} color="#7C3AED" />
+            <View style={[styles.iconBadge, styles.badgeAccent]}>
+              <Ionicons name="briefcase-outline" size={16} color={ACCENT} />
             </View>
             <View style={styles.recapTextCol}>
               <Text style={styles.recapLabel}>Service</Text>
@@ -228,7 +231,7 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
 
           {/* Clear “what next” footer */}
           <View style={styles.nextCard}>
-            <Ionicons name="notifications-outline" size={15} color="#7C3AED" />
+            <Ionicons name="notifications-outline" size={15} color={ACCENT} />
             <Text style={styles.nextText}>
               We’ll notify you when the provider confirms or proposes a new
               time.
@@ -259,7 +262,7 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
             onPress={goHome}
             activeOpacity={0.88}
           >
-            <Ionicons name="home-outline" size={15} color="#7C3AED" />
+            <Ionicons name="home-outline" size={15} color={ACCENT} />
             <Text style={styles.btnSecondaryText}>Back to Home</Text>
           </TouchableOpacity>
         </View>
@@ -269,7 +272,7 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
           <Ionicons
             name="lock-closed-outline"
             size={14}
-            color={COLORS.gray[500]}
+            color="#6B7280"
           />
           <Text style={styles.footerHintText}>
             Your details stay private and secure.
@@ -281,7 +284,7 @@ export const ClientBookingConfirmationScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#FFF7FB" },
+  safe: { flex: 1, backgroundColor: SCREEN_BG },
 
   /* Background */
   bg: { ...StyleSheet.absoluteFillObject, overflow: "hidden" },
@@ -290,7 +293,7 @@ const styles = StyleSheet.create({
     width: 280,
     height: 280,
     borderRadius: 160,
-    backgroundColor: "#FCE7F3",
+    backgroundColor: ACCENT_LIGHT,
     top: -110,
     left: -110,
     opacity: 0.95,
@@ -300,7 +303,7 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 150,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: ACCENT_BORDER,
     top: 10,
     right: -130,
     opacity: 0.85,
@@ -310,7 +313,7 @@ const styles = StyleSheet.create({
     width: 300,
     height: 300,
     borderRadius: 170,
-    backgroundColor: "#E0F2FE",
+    backgroundColor: "#FFFBEB",
     bottom: -170,
     left: -90,
     opacity: 0.75,
@@ -333,10 +336,10 @@ const styles = StyleSheet.create({
     borderRadius: 42,
     backgroundColor: "rgba(255,255,255,0.9)",
     borderWidth: 1,
-    borderColor: "rgba(167,139,250,0.35)",
+    borderColor: "rgba(234,88,12,0.25)",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#A78BFA",
+    shadowColor: ACCENT,
     shadowOpacity: 0.12,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
@@ -364,14 +367,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: "rgba(251,113,133,0.3)",
-    shadowColor: "#FB7185",
+    borderColor: "rgba(234,88,12,0.25)",
+    shadowColor: ACCENT,
     shadowOpacity: 0.1,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  miniTagText: { fontSize: 10, fontWeight: "800", color: "#BE123C" },
+  miniTagText: { fontSize: 10, fontWeight: "800", color: ACCENT },
 
   /* Typography */
   title: {
@@ -397,12 +400,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(167,139,250,0.22)",
+    borderColor: ACCENT_BORDER,
     padding: 12,
     gap: 10,
-    shadowColor: "#C4B5FD",
+    shadowColor: ACCENT,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.14,
+    shadowOpacity: 0.1,
     shadowRadius: 14,
     elevation: 3,
   },
@@ -422,9 +425,9 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 10,
-    backgroundColor: "#F5F3FF",
+    backgroundColor: ACCENT_LIGHT,
     borderWidth: 1,
-    borderColor: "rgba(124,58,237,0.12)",
+    borderColor: ACCENT_BORDER,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -457,7 +460,7 @@ const styles = StyleSheet.create({
 
   softDivider: {
     height: 1,
-    backgroundColor: "rgba(167,139,250,0.15)",
+    backgroundColor: ACCENT_BORDER,
   },
 
   recapRow: { flexDirection: "row", alignItems: "center", gap: 10 },
@@ -471,7 +474,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(17,24,39,0.05)",
   },
-  badgeLavender: { backgroundColor: "#EDE9FE" },
+  badgeAccent: { backgroundColor: ACCENT_LIGHT },
   badgePink: { backgroundColor: "#FCE7F3" },
   badgeSky: { backgroundColor: "#E0F2FE" },
   badgeMint: { backgroundColor: "#ECFDF5" },
@@ -496,9 +499,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 8,
-    backgroundColor: "#FAF5FF",
+    backgroundColor: ACCENT_LIGHT,
     borderWidth: 1,
-    borderColor: "rgba(167,139,250,0.2)",
+    borderColor: ACCENT_BORDER,
     padding: 10,
     borderRadius: 14,
   },
@@ -520,12 +523,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 999,
-    backgroundColor: "#8B5CF6",
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 8,
-    shadowColor: "#7C3AED",
+    shadowColor: ACCENT,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 10,
@@ -553,14 +556,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(124,58,237,0.2)",
+    borderColor: ACCENT_BORDER,
     backgroundColor: "rgba(255,255,255,0.95)",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 7,
   },
-  btnSecondaryText: { fontSize: 13, fontWeight: "800", color: "#7C3AED" },
+  btnSecondaryText: { fontSize: 13, fontWeight: "800", color: ACCENT },
 
   footerHint: {
     marginTop: 14,
@@ -573,6 +576,6 @@ const styles = StyleSheet.create({
   footerHintText: {
     fontSize: 11,
     fontWeight: "600",
-    color: COLORS.gray[500],
+    color: "#6B7280",
   },
 });

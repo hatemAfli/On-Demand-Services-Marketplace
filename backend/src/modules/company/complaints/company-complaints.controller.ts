@@ -6,13 +6,16 @@ import {
   ParseUUIDPipe,
   Patch,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../common/guards/roles.guard';
+import { clientIp } from '../../../common/utils/client-ip';
 import { CompanyComplaintsService } from './company-complaints.service';
 import { ListCompanyComplaintsDto } from './dto/list-company-complaints.dto';
 import { ReviewCompanyComplaintDto } from './dto/review-company-complaint.dto';
@@ -51,7 +54,8 @@ export class CompanyComplaintsController {
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ReviewCompanyComplaintDto,
+    @Req() req: Request,
   ) {
-    return this.service.review(user.id, id, dto);
+    return this.service.review(user.id, id, dto, clientIp(req));
   }
 }

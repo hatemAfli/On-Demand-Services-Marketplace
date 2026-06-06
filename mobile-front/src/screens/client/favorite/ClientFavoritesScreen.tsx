@@ -24,19 +24,20 @@ type FavoriteCounts = Record<FavoriteType, number>;
 
 // ─── Design tokens ─────────────────────────────────────────
 const C = {
-  bg: "#F7F8FC",
+  bg: "#F1F5F9",
   white: "#FFFFFF",
   border: "#EAECF4",
   text: "#111827",
   textSub: "#6B7280",
   textLight: "#9CA3AF",
+  accent: "#EA580C",
 
-  // Category — indigo
-  indigoBg: "#EEF2FF",
-  indigoBorder: "#C7D2FE",
-  indigoIcon: "#4338CA",
-  indigoText: "#3730A3",
-  indigoDeep: "#312E81",
+  // Category — orange (brand)
+  orangeBg: "#FFF7ED",
+  orangeBorder: "#FFEDD5",
+  orangeIcon: "#EA580C",
+  orangeText: "#C2410C",
+  orangeDeep: "#9A3412",
 
   // Service — teal/emerald
   tealBg: "#F0FDFA",
@@ -71,11 +72,11 @@ const CARD_CONFIG: {
     title: "Favorite Categories",
     subtitle: "Your saved service categories",
     icon: "grid-outline",
-    colors: [C.indigoBg, C.indigoBorder],
-    iconColor: C.indigoIcon,
-    textColor: C.indigoText,
-    deepColor: C.indigoDeep,
-    accentBg: "#E0E7FF",
+    colors: [C.orangeBg, C.orangeBorder],
+    iconColor: C.orangeIcon,
+    textColor: C.orangeText,
+    deepColor: C.orangeDeep,
+    accentBg: "#FFEDD5",
     emoji: "🗂️",
   },
   {
@@ -185,6 +186,7 @@ export const ClientFavoritesScreen: React.FC<Props> = ({ navigation }) => {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: t("client.screenTitles.ClientFavorites"),
+      headerTitleAlign: "center",
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -194,6 +196,7 @@ export const ClientFavoritesScreen: React.FC<Props> = ({ navigation }) => {
           <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
         </TouchableOpacity>
       ),
+      headerRight: () => <View style={{ width: 40, marginRight: 8 }} />,
     });
   }, [navigation, t]);
 
@@ -250,7 +253,7 @@ export const ClientFavoritesScreen: React.FC<Props> = ({ navigation }) => {
     return (
       <View style={s.loaderWrap}>
         <View style={s.loaderBox}>
-          <ActivityIndicator size="large" color="#4F46E5" />
+          <ActivityIndicator size="large" color={C.accent} />
           <Text style={s.loaderText}>Loading your favorites…</Text>
         </View>
       </View>
@@ -268,7 +271,7 @@ export const ClientFavoritesScreen: React.FC<Props> = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#4F46E5"
+            tintColor={C.accent}
           />
         }
         contentContainerStyle={s.cardsContent}

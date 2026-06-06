@@ -33,6 +33,12 @@ import {
 
 type Props = NativeStackScreenProps<ProviderStackParamList, "ProviderSchedule">;
 
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
+
 type ScheduleDay = {
   dayOfWeek: ProviderAvailabilityDayOfWeek;
   isWorking: boolean;
@@ -364,7 +370,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FAFAF9" />
+      <StatusBar barStyle="dark-content" backgroundColor={SCREEN_BG} />
 
       {/* ── Header ── */}
       <View style={styles.header}>
@@ -374,7 +380,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           activeOpacity={0.85}
         >
-          <Ionicons name="chevron-back" size={20} color="#1A1A2E" />
+          <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Schedule</Text>
         <View style={styles.headerRightSpacer} />
@@ -402,7 +408,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
       >
         <View style={styles.manageDaysOffLeft}>
           <View style={styles.manageDaysOffIcon}>
-            <Ionicons name="moon-outline" size={16} color="#7C5CFC" />
+            <Ionicons name="moon-outline" size={16} color={ACCENT} />
           </View>
           <Text style={styles.manageDaysOffText}>Manage days off</Text>
         </View>
@@ -412,7 +418,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
 
       {loading ? (
         <View style={styles.loaderWrap}>
-          <ActivityIndicator size="large" color="#7C5CFC" />
+          <ActivityIndicator size="large" color={ACCENT} />
           <Text style={styles.loaderText}>Loading schedule…</Text>
         </View>
       ) : (
@@ -483,8 +489,8 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
                       value={day.isWorking}
                       onValueChange={() => toggleWorking(index)}
                       disabled={isEmployee}
-                      trackColor={{ false: "#E8E8F0", true: "#C4B5FD" }}
-                      thumbColor={day.isWorking ? "#7C5CFC" : "#F4F4F8"}
+                      trackColor={{ false: "#E8E8F0", true: ACCENT_BORDER }}
+                      thumbColor={day.isWorking ? ACCENT : "#F4F4F8"}
                       ios_backgroundColor="#E8E8F0"
                     />
                   </View>
@@ -513,7 +519,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
                               <Ionicons
                                 name="chevron-down"
                                 size={13}
-                                color="#7C5CFC"
+                                color={ACCENT}
                               />
                             </View>
                           </View>
@@ -630,7 +636,7 @@ export const ProviderScheduleScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: "#FAFAF9",
+    backgroundColor: SCREEN_BG,
   },
 
   /* ── Header ── */
@@ -640,7 +646,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#FAFAF9",
+    backgroundColor: SCREEN_BG,
   },
   backBtn: {
     width: 40,
@@ -686,15 +692,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     flexShrink: 0,
   },
   workingBadgeText: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#7C5CFC",
+    color: "#EA580C",
   },
 
   /* ── Days-off shortcut ── */
@@ -725,11 +731,11 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
   },
   manageDaysOffText: {
     fontSize: 14,
@@ -773,7 +779,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   dayCardOff: {
-    backgroundColor: "#FAFAF9",
+    backgroundColor: SCREEN_BG,
     borderColor: "#F0EEF8",
   },
 
@@ -796,9 +802,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dayShortBadgeOn: {
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
   },
   dayShortBadgeOff: {
     backgroundColor: "#F4F4F8",
@@ -810,7 +816,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.3,
   },
-  dayShortTextOn: { color: "#7C5CFC" },
+  dayShortTextOn: { color: "#EA580C" },
   dayShortTextOff: { color: "#C4C4C4" },
   dayName: {
     fontSize: 15,
@@ -836,7 +842,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#C4C4C4",
   },
-  switchLabelOn: { color: "#7C5CFC" },
+  switchLabelOn: { color: "#EA580C" },
 
   /* Time buttons */
   timesRow: {
@@ -846,10 +852,10 @@ const styles = StyleSheet.create({
   },
   timeBtn: {
     flex: 1,
-    backgroundColor: "#F9F8FF",
+    backgroundColor: "#FFF7ED",
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#EDE9FE",
+    borderColor: "#FFF7ED",
     paddingHorizontal: 14,
     paddingVertical: 11,
   },
@@ -877,7 +883,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 7,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -924,10 +930,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    backgroundColor: "#7C5CFC",
+    backgroundColor: "#EA580C",
     borderRadius: 999,
     paddingVertical: 16,
-    shadowColor: "#7C5CFC",
+    shadowColor: ACCENT_DARK,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 14,
@@ -984,15 +990,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 10,
     borderRadius: 16,
-    backgroundColor: "#F5F3FF",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1.5,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     marginBottom: 16,
   },
   pickerPreviewText: {
     fontSize: 32,
     fontWeight: "800",
-    color: "#7C5CFC",
+    color: "#EA580C",
     letterSpacing: -1,
     fontVariant: ["tabular-nums"],
   },
@@ -1016,7 +1022,7 @@ const styles = StyleSheet.create({
   pickerWheelFrame: {
     overflow: "hidden",
     borderRadius: 16,
-    backgroundColor: "#F9F8FF",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1,
     borderColor: "#EBEBF5",
   },
@@ -1025,9 +1031,9 @@ const styles = StyleSheet.create({
     left: 8,
     right: 8,
     borderRadius: 12,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#FFF7ED",
     borderWidth: 1.5,
-    borderColor: "#C4B5FD",
+    borderColor: "#FFEDD5",
     zIndex: 0,
   },
   pickerWheelRow: {
@@ -1046,7 +1052,7 @@ const styles = StyleSheet.create({
   pickerColSepText: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#C4B5FD",
+    color: "#FDBA74",
     marginTop: 22,
   },
   pickerItemText: {
@@ -1057,7 +1063,7 @@ const styles = StyleSheet.create({
   },
   pickerItemTextActive: {
     fontSize: 22,
-    color: "#7C5CFC",
+    color: "#EA580C",
     fontWeight: "800",
   },
   modalActions: {
@@ -1084,8 +1090,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     borderRadius: 14,
-    backgroundColor: "#7C5CFC",
-    shadowColor: "#7C5CFC",
+    backgroundColor: ACCENT,
+    shadowColor: ACCENT_DARK,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,

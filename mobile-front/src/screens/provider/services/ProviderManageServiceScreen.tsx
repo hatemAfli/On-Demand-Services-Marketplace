@@ -55,6 +55,11 @@ type GivenServiceApi = {
 };
 type GalleryImage = { id: string; imageUrl: string };
 
+const ACCENT = "#EA580C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
+
 const MAX_GALLERY_PHOTOS = 40;
 
 function numToInput(v: number | string | null | undefined): string {
@@ -359,7 +364,7 @@ export const ProviderManageServiceScreen: React.FC = () => {
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
           <View style={styles.backBtnInner}>
-            <Ionicons name="chevron-back" size={18} color="#1A1A2E" />
+            <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
           </View>
         </Pressable>
         <View style={styles.headerCenter}>
@@ -378,7 +383,7 @@ export const ProviderManageServiceScreen: React.FC = () => {
       {loading ? (
         <View style={styles.loadingWrap}>
           <View style={styles.loadingCard}>
-            <ActivityIndicator size="large" color="#7C5CFC" />
+            <ActivityIndicator size="large" color={ACCENT} />
             <Text style={styles.loadingText}>Loading your offer…</Text>
           </View>
         </View>
@@ -538,7 +543,7 @@ export const ProviderManageServiceScreen: React.FC = () => {
                   <Ionicons
                     name="checkmark-circle"
                     size={14}
-                    color={pricingType === "FIXED" ? "#7C5CFC" : "#C4C4C4"}
+                    color={pricingType === "FIXED" ? ACCENT : "#C4C4C4"}
                     style={styles.pricingTypeIcon}
                   />
                   <Text
@@ -561,7 +566,7 @@ export const ProviderManageServiceScreen: React.FC = () => {
                   <Ionicons
                     name="time-outline"
                     size={14}
-                    color={pricingType === "HOURLY" ? "#7C5CFC" : "#C4C4C4"}
+                    color={pricingType === "HOURLY" ? ACCENT : "#C4C4C4"}
                     style={styles.pricingTypeIcon}
                   />
                   <Text
@@ -677,7 +682,7 @@ function SectionHeader({ icon, label }: { icon: string; label: string }) {
   return (
     <View style={styles.sectionHeader}>
       <View style={styles.sectionIconWrap}>
-        <Ionicons name={icon as any} size={13} color="#7C5CFC" />
+        <Ionicons name={icon as any} size={13} color={ACCENT} />
       </View>
       <Text style={styles.sectionLabel}>{label}</Text>
     </View>
@@ -714,8 +719,8 @@ function SwitchRow({
       <Switch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: "#E8E8F0", true: "#C4B5FD" }}
-        thumbColor={value ? "#7C5CFC" : "#F4F4F8"}
+        trackColor={{ false: "#E8E8F0", true: ACCENT_BORDER }}
+        thumbColor={value ? ACCENT : "#F4F4F8"}
         ios_backgroundColor="#E8E8F0"
       />
     </View>
@@ -808,7 +813,7 @@ function GallerySection({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: SCREEN_BG,
   },
 
   /* Header */
@@ -821,7 +826,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#EBEBF5",
-    shadowColor: "#7C5CFC",
+    shadowColor: ACCENT,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -829,17 +834,17 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   backBtnInner: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: SCREEN_BG,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "#E8E8F0",
   },
   headerCenter: { flex: 1, alignItems: "center" },
-  headerSpacer: { width: 44 },
+  headerSpacer: { width: 40 },
   title: {
     fontSize: 17,
     fontWeight: "800",
@@ -866,7 +871,7 @@ const styles = StyleSheet.create({
     padding: 32,
     alignItems: "center",
     gap: 14,
-    shadowColor: "#7C5CFC",
+    shadowColor: ACCENT,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.1,
     shadowRadius: 20,
@@ -874,7 +879,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: "#7C5CFC",
+    color: ACCENT,
     fontWeight: "600",
     letterSpacing: 0.1,
   },
@@ -900,14 +905,14 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 8,
-    backgroundColor: "#EDE9FE",
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
   sectionLabel: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#7C5CFC",
+    color: ACCENT,
     textTransform: "uppercase",
     letterSpacing: 1.1,
   },
@@ -928,7 +933,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: SCREEN_BG,
     marginVertical: 10,
   },
 
@@ -953,7 +958,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   readOnlyInput: {
-    backgroundColor: "#F4F3FA",
+    backgroundColor: SCREEN_BG,
     color: "#9B9BB0",
     borderColor: "#EBEBF5",
   },
@@ -984,7 +989,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 16,
     fontWeight: "700",
-    color: "#7C5CFC",
+    color: ACCENT,
   },
   priceInput: {
     flex: 1,
@@ -1011,14 +1016,14 @@ const styles = StyleSheet.create({
   },
   switchDivider: {
     height: 1,
-    backgroundColor: "#F4F3FA",
+    backgroundColor: SCREEN_BG,
     marginVertical: 6,
   },
 
   /* Pricing toggle */
   pricingTypeToggle: {
     flexDirection: "row",
-    backgroundColor: "#F4F3FA",
+    backgroundColor: SCREEN_BG,
     borderRadius: 14,
     padding: 4,
     borderWidth: 1,
@@ -1036,7 +1041,7 @@ const styles = StyleSheet.create({
   },
   pricingTypeBtnActive: {
     backgroundColor: "#FFFFFF",
-    shadowColor: "#7C5CFC",
+    shadowColor: ACCENT,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 6,
@@ -1049,7 +1054,7 @@ const styles = StyleSheet.create({
     color: "#9B9BB0",
   },
   pricingTypeBtnTextActive: {
-    color: "#7C5CFC",
+    color: ACCENT,
     fontWeight: "700",
   },
 
@@ -1059,11 +1064,11 @@ const styles = StyleSheet.create({
     minWidth: 200,
     height: 52,
     borderRadius: 999,
-    backgroundColor: "#7C5CFC",
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 24,
-    shadowColor: "#7C5CFC",
+    shadowColor: ACCENT,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 16,
