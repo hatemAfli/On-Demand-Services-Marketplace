@@ -1,28 +1,23 @@
 import React, { useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AuthNoticeModal, Input } from "../../../components/common";
 import { useAuth } from "../../../context/AuthContext";
 import { api } from "../../../services/api";
 import type { AdminProfileStackParamList } from "./adminProfileNavigation";
 import {
-  AdminProfileSubHeader,
-  profileScreenStyles,
+  AdminFormCard,
+  AdminFormCardHeader,
+  AdminFormSaveButton,
+  AdminProfileInitialsAvatar,
+  AdminSettingsFormLayout,
+  adminFormStyles,
+  initials,
 } from "./adminProfileUi";
 
 type Props = NativeStackScreenProps<AdminProfileStackParamList, "AdminEditProfile">;
 
 export const AdminEditProfileScreen: React.FC<Props> = ({ navigation }) => {
-  const insets = useSafeAreaInsets();
   const { user, refreshUser } = useAuth();
 
   const initialFirst = user?.firstName?.trim() ?? "";
@@ -48,7 +43,9 @@ export const AdminEditProfileScreen: React.FC<Props> = ({ navigation }) => {
   const validate = () => {
     const next: typeof errors = {};
     if (!firstName.trim()) next.firstName = "First name is required";
+    else if (firstName.trim().length < 2) next.firstName = "At least 2 characters";
     if (!lastName.trim()) next.lastName = "Last name is required";
+    else if (lastName.trim().length < 2) next.lastName = "At least 2 characters";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -92,61 +89,50 @@ export const AdminEditProfileScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   return (
-    <View style={profileScreenStyles.root}>
-      <AdminProfileSubHeader
-        title="Edit profile"
-        onBack={() => navigation.goBack()}
-      />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
-        >
-          <View style={profileScreenStyles.formCard}>
-            <Text style={profileScreenStyles.formHint}>
-              Update how your name appears across the admin panel.
-            </Text>
-            <Input
-              label="First name"
-              value={firstName}
-              onChangeText={(v) => {
-                setFirstName(v);
-                if (errors.firstName) setErrors((p) => ({ ...p, firstName: undefined }));
-              }}
-              error={errors.firstName}
-              autoCapitalize="words"
-            />
-            <Input
-              label="Last name"
-              value={lastName}
-              onChangeText={(v) => {
-                setLastName(v);
-                if (errors.lastName) setErrors((p) => ({ ...p, lastName: undefined }));
-              }}
-              error={errors.lastName}
-              autoCapitalize="words"
-            />
-          </View>
+    <AdminSettingsFormLayout onBack={() => navigation.goBack()}>
+      <AdminFormCard>
+        <AdminFormCardHeader
+          icon="person-outline"
+          title="Edit profile"
+          subtitle="Update how your name appears across the admin panel"
+        />
 
-          <TouchableOpacity
-            style={[
-              profileScreenStyles.saveBtn,
-              (!isDirty || saving) && profileScreenStyles.saveBtnDisabled,
-            ]}
-            onPress={() => void onSave()}
-            disabled={!isDirty || saving}
-          >
-            {saving ? (
-              <ActivityIndicator color="#92400E" />
-            ) : (
-              <Text style={profileScreenStyles.saveBtnText}>Save changes</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <AdminProfileInitialsAvatar
+          label={initials(firstName, lastName)}
+        />
+
+        <View style={adminFormStyles.form}>
+          <Input
+            label="First name"
+            value={firstName}
+            onChangeText={(v) => {
+              setFirstName(v);
+              if (errors.firstName) setErrors((p) => ({ ...p, firstName: undefined }));
+            }}
+            leftIcon="person-outline"
+            error={errors.firstName}
+            autoCapitalize="words"
+          />
+          <Input
+            label="Last name"
+            value={lastName}
+            onChangeText={(v) => {
+              setLastName(v);
+              if (errors.lastName) setErrors((p) => ({ ...p, lastName: undefined }));
+            }}
+            leftIcon="person-outline"
+            error={errors.lastName}
+            autoCapitalize="words"
+          />
+        </View>
+
+        <AdminFormSaveButton
+          label="Save profile"
+          onPress={() => void onSave()}
+          disabled={!isDirty}
+          loading={saving}
+        />
+      </AdminFormCard>
 
       <AuthNoticeModal
         visible={notice.visible}
@@ -162,6 +148,6 @@ export const AdminEditProfileScreen: React.FC<Props> = ({ navigation }) => {
           if (notice.success) navigation.goBack();
         }}
       />
-    </View>
+    </AdminSettingsFormLayout>
   );
 };

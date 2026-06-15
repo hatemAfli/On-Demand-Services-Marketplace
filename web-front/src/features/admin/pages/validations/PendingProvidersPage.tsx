@@ -1,4 +1,4 @@
-import { ValidationsQueuePage } from './ValidationsQueuePage'
+import { ValidationsQueuePage } from "./ValidationsQueuePage";
 
 export function PendingProvidersPage() {
   return (
@@ -6,7 +6,7 @@ export function PendingProvidersPage() {
       ownerType="PROVIDER"
       heroKicker="Validation queue"
       heroTitle="Pending providers"
-      heroSubtitle="Independent and employee providers waiting for profile verification. Open a row to review documents, mark under review, approve, or reject."
+      heroSubtitle="Provider verification requests. Review identity documents and service credentials before approval."
     />
-  )
+  );
 }

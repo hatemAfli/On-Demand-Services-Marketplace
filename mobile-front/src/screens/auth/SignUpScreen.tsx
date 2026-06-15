@@ -292,7 +292,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                 secureTextEntry
                 error={errors.password}
               />
-              <PasswordStrengthIndicator password={password} />
+              <PasswordStrengthIndicator password={password} variant="light" />
 
               <Input
                 label={t("common.confirmPassword")}

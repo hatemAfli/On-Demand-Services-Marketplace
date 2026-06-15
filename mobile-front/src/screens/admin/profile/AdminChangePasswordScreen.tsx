@@ -1,21 +1,15 @@
 import React, { useMemo, useRef, useState } from "react";
-import {
-  View,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Text,
-} from "react-native";
+import { View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AuthNoticeModal, Input } from "../../../components/common";
 import { supabase } from "../../../services/supabase";
 import type { AdminProfileStackParamList } from "./adminProfileNavigation";
 import {
-  AdminProfileSubHeader,
-  profileScreenStyles,
+  AdminFormCard,
+  AdminFormCardHeader,
+  AdminFormSaveButton,
+  AdminSettingsFormLayout,
+  adminFormStyles,
 } from "./adminProfileUi";
 
 type Props = NativeStackScreenProps<
@@ -24,7 +18,6 @@ type Props = NativeStackScreenProps<
 >;
 
 export const AdminChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
-  const insets = useSafeAreaInsets();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<{
@@ -65,6 +58,9 @@ export const AdminChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+      setPassword("");
+      setConfirmPassword("");
+      setErrors({});
       setNotice({
         visible: true,
         title: "Password updated",
@@ -85,64 +81,49 @@ export const AdminChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   return (
-    <View style={profileScreenStyles.root}>
-      <AdminProfileSubHeader
-        title="Change password"
-        onBack={() => navigation.goBack()}
-      />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
-        >
-          <View style={profileScreenStyles.formCard}>
-            <Text style={profileScreenStyles.formHint}>
-              Choose a strong password you do not use elsewhere.
-            </Text>
-            <Input
-              label="New password"
-              value={password}
-              onChangeText={(v) => {
-                setPassword(v);
-                if (errors.password) setErrors((p) => ({ ...p, password: undefined }));
-              }}
-              error={errors.password}
-              secureTextEntry
-              autoCapitalize="none"
-            />
-            <Input
-              label="Confirm password"
-              value={confirmPassword}
-              onChangeText={(v) => {
-                setConfirmPassword(v);
-                if (errors.confirmPassword)
-                  setErrors((p) => ({ ...p, confirmPassword: undefined }));
-              }}
-              error={errors.confirmPassword}
-              secureTextEntry
-              autoCapitalize="none"
-            />
-          </View>
+    <AdminSettingsFormLayout onBack={() => navigation.goBack()}>
+      <AdminFormCard>
+        <AdminFormCardHeader
+          icon="lock-closed-outline"
+          title="Change password"
+          subtitle="Choose a strong password you do not use elsewhere"
+        />
 
-          <TouchableOpacity
-            style={[
-              profileScreenStyles.saveBtn,
-              (!isDirty || loading) && profileScreenStyles.saveBtnDisabled,
-            ]}
-            onPress={() => void onSave()}
-            disabled={!isDirty || loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#92400E" />
-            ) : (
-              <Text style={profileScreenStyles.saveBtnText}>Update password</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <View style={adminFormStyles.form}>
+          <Input
+            label="Password"
+            value={password}
+            onChangeText={(v) => {
+              setPassword(v);
+              if (errors.password) setErrors((p) => ({ ...p, password: undefined }));
+            }}
+            leftIcon="lock-closed-outline"
+            secureTextEntry
+            autoCapitalize="none"
+            error={errors.password}
+          />
+          <Input
+            label="Confirm password"
+            value={confirmPassword}
+            onChangeText={(v) => {
+              setConfirmPassword(v);
+              if (errors.confirmPassword)
+                setErrors((p) => ({ ...p, confirmPassword: undefined }));
+            }}
+            leftIcon="lock-closed-outline"
+            secureTextEntry
+            autoCapitalize="none"
+            error={errors.confirmPassword}
+          />
+        </View>
+
+        <AdminFormSaveButton
+          label="Save password"
+          onPress={() => void onSave()}
+          disabled={!isDirty}
+          loading={loading}
+        />
+      </AdminFormCard>
 
       <AuthNoticeModal
         visible={notice.visible}
@@ -158,6 +139,6 @@ export const AdminChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
           if (notice.success) navigation.goBack();
         }}
       />
-    </View>
+    </AdminSettingsFormLayout>
   );
 };

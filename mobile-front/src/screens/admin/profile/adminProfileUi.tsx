@@ -5,13 +5,22 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
+  KeyboardAvoidingView,
+  ScrollView,
+  StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons, FontAwesome6 } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
-export const ACCENT = "#E8C97A";
-export const ACCENT_DIM = "rgba(232,201,122,0.18)";
-export const ACCENT_BORDER = "rgba(232,201,122,0.40)";
+export const ACCENT = "#EA580C";
+export const ACCENT_DARK = "#C2410C";
+export const ACCENT_DIM = "#FFF7ED";
+export const ACCENT_BORDER = "#FFEDD5";
+export const ACCENT_RING = "#F08E10";
 
 export function initials(first?: string | null, last?: string | null): string {
   const a = (first ?? "").trim()[0] ?? "";
@@ -20,57 +29,147 @@ export function initials(first?: string | null, last?: string | null): string {
   return s || "?";
 }
 
-export function AdminProfileSubHeader({
-  title,
+export function AdminSettingsFormLayout({
   onBack,
+  children,
 }: {
-  title: string;
   onBack: () => void;
+  children: React.ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+
   return (
-    <View style={[subHeaderStyles.wrap, { paddingTop: insets.top + 8 }]}>
-      <TouchableOpacity
-        onPress={onBack}
-        style={subHeaderStyles.backBtn}
-        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+    <SafeAreaView style={adminFormStyles.root} edges={["top", "left", "right"]}>
+      <StatusBar barStyle="dark-content" />
+      <View style={[adminFormStyles.topBackContainer, { top: insets.top + 6 }]}>
+        <TouchableOpacity
+          onPress={onBack}
+          style={adminFormStyles.backButton}
+          activeOpacity={0.8}
+        >
+          <Text style={adminFormStyles.backText}>← Back</Text>
+        </TouchableOpacity>
+      </View>
+      <KeyboardAvoidingView
+        style={adminFormStyles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
-      </TouchableOpacity>
-      <Text style={subHeaderStyles.title}>{title}</Text>
-      <View style={{ width: 36 }} />
+        <ScrollView
+          contentContainerStyle={[
+            adminFormStyles.scrollContent,
+            {
+              paddingTop: insets.top + 60,
+              paddingBottom: 24 + insets.bottom,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+export function AdminFormCard({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: object;
+}) {
+  return <View style={[adminFormStyles.card, style]}>{children}</View>;
+}
+
+export function AdminFormCardHeader({
+  icon,
+  title,
+  subtitle,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <View style={adminFormStyles.headerRow}>
+      <View style={adminFormStyles.iconWrap}>
+        <Ionicons name={icon} size={20} color={ACCENT} />
+      </View>
+      <View style={adminFormStyles.headerTextWrap}>
+        <Text style={adminFormStyles.title}>{title}</Text>
+        {subtitle ? (
+          <Text style={adminFormStyles.subtitle}>{subtitle}</Text>
+        ) : null}
+      </View>
     </View>
   );
 }
 
-const subHeaderStyles = StyleSheet.create({
-  wrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#EBEBF5",
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: ACCENT_DIM,
-    borderWidth: 1,
-    borderColor: ACCENT_BORDER,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#1A1A2E",
-    letterSpacing: -0.3,
-  },
-});
+export function AdminFormSaveButton({
+  label,
+  onPress,
+  disabled,
+  loading,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        adminFormStyles.saveButton,
+        (disabled || loading) && adminFormStyles.saveButtonDisabled,
+      ]}
+      onPress={onPress}
+      disabled={disabled || loading}
+      activeOpacity={0.9}
+    >
+      {loading ? (
+        <ActivityIndicator color="#FFFFFF" />
+      ) : (
+        <View style={adminFormStyles.saveButtonContent}>
+          <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
+          <Text style={adminFormStyles.saveButtonText}>{label}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+export function AdminFormSentCard({
+  icon,
+  title,
+  message,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  message: string;
+}) {
+  return (
+    <View style={adminFormStyles.sentCard}>
+      <Ionicons name={icon} size={24} color={ACCENT} />
+      <Text style={adminFormStyles.sentTitle}>{title}</Text>
+      <Text style={adminFormStyles.sentText}>{message}</Text>
+    </View>
+  );
+}
+
+export function AdminProfileInitialsAvatar({ label }: { label: string }) {
+  return (
+    <View style={adminFormStyles.avatarSection}>
+      <View style={adminFormStyles.avatarOuterRing}>
+        <View style={adminFormStyles.avatarRingInner}>
+          <View style={adminFormStyles.avatarPlaceholder}>
+            <Text style={adminFormStyles.avatarInitials}>{label}</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export type ProfileMenuRowProps = {
   icon: React.ComponentProps<typeof FontAwesome6>["name"];
@@ -128,7 +227,7 @@ export function ProfileMenuRow({
 export const profileScreenStyles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F4F3FA",
   },
   scroll: {
     paddingHorizontal: 16,
@@ -165,38 +264,142 @@ export const profileScreenStyles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
     marginLeft: 56,
   },
-  formCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+});
+
+export const adminFormStyles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#F1F5F9" },
+  container: { flex: 1 },
+  topBackContainer: {
+    position: "absolute",
+    left: 24,
+    zIndex: 10,
+  },
+  backButton: { paddingVertical: 8, paddingHorizontal: 8 },
+  backText: { color: ACCENT, fontSize: 16, fontWeight: "600" },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    justifyContent: "center",
+  },
+  card: {
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    padding: 18,
-    gap: 14,
-    marginHorizontal: 16,
-    marginTop: 16,
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 1,
   },
-  formHint: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#64748B",
-    fontWeight: "500",
-  },
-  saveBtn: {
-    marginHorizontal: 16,
-    marginTop: 20,
-    backgroundColor: ACCENT,
-    borderRadius: 12,
-    paddingVertical: 15,
+  headerRow: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
   },
-  saveBtnDisabled: {
-    opacity: 0.55,
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: ACCENT_DIM,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  saveBtnText: {
-    fontSize: 16,
+  headerTextWrap: { flex: 1 },
+  title: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "700",
+    color: "#0F172A",
+    letterSpacing: -0.3,
+  },
+  subtitle: { marginTop: 4, fontSize: 12, color: "#64748B" },
+  form: { gap: 8, marginBottom: 12 },
+  avatarSection: {
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  avatarOuterRing: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: ACCENT_RING,
+    padding: 4,
+    shadowColor: ACCENT_RING,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  avatarRingInner: {
+    flex: 1,
+    borderRadius: 46,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  avatarPlaceholder: {
+    flex: 1,
+    minHeight: 88,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: ACCENT_DIM,
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+  },
+  avatarInitials: {
+    fontSize: 32,
     fontWeight: "800",
-    color: "#92400E",
+    color: ACCENT_DARK,
+    letterSpacing: -1,
   },
+  saveButton: {
+    alignSelf: "center",
+    minWidth: 200,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: ACCENT,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: ACCENT_DARK,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
+    marginTop: 10,
+  },
+  saveButtonDisabled: { opacity: 0.6 },
+  saveButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  sentCard: {
+    marginTop: 18,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: ACCENT_BORDER,
+    backgroundColor: ACCENT_DIM,
+    padding: 14,
+    gap: 8,
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
+  },
+  sentTitle: { fontSize: 16, fontWeight: "700", color: "#9A3412" },
+  sentText: { fontSize: 13, color: ACCENT_DARK },
 });
 
 const menuStyles = StyleSheet.create({

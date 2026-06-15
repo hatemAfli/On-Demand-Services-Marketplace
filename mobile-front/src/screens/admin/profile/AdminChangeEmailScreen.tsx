@@ -1,29 +1,21 @@
 import React, { useMemo, useRef, useState } from "react";
-import {
-  View,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Text,
-} from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AuthNoticeModal, Input } from "../../../components/common";
 import { useAuth } from "../../../context/AuthContext";
 import { api } from "../../../services/api";
 import { getAuthRedirectUrl, supabase } from "../../../services/supabase";
 import type { AdminProfileStackParamList } from "./adminProfileNavigation";
 import {
-  AdminProfileSubHeader,
-  profileScreenStyles,
+  AdminFormCard,
+  AdminFormCardHeader,
+  AdminFormSaveButton,
+  AdminFormSentCard,
+  AdminSettingsFormLayout,
 } from "./adminProfileUi";
 
 type Props = NativeStackScreenProps<AdminProfileStackParamList, "AdminChangeEmail">;
 
 export const AdminChangeEmailScreen: React.FC<Props> = ({ navigation }) => {
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const currentEmail = user?.email?.trim() ?? "";
 
@@ -86,65 +78,44 @@ export const AdminChangeEmailScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   return (
-    <View style={profileScreenStyles.root}>
-      <AdminProfileSubHeader
-        title="Change email"
-        onBack={() => navigation.goBack()}
-      />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
-        >
-          <View style={profileScreenStyles.formCard}>
-            {sentTo ? (
-              <Text style={profileScreenStyles.formHint}>
-                We sent a confirmation link to {sentTo}. Open it to finish updating
-                your email, then sign in again if needed.
-              </Text>
-            ) : (
-              <>
-                <Text style={profileScreenStyles.formHint}>
-                  Current email: {currentEmail || "—"}. You will receive a
-                  confirmation link at the new address.
-                </Text>
-                <Input
-                  label="New email"
-                  value={email}
-                  onChangeText={(v) => {
-                    setEmail(v);
-                    if (error) setError(undefined);
-                  }}
-                  error={error}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </>
-            )}
-          </View>
+    <AdminSettingsFormLayout onBack={() => navigation.goBack()}>
+      <AdminFormCard>
+        <AdminFormCardHeader
+          icon="mail-outline"
+          title="Change email"
+          subtitle="You will receive a confirmation link at the new address"
+        />
 
-          {!sentTo ? (
-            <TouchableOpacity
-              style={[
-                profileScreenStyles.saveBtn,
-                (!isDirty || loading) && profileScreenStyles.saveBtnDisabled,
-              ]}
-              onPress={() => void onSave()}
-              disabled={!isDirty || loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#92400E" />
-              ) : (
-                <Text style={profileScreenStyles.saveBtnText}>Send confirmation</Text>
-              )}
-            </TouchableOpacity>
-          ) : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <Input
+          label="Email"
+          placeholder="Email"
+          value={email}
+          onChangeText={(v) => {
+            setEmail(v);
+            if (error) setError(undefined);
+          }}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          leftIcon="mail-outline"
+          error={error}
+        />
+
+        <AdminFormSaveButton
+          label="Save email"
+          onPress={() => void onSave()}
+          disabled={!isDirty || Boolean(sentTo)}
+          loading={loading}
+        />
+      </AdminFormCard>
+
+      {sentTo ? (
+        <AdminFormSentCard
+          icon="mail-open-outline"
+          title="Check your inbox"
+          message={`We sent a confirmation link to ${sentTo}. Open it to finish updating your email.`}
+        />
+      ) : null}
 
       <AuthNoticeModal
         visible={notice.visible}
@@ -154,6 +125,6 @@ export const AdminChangeEmailScreen: React.FC<Props> = ({ navigation }) => {
         primaryLabel="Close"
         onPrimary={() => setNotice({ visible: false, message: "" })}
       />
-    </View>
+    </AdminSettingsFormLayout>
   );
 };

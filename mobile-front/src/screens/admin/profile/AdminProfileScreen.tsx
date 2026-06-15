@@ -22,6 +22,7 @@ import { AccountStatus } from "../../../types";
 import type { AdminProfileStackParamList } from "./adminProfileNavigation";
 import {
   ACCENT,
+  ACCENT_DARK,
   ACCENT_DIM,
   ACCENT_BORDER,
   ProfileMenuRow,
@@ -60,6 +61,51 @@ function statusLabel(status: AccountStatus): string {
       return "Deleted";
     default:
       return status;
+  }
+}
+
+function statusStyle(status?: AccountStatus): {
+  bg: string;
+  border: string;
+  dot: string;
+  text: string;
+} {
+  switch (status) {
+    case AccountStatus.ACTIVE:
+      return {
+        bg: "#ECFDF5",
+        border: "#A7F3D0",
+        dot: "#10B981",
+        text: "#065F46",
+      };
+    case AccountStatus.PENDING:
+      return {
+        bg: ACCENT_DIM,
+        border: ACCENT_BORDER,
+        dot: ACCENT,
+        text: ACCENT_DARK,
+      };
+    case AccountStatus.SUSPENDED:
+      return {
+        bg: "#FFF7ED",
+        border: "#FED7AA",
+        dot: "#EA580C",
+        text: "#C2410C",
+      };
+    case AccountStatus.REJECTED:
+      return {
+        bg: "#FEF2F2",
+        border: "#FECACA",
+        dot: "#EF4444",
+        text: "#B91C1C",
+      };
+    default:
+      return {
+        bg: "#F1F5F9",
+        border: "#E2E8F0",
+        dot: "#94A3B8",
+        text: "#64748B",
+      };
   }
 }
 
@@ -126,10 +172,65 @@ export const AdminProfileScreen: React.FC = () => {
   };
 
   const permissionsCount = user?.platformAdmin?.permissions?.length ?? 0;
+  const accountStatus = statusStyle(user?.status);
 
   return (
-    <View style={[profileScreenStyles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top + 8 }]}>
+      <View style={styles.stickyHeader}>
+        <View style={styles.headerTop}>
+          <View style={styles.avatarRing}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {initials(user?.firstName, user?.lastName)}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.heroInfo}>
+            <Text style={styles.heroName} numberOfLines={1}>
+              {displayName}
+            </Text>
+            <View style={styles.emailRow}>
+              <Ionicons name="mail-outline" size={13} color="#9B9BB0" />
+              <Text style={styles.heroEmail} numberOfLines={1}>
+                {user?.email ?? "—"}
+              </Text>
+            </View>
+            <View style={styles.badgeRow}>
+              <View style={styles.roleBadge}>
+                <Ionicons name="shield-checkmark" size={11} color={ACCENT_DARK} />
+                <Text style={styles.roleBadgeText}>Platform admin</Text>
+              </View>
+              <View
+                style={[
+                  styles.statusBadge,
+                  {
+                    backgroundColor: accountStatus.bg,
+                    borderColor: accountStatus.border,
+                  },
+                ]}
+              >
+                <View
+                  style={[styles.statusDot, { backgroundColor: accountStatus.dot }]}
+                />
+                <Text style={[styles.statusText, { color: accountStatus.text }]}>
+                  {user?.status ? statusLabel(user.status) : "—"}
+                </Text>
+              </View>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.editBtn}
+            onPress={() => navigation.navigate("AdminEditProfile")}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.82}
+          >
+            <Ionicons name="create-outline" size={18} color={ACCENT_DARK} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={[
           profileScreenStyles.scroll,
           { paddingBottom: 24 + insets.bottom },
@@ -143,38 +244,17 @@ export const AdminProfileScreen: React.FC = () => {
           />
         }
       >
-        <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {initials(user?.firstName, user?.lastName)}
-              </Text>
-            </View>
-            <View style={styles.heroInfo}>
-              <Text style={styles.heroName}>{displayName}</Text>
-              <Text style={styles.heroEmail} numberOfLines={1}>
-                {user?.email ?? "—"}
-              </Text>
-              <View style={styles.badgeRow}>
-                <View style={styles.roleBadge}>
-                  <Ionicons name="shield-checkmark" size={11} color="#92400E" />
-                  <Text style={styles.roleBadgeText}>Platform admin</Text>
-                </View>
-                <View style={styles.statusBadge}>
-                  <View style={styles.statusDot} />
-                  <Text style={styles.statusText}>
-                    {user?.status ? statusLabel(user.status) : "—"}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
+        <View style={styles.heroMeta}>
           <View style={styles.verifyRow}>
-            <View style={styles.verifyChip}>
+            <View
+              style={[
+                styles.verifyChip,
+                user?.isEmailVerified ? styles.verifyChipOk : styles.verifyChipMuted,
+              ]}
+            >
               <Ionicons
-                name={user?.isEmailVerified ? "mail" : "mail-outline"}
-                size={13}
+                name={user?.isEmailVerified ? "checkmark-circle" : "mail-outline"}
+                size={14}
                 color={user?.isEmailVerified ? "#059669" : "#94A3B8"}
               />
               <Text
@@ -186,10 +266,15 @@ export const AdminProfileScreen: React.FC = () => {
                 Email {user?.isEmailVerified ? "verified" : "unverified"}
               </Text>
             </View>
-            <View style={styles.verifyChip}>
+            <View
+              style={[
+                styles.verifyChip,
+                user?.isPhoneVerified ? styles.verifyChipOk : styles.verifyChipMuted,
+              ]}
+            >
               <Ionicons
-                name={user?.isPhoneVerified ? "call" : "call-outline"}
-                size={13}
+                name={user?.isPhoneVerified ? "checkmark-circle" : "call-outline"}
+                size={14}
                 color={user?.isPhoneVerified ? "#059669" : "#94A3B8"}
               />
               <Text
@@ -232,7 +317,7 @@ export const AdminProfileScreen: React.FC = () => {
           <ProfileMenuRow
             icon="user"
             iconBg={ACCENT_DIM}
-            iconColor="#92400E"
+            iconColor={ACCENT_DARK}
             title="Edit profile"
             subtitle="Update your name and display info"
             onPress={() => navigation.navigate("AdminEditProfile")}
@@ -352,12 +437,18 @@ export const AdminProfileScreen: React.FC = () => {
         </View>
 
         <TouchableOpacity
-          style={styles.logoutBtn}
+          style={styles.logoutCard}
           onPress={() => setLogoutModalVisible(true)}
           activeOpacity={0.88}
         >
-          <Ionicons name="log-out-outline" size={18} color="#DC2626" />
-          <Text style={styles.logoutText}>Sign out</Text>
+          <View style={styles.logoutIconWrap}>
+            <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+          </View>
+          <View style={styles.logoutCopy}>
+            <Text style={styles.logoutTitle}>Sign out</Text>
+            <Text style={styles.logoutSub}>End your admin session on this device</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="#FCA5A5" />
         </TouchableOpacity>
       </ScrollView>
 
@@ -385,63 +476,98 @@ export const AdminProfileScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  heroCard: {
+  root: {
+    flex: 1,
+    backgroundColor: "#F4F3FA",
+  },
+  stickyHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 16,
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    padding: 18,
-    gap: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EBEBF5",
+    zIndex: 10,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.06,
-        shadowRadius: 12,
+        shadowColor: "#1A1A2E",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
       },
-      android: { elevation: 3 },
+      android: { elevation: 2 },
     }),
   },
-  heroTop: {
+  headerTop: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
   },
-  avatar: {
-    width: 72,
-    height: 72,
+  scroll: {
+    flex: 1,
+  },
+  heroMeta: {
+    gap: 14,
+    paddingBottom: 4,
+  },
+  avatarRing: {
+    padding: 3,
     borderRadius: 20,
     backgroundColor: ACCENT_DIM,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: ACCENT_BORDER,
+  },
+  avatar: {
+    width: 58,
+    height: 58,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "800",
-    color: "#92400E",
+    color: ACCENT_DARK,
+    letterSpacing: -0.5,
   },
   heroInfo: {
     flex: 1,
     gap: 4,
+    minWidth: 0,
   },
   heroName: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#0F172A",
+    color: "#1A1A2E",
     letterSpacing: -0.4,
   },
+  emailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
   heroEmail: {
+    flex: 1,
     fontSize: 13,
     fontWeight: "500",
-    color: "#64748B",
+    color: "#9B9BB0",
+  },
+  editBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: ACCENT_DIM,
+    borderWidth: 1.5,
+    borderColor: ACCENT_BORDER,
+    alignItems: "center",
+    justifyContent: "center",
   },
   badgeRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 6,
+    marginTop: 4,
   },
   roleBadge: {
     flexDirection: "row",
@@ -457,37 +583,47 @@ const styles = StyleSheet.create({
   roleBadgeText: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#92400E",
+    color: ACCENT_DARK,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#ECFDF5",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
+    borderWidth: 1,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#10B981",
   },
   statusText: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#065F46",
   },
   verifyRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
   verifyChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  verifyChipOk: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+  },
+  verifyChipMuted: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
   },
   verifyText: {
     fontSize: 12,
@@ -499,10 +635,12 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: "row",
-    backgroundColor: "#F8FAFC",
-    borderRadius: 14,
+    alignItems: "center",
+    backgroundColor: "#F9F8FF",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#F1F5F9",
+    borderColor: "#EBEBF5",
+    paddingHorizontal: 14,
     paddingVertical: 12,
   },
   statBox: {
@@ -512,20 +650,20 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    backgroundColor: "#E2E8F0",
-    marginVertical: 4,
+    height: 28,
+    backgroundColor: "#EBEBF5",
   },
   statLabel: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#94A3B8",
+    color: "#9B9BB0",
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   statValue: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#0F172A",
+    color: "#1A1A2E",
   },
   prefRow: {
     flexDirection: "row",
@@ -564,21 +702,51 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#64748B",
   },
-  logoutBtn: {
+  logoutCard: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#FFFFFF",
+    gap: 14,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1.5,
+    borderColor: "#FECACA",
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginTop: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#DC2626",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: { elevation: 1 },
+    }),
+  },
+  logoutIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    backgroundColor: "#FEE2E2",
     borderWidth: 1,
     borderColor: "#FECACA",
-    borderRadius: 14,
-    paddingVertical: 15,
-    marginTop: 4,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  logoutText: {
-    fontSize: 15,
+  logoutCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  logoutTitle: {
+    fontSize: 16,
     fontWeight: "800",
-    color: "#DC2626",
+    color: "#B91C1C",
+    letterSpacing: -0.2,
+  },
+  logoutSub: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#EF4444",
+    lineHeight: 16,
   },
 });

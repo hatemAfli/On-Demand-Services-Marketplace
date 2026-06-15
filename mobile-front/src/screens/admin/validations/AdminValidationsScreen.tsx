@@ -17,7 +17,10 @@ import { api } from "../../../services/api";
 import { COLORS } from "../../../constants";
 import type { AdminValidationsStackParamList } from "./adminValidationsNavigation";
 
-const ACCENT = "#E8C97A";
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_DIM = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
 
 type OwnerFilter = "ALL" | "PROVIDER" | "COMPANY";
 
@@ -112,7 +115,7 @@ export const AdminValidationsScreen: React.FC = () => {
         <Ionicons
           name={icon as any}
           size={13}
-          color={active ? "#1A1A0A" : "#9B9BB0"}
+          color={active ? ACCENT_DARK : "#9B9BB0"}
         />
         <Text
           style={[styles.filterChipText, active && styles.filterChipTextActive]}
@@ -327,7 +330,7 @@ export const AdminValidationsScreen: React.FC = () => {
               onPress={() => void load()}
               style={styles.retryBtn}
             >
-              <Ionicons name="refresh-outline" size={15} color="#1A1A0A" />
+              <Ionicons name="refresh-outline" size={15} color={ACCENT_DARK} />
               <Text style={styles.retryBtnText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -384,10 +387,10 @@ function getStatusConfig(status: string) {
       };
     case "PENDING":
       return {
-        bg: "#FFFBEB",
-        text: "#B45309",
-        dot: "#F59E0B",
-        stripe: "#F59E0B",
+        bg: ACCENT_DIM,
+        text: ACCENT_DARK,
+        dot: ACCENT,
+        stripe: ACCENT,
       };
     default:
       return {
@@ -426,11 +429,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 15,
-    backgroundColor: "rgba(232,201,122,0.18)",
+    backgroundColor: ACCENT_DIM,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "rgba(232,201,122,0.45)",
+    borderColor: ACCENT_BORDER,
   },
   headerTextWrap: { flex: 1 },
   title: {
@@ -500,7 +503,7 @@ const styles = StyleSheet.create({
     borderColor: "#EBEBF5",
   },
   filterChipActive: {
-    backgroundColor: "rgba(232,201,122,0.22)",
+    backgroundColor: ACCENT_DIM,
     borderColor: ACCENT,
   },
   filterChipText: {
@@ -509,7 +512,7 @@ const styles = StyleSheet.create({
     color: "#9B9BB0",
   },
   filterChipTextActive: {
-    color: "#1A1A0A",
+    color: ACCENT_DARK,
   },
 
   /* List */
@@ -552,11 +555,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 15,
-    backgroundColor: "rgba(232,201,122,0.2)",
+    backgroundColor: ACCENT_DIM,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "rgba(232,201,122,0.4)",
+    borderColor: ACCENT_BORDER,
     flexShrink: 0,
   },
   avatarCompany: {
@@ -566,7 +569,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#B45309",
+    color: ACCENT_DARK,
   },
   avatarTextCompany: {
     color: "#6D28D9",
@@ -743,13 +746,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 999,
-    backgroundColor: "rgba(232,201,122,0.22)",
+    backgroundColor: ACCENT_DIM,
     borderWidth: 1.5,
     borderColor: ACCENT,
     marginTop: 4,
   },
   retryBtnText: {
-    color: "#1A1A0A",
+    color: ACCENT_DARK,
     fontWeight: "700",
     fontSize: 14,
   },
@@ -765,11 +768,11 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 22,
-    backgroundColor: "rgba(232,201,122,0.15)",
+    backgroundColor: ACCENT_DIM,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "rgba(232,201,122,0.4)",
+    borderColor: ACCENT_BORDER,
     marginBottom: 4,
   },
   empty: {

@@ -29,7 +29,6 @@ import {
 
 const ACCENT = "#EA580C";
 const ACCENT_LIGHT = "#FFF7ED";
-const ACCENT_SOFT = "#FFEDD5";
 const ACCENT_BORDER = "#FDBA74";
 const SCREEN_BG = "#F1F5F9";
 
@@ -303,17 +302,6 @@ export const CompleteProfileClientScreen: React.FC<
                 leftIcon="home-outline"
               />
             </View>
-
-            <View style={styles.locationTip}>
-              <Ionicons
-                name="information-circle-outline"
-                size={20}
-                color={ACCENT}
-              />
-              <Text style={[styles.locationTipText, isRTL && styles.rtlText]}>
-                {t("completeProfile.locationTip")}
-              </Text>
-            </View>
           </View>
         </ScrollView>
 
@@ -430,23 +418,6 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 8,
-  },
-  locationTip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: ACCENT_LIGHT,
-    padding: 12,
-    borderRadius: 12,
-    gap: 10,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: ACCENT_BORDER,
-  },
-  locationTipText: {
-    flex: 1,
-    fontSize: 13,
-    color: "#374151",
-    lineHeight: 18,
   },
   footer: {
     position: "absolute",

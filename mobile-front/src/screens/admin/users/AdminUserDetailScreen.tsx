@@ -11,6 +11,8 @@ import {
   TextInput,
   Platform,
   RefreshControl,
+  Image,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -19,9 +21,98 @@ import { api } from "../../../services/api";
 import { AccountStatus, UserRole } from "../../../types";
 import type { AdminUsersStackParamList } from "./adminUsersNavigation";
 
-const ACCENT = "#E8C97A";
-const ACCENT_DIM = "rgba(232,201,122,0.18)";
-const ACCENT_BORDER = "rgba(232,201,122,0.40)";
+const C = {
+  screenBg: "#F1F5F9",
+  accent: "#EA580C",
+  accentDark: "#C2410C",
+  accentPale: "#FFF7ED",
+  accentBorder: "#FFEDD5",
+  accentRing: "#F08E10",
+  card: "#FFFFFF",
+  cardBorder: "#EBEBF5",
+  text: "#1A1A2E",
+  textMuted: "#64748B",
+  textLight: "#94A3B8",
+  divider: "#F1F5F9",
+};
+
+type AdminUserClient = {
+  city: string;
+  address: string | null;
+  imageUrl: string | null;
+  createdAt: string;
+};
+
+type AdminUserProvider = {
+  type: string;
+  city: string;
+  address: string | null;
+  photoUrl: string | null;
+  tagline: string | null;
+  bio: string | null;
+  yearsOfExperience: number | null;
+  averageRating: number | null;
+  totalReviews: number;
+  isTopProvider: boolean;
+  languagesSpoken: string[];
+  paymentMethodsAccepted: string[];
+  totalComplaints: number;
+  activeComplaints: number;
+  company: {
+    companyName: string;
+    taxId: string;
+    city: string;
+    email: string | null;
+  } | null;
+};
+
+type AdminUserCompanyAdmin = {
+  company: {
+    companyName: string;
+    taxId: string;
+    city: string;
+    email: string | null;
+    logo: string | null;
+    averageRating: number | null;
+    providers: Array<{
+      id: string;
+      city: string;
+      user: {
+        firstName: string;
+        lastName: string;
+        email: string;
+        status: AccountStatus;
+      };
+    }>;
+  } | null;
+};
+
+type AdminUserVerificationDoc = {
+  id: string;
+  type: string;
+  fichierUrl: string;
+  isAccepted: boolean | null;
+};
+
+type AdminUserVerificationRequest = {
+  id: string;
+  ownerType: string;
+  requestStatus: string;
+  createdAt: string;
+  service: { name: string } | null;
+  documents: AdminUserVerificationDoc[];
+};
+
+type AdminUserGivenService = {
+  id: string;
+  serviceName: string;
+  categoryName: string | null;
+  price: number;
+  pricingType: string;
+  active: boolean;
+  averageRating: number | null;
+  totalReviews: number | null;
+};
 
 type AdminUserDetail = {
   id: string;
@@ -42,6 +133,11 @@ type AdminUserDetail = {
     complaints?: number;
     givenServices?: number;
   };
+  client?: AdminUserClient | null;
+  provider?: AdminUserProvider | null;
+  companyAdmin?: AdminUserCompanyAdmin | null;
+  verificationRequests?: AdminUserVerificationRequest[];
+  givenServices?: AdminUserGivenService[];
 };
 
 type StatusAction = {
@@ -70,6 +166,19 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
+function formatShortDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
 function roleLabel(role: UserRole): string {
   switch (role) {
     case UserRole.CLIENT:
@@ -85,6 +194,21 @@ function roleLabel(role: UserRole): string {
   }
 }
 
+function rolePill(role: UserRole): { bg: string; border: string; text: string } {
+  switch (role) {
+    case UserRole.CLIENT:
+      return { bg: C.accentPale, border: C.accentBorder, text: C.accentDark };
+    case UserRole.PROVIDER:
+      return { bg: "#EFF6FF", border: "#BFDBFE", text: "#1D4ED8" };
+    case UserRole.COMPANY_ADMIN:
+      return { bg: "#F5F3FF", border: "#DDD6FE", text: "#6D28D9" };
+    case UserRole.PLATFORM_ADMIN:
+      return { bg: C.accentPale, border: C.accentBorder, text: C.accentDark };
+    default:
+      return { bg: "#F1F5F9", border: "#E2E8F0", text: "#475569" };
+  }
+}
+
 function statusConfig(status: AccountStatus): {
   bg: string;
   text: string;
@@ -95,7 +219,7 @@ function statusConfig(status: AccountStatus): {
     case AccountStatus.ACTIVE:
       return { bg: "#ECFDF5", text: "#065F46", dot: "#10B981", label: "Active" };
     case AccountStatus.PENDING:
-      return { bg: "#FFFBEB", text: "#78350F", dot: "#F59E0B", label: "Pending" };
+      return { bg: C.accentPale, text: C.accentDark, dot: C.accent, label: "Pending" };
     case AccountStatus.REJECTED:
       return { bg: "#FEF2F2", text: "#991B1B", dot: "#EF4444", label: "Blocked" };
     case AccountStatus.SUSPENDED:
@@ -122,24 +246,117 @@ function actionMessage(status: AccountStatus): string {
   }
 }
 
+function resolveUserPhoto(user: AdminUserDetail): string | null {
+  const providerPhoto = user.provider?.photoUrl?.trim();
+  if (providerPhoto) return providerPhoto;
+  const clientPhoto = user.client?.imageUrl?.trim();
+  if (clientPhoto) return clientPhoto;
+  const companyLogo = user.companyAdmin?.company?.logo?.trim();
+  if (companyLogo) return companyLogo;
+  return null;
+}
+
+function ProfileAvatar({
+  photoUrl,
+  initials,
+}: {
+  photoUrl: string | null;
+  initials: string;
+}) {
+  return (
+    <View style={styles.avatarWrap}>
+      <View style={styles.avatarOuterRing}>
+        <View style={styles.avatarRingInner}>
+          {photoUrl ? (
+            <Image source={{ uri: photoUrl }} style={styles.avatarPhoto} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarInitials}>{initials || "?"}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function VerifyChip({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <View style={[styles.verifyChip, ok ? styles.verifyChipOk : styles.verifyChipNo]}>
+      <Ionicons
+        name={ok ? "checkmark-circle" : "close-circle-outline"}
+        size={12}
+        color={ok ? "#059669" : C.textLight}
+      />
+      <Text style={[styles.verifyChipText, ok ? styles.verifyChipTextOk : null]}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function SectionCard({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.sectionCard}>
+      <View style={styles.sectionHead}>
+        <View style={styles.sectionIcon}>
+          <Ionicons name={icon} size={15} color={C.accent} />
+        </View>
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
 function DetailRow({
   icon,
   label,
   value,
+  last,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: string;
+  last?: boolean;
 }) {
   return (
-    <View style={styles.detailRow}>
+    <View style={[styles.detailRow, last && styles.detailRowLast]}>
       <View style={styles.detailRowIcon}>
-        <Ionicons name={icon} size={14} color="#94A3B8" />
+        <Ionicons name={icon} size={14} color={C.textLight} />
       </View>
       <View style={styles.detailRowText}>
         <Text style={styles.detailRowLabel}>{label}</Text>
         <Text style={styles.detailRowValue}>{value}</Text>
       </View>
+    </View>
+  );
+}
+
+function StatTile({
+  icon,
+  value,
+  label,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  value: number;
+  label: string;
+}) {
+  return (
+    <View style={styles.statTile}>
+      <View style={styles.statIcon}>
+        <Ionicons name={icon} size={14} color={C.accent} />
+      </View>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
@@ -205,10 +422,7 @@ export const AdminUserDetailScreen: React.FC<Props> = ({ route, navigation }) =>
       });
     }
 
-    if (
-      user.status !== AccountStatus.REJECTED &&
-      user.status !== AccountStatus.DELETED
-    ) {
+    if (user.status !== AccountStatus.REJECTED) {
       actions.push({
         status: AccountStatus.REJECTED,
         title: "Block account",
@@ -265,7 +479,7 @@ export const AdminUserDetailScreen: React.FC<Props> = ({ route, navigation }) =>
   if (loading && !user) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={ACCENT} />
+        <ActivityIndicator size="large" color={C.accent} />
         <Text style={styles.loadingText}>Loading user…</Text>
       </View>
     );
@@ -274,7 +488,9 @@ export const AdminUserDetailScreen: React.FC<Props> = ({ route, navigation }) =>
   if (!user) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
-        <Ionicons name="person-outline" size={36} color="#94A3B8" />
+        <View style={styles.emptyIcon}>
+          <Ionicons name="person-outline" size={28} color={C.textLight} />
+        </View>
         <Text style={styles.emptyTitle}>User not found</Text>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backLink}>
           <Text style={styles.backLinkText}>Go back</Text>
@@ -284,16 +500,29 @@ export const AdminUserDetailScreen: React.FC<Props> = ({ route, navigation }) =>
   }
 
   const name = `${user.firstName} ${user.lastName}`.trim() || "—";
-  const initials = name
+  const avatarInitials = name
     .split(/\s+/)
     .filter(Boolean)
     .map((w) => w[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+  const photoUrl = resolveUserPhoto(user);
   const sc = statusConfig(user.status);
+  const rp = rolePill(user.role);
   const isPlatformAdmin = user.role === UserRole.PLATFORM_ADMIN;
   const stats = user.stats ?? {};
+  const verificationRequests = user.verificationRequests ?? [];
+  const allDocuments = verificationRequests.flatMap((vr) =>
+    vr.documents.map((d) => ({ ...d, serviceName: vr.service?.name ?? vr.ownerType })),
+  );
+  const givenServices = user.givenServices ?? [];
+
+  const hasStats =
+    stats.appointments != null ||
+    stats.reviews != null ||
+    stats.complaints != null ||
+    stats.givenServices != null;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -303,105 +532,293 @@ export const AdminUserDetailScreen: React.FC<Props> = ({ route, navigation }) =>
           style={styles.backBtn}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
+          <Ionicons name="chevron-back" size={22} color={C.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>User details</Text>
-        <View style={{ width: 36 }} />
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: insets.bottom + 24 },
+          { paddingBottom: insets.bottom + 28 },
         ]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor={ACCENT} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor={C.accent}
+          />
         }
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.profileCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials || "?"}</Text>
-          </View>
-          <Text style={styles.profileName}>{name}</Text>
-          <Text style={styles.profileEmail}>{user.email}</Text>
-          <View style={styles.profileBadges}>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>{roleLabel(user.role)}</Text>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
-              <View style={[styles.statusDot, { backgroundColor: sc.dot }]} />
-              <Text style={[styles.statusBadgeText, { color: sc.text }]}>
-                {sc.label}
+        <View style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <ProfileAvatar photoUrl={photoUrl} initials={avatarInitials} />
+            <View style={styles.heroInfo}>
+              <Text style={styles.profileName} numberOfLines={2}>
+                {name}
               </Text>
+              <Text style={styles.profileEmail} numberOfLines={1}>
+                {user.email}
+              </Text>
+              <View style={styles.badgeRow}>
+                <View style={[styles.rolePill, { backgroundColor: rp.bg, borderColor: rp.border }]}>
+                  <Text style={[styles.rolePillText, { color: rp.text }]}>
+                    {roleLabel(user.role)}
+                  </Text>
+                </View>
+                <View style={[styles.statusPill, { backgroundColor: sc.bg }]}>
+                  <View style={[styles.statusDot, { backgroundColor: sc.dot }]} />
+                  <Text style={[styles.statusPillText, { color: sc.text }]}>
+                    {sc.label}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.verifyRow}>
+            <VerifyChip ok={user.isEmailVerified} label="Email" />
+            <VerifyChip ok={user.isPhoneVerified} label="Phone" />
+          </View>
+
+          <View style={styles.heroMeta}>
+            <View style={styles.heroMetaItem}>
+              <Ionicons name="call-outline" size={13} color={C.textLight} />
+              <Text style={styles.heroMetaText}>{user.phoneNumber ?? "No phone"}</Text>
+            </View>
+            <View style={styles.heroMetaItem}>
+              <Ionicons name="calendar-outline" size={13} color={C.textLight} />
+              <Text style={styles.heroMetaText}>Joined {formatShortDate(user.createdAt)}</Text>
             </View>
           </View>
         </View>
 
         {isPlatformAdmin ? (
           <View style={styles.noticeCard}>
-            <Ionicons name="shield-checkmark-outline" size={18} color="#92400E" />
+            <Ionicons name="shield-checkmark-outline" size={18} color={C.accentDark} />
             <Text style={styles.noticeText}>
               Platform administrator accounts cannot be modified from this screen.
             </Text>
           </View>
         ) : null}
 
-        <Text style={styles.sectionTitle}>Account overview</Text>
-        <View style={styles.card}>
+        {hasStats ? (
+          <View style={styles.statsGrid}>
+            {stats.appointments != null ? (
+              <StatTile icon="calendar-outline" value={stats.appointments} label="Appointments" />
+            ) : null}
+            {stats.reviews != null ? (
+              <StatTile icon="star-outline" value={stats.reviews} label="Reviews" />
+            ) : null}
+            {stats.complaints != null ? (
+              <StatTile icon="warning-outline" value={stats.complaints} label="Complaints" />
+            ) : null}
+            {stats.givenServices != null ? (
+              <StatTile icon="briefcase-outline" value={stats.givenServices} label="Services" />
+            ) : null}
+          </View>
+        ) : null}
+
+        <SectionCard title="Account overview" icon="person-circle-outline">
+          <DetailRow icon="finger-print-outline" label="User ID" value={user.id} />
           <DetailRow icon="call-outline" label="Phone" value={user.phoneNumber ?? "—"} />
           <DetailRow
-            icon="mail-outline"
-            label="Email verified"
-            value={user.isEmailVerified ? "Yes" : "No"}
+            icon="time-outline"
+            label="Last updated"
+            value={formatDate(user.updatedAt)}
           />
-          <DetailRow
-            icon="phone-portrait-outline"
-            label="Phone verified"
-            value={user.isPhoneVerified ? "Yes" : "No"}
-          />
-          <DetailRow icon="calendar-outline" label="Joined" value={formatDate(user.createdAt)} />
-          <DetailRow icon="time-outline" label="Last updated" value={formatDate(user.updatedAt)} />
           {user.deletedAt ? (
-            <DetailRow icon="trash-outline" label="Deleted at" value={formatDate(user.deletedAt)} />
-          ) : null}
-        </View>
+            <DetailRow
+              icon="trash-outline"
+              label="Deleted at"
+              value={formatDate(user.deletedAt)}
+              last
+            />
+          ) : (
+            <DetailRow
+              icon="calendar-outline"
+              label="Member since"
+              value={formatDate(user.createdAt)}
+              last
+            />
+          )}
+        </SectionCard>
 
-        {(stats.appointments ?? stats.reviews ?? stats.complaints ?? stats.givenServices) != null ? (
-          <>
-            <Text style={styles.sectionTitle}>Activity</Text>
-            <View style={styles.statsRow}>
-              {stats.appointments != null ? (
-                <View style={styles.statChip}>
-                  <Text style={styles.statValue}>{stats.appointments}</Text>
-                  <Text style={styles.statLabel}>Appointments</Text>
+        {user.client ? (
+          <SectionCard title="Client profile" icon="location-outline">
+            <DetailRow icon="location-outline" label="City" value={user.client.city} />
+            <DetailRow
+              icon="home-outline"
+              label="Address"
+              value={user.client.address ?? "—"}
+              last={!user.client.imageUrl}
+            />
+            {user.client.imageUrl ? (
+              <Image
+                source={{ uri: user.client.imageUrl }}
+                style={styles.profilePreview}
+              />
+            ) : null}
+          </SectionCard>
+        ) : null}
+
+        {user.provider ? (
+          <SectionCard title="Provider profile" icon="briefcase-outline">
+            <DetailRow
+              icon="git-branch-outline"
+              label="Type"
+              value={user.provider.type === "EMPLOYEE" ? "Employee" : "Independent"}
+            />
+            <DetailRow icon="location-outline" label="City" value={user.provider.city} />
+            <DetailRow
+              icon="star-outline"
+              label="Rating"
+              value={
+                user.provider.averageRating != null
+                  ? `${user.provider.averageRating} ★ · ${user.provider.totalReviews} reviews`
+                  : "—"
+              }
+            />
+            <DetailRow
+              icon="ribbon-outline"
+              label="Top provider"
+              value={user.provider.isTopProvider ? "Yes" : "No"}
+            />
+            <DetailRow
+              icon="warning-outline"
+              label="Complaints"
+              value={`${user.provider.totalComplaints} total · ${user.provider.activeComplaints} active`}
+              last={!user.provider.bio && !user.provider.tagline}
+            />
+            {user.provider.tagline ? (
+              <Text style={styles.tagline}>“{user.provider.tagline}”</Text>
+            ) : null}
+            {user.provider.bio ? (
+              <Text style={styles.bio}>{user.provider.bio}</Text>
+            ) : null}
+          </SectionCard>
+        ) : null}
+
+        {user.companyAdmin?.company ? (
+          <SectionCard title="Company" icon="business-outline">
+            <DetailRow
+              icon="business-outline"
+              label="Name"
+              value={user.companyAdmin.company.companyName}
+            />
+            <DetailRow
+              icon="card-outline"
+              label="Tax ID"
+              value={user.companyAdmin.company.taxId}
+            />
+            <DetailRow
+              icon="location-outline"
+              label="City"
+              value={user.companyAdmin.company.city}
+              last
+            />
+          </SectionCard>
+        ) : null}
+
+        <SectionCard title="Verification requests" icon="document-text-outline">
+          {verificationRequests.length > 0 ? (
+            verificationRequests.map((vr, index) => (
+              <View
+                key={vr.id}
+                style={[
+                  styles.verifyItem,
+                  index === verificationRequests.length - 1 && styles.verifyItemLast,
+                ]}
+              >
+                <Text style={styles.verifyItemTitle}>
+                  {vr.service?.name ?? vr.ownerType}
+                </Text>
+                <View style={styles.verifyItemMeta}>
+                  <View style={styles.miniChip}>
+                    <Text style={styles.miniChipText}>{vr.requestStatus}</Text>
+                  </View>
+                  <Text style={styles.verifyItemDate}>
+                    {formatShortDate(vr.createdAt)} · {vr.documents.length} doc(s)
+                  </Text>
                 </View>
-              ) : null}
-              {stats.reviews != null ? (
-                <View style={styles.statChip}>
-                  <Text style={styles.statValue}>{stats.reviews}</Text>
-                  <Text style={styles.statLabel}>Reviews</Text>
-                </View>
-              ) : null}
-              {stats.complaints != null ? (
-                <View style={styles.statChip}>
-                  <Text style={styles.statValue}>{stats.complaints}</Text>
-                  <Text style={styles.statLabel}>Complaints</Text>
-                </View>
-              ) : null}
-              {stats.givenServices != null ? (
-                <View style={styles.statChip}>
-                  <Text style={styles.statValue}>{stats.givenServices}</Text>
-                  <Text style={styles.statLabel}>Services</Text>
-                </View>
-              ) : null}
+              </View>
+            ))
+          ) : (
+            <Text style={styles.emptySection}>No verification requests.</Text>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Uploaded documents" icon="images-outline">
+          {allDocuments.length > 0 ? (
+            <View style={styles.docsGrid}>
+              {allDocuments.map((d) => (
+                <TouchableOpacity
+                  key={d.id}
+                  style={styles.docCard}
+                  activeOpacity={0.85}
+                  onPress={() => void Linking.openURL(d.fichierUrl)}
+                >
+                  <Image source={{ uri: d.fichierUrl }} style={styles.docThumb} />
+                  <Text style={styles.docType} numberOfLines={2}>
+                    {d.type}
+                  </Text>
+                  <View
+                    style={[
+                      styles.docStatus,
+                      d.isAccepted === true
+                        ? styles.docStatusOk
+                        : d.isAccepted === false
+                          ? styles.docStatusNo
+                          : styles.docStatusWait,
+                    ]}
+                  >
+                    <Text style={styles.docStatusText}>
+                      {d.isAccepted === true
+                        ? "Accepted"
+                        : d.isAccepted === false
+                          ? "Rejected"
+                          : "Pending"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
             </View>
-          </>
+          ) : (
+            <Text style={styles.emptySection}>No documents uploaded.</Text>
+          )}
+        </SectionCard>
+
+        {givenServices.length > 0 ? (
+          <SectionCard title="Given services" icon="construct-outline">
+            {givenServices.map((gs, index) => (
+              <View
+                key={gs.id}
+                style={[
+                  styles.serviceItem,
+                  index === givenServices.length - 1 && styles.serviceItemLast,
+                ]}
+              >
+                <Text style={styles.serviceName}>{gs.serviceName}</Text>
+                <Text style={styles.serviceMeta}>
+                  {gs.categoryName ?? "—"} · {gs.price} ({gs.pricingType})
+                </Text>
+                <Text style={styles.serviceMeta}>
+                  {gs.averageRating != null
+                    ? `${gs.averageRating} ★ · ${gs.totalReviews ?? 0} reviews`
+                    : "No ratings yet"}
+                  {" · "}
+                  {gs.active ? "Active" : "Inactive"}
+                </Text>
+              </View>
+            ))}
+          </SectionCard>
         ) : null}
 
         {availableActions.length > 0 ? (
-          <>
-            <Text style={styles.sectionTitle}>Quick actions</Text>
+          <View style={styles.actionsBlock}>
+            <Text style={styles.actionsLabel}>Quick actions</Text>
             <View style={styles.actionsCard}>
               {availableActions.map((action) => (
                 <TouchableOpacity
@@ -425,8 +842,8 @@ export const AdminUserDetailScreen: React.FC<Props> = ({ route, navigation }) =>
                           ? "#FFFFFF"
                           : "#DC2626"
                         : action.primary
-                          ? "#92400E"
-                          : "#1A1A2E"
+                          ? C.accentDark
+                          : C.text
                     }
                   />
                   <Text
@@ -442,7 +859,7 @@ export const AdminUserDetailScreen: React.FC<Props> = ({ route, navigation }) =>
                 </TouchableOpacity>
               ))}
             </View>
-          </>
+          </View>
         ) : null}
       </ScrollView>
 
@@ -461,7 +878,7 @@ export const AdminUserDetailScreen: React.FC<Props> = ({ route, navigation }) =>
             <TextInput
               style={styles.modalInput}
               placeholder="Optional reason (recommended)…"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={C.textLight}
               value={statusReason}
               onChangeText={setStatusReason}
               multiline
@@ -501,26 +918,36 @@ export const AdminUserDetailScreen: React.FC<Props> = ({ route, navigation }) =>
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: C.screenBg,
   },
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: C.screenBg,
     paddingHorizontal: 24,
     gap: 10,
   },
   loadingText: {
     fontSize: 14,
-    color: "#64748B",
+    color: C.textMuted,
     fontWeight: "600",
+  },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#475569",
-    marginTop: 8,
+    marginTop: 4,
   },
   backLink: {
     marginTop: 8,
@@ -530,47 +957,44 @@ const styles = StyleSheet.create({
   backLinkText: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#92400E",
+    color: C.accent,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#EBEBF5",
+    paddingBottom: 10,
+    backgroundColor: C.screenBg,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: ACCENT_DIM,
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: ACCENT_BORDER,
+    borderColor: "#E2E8F0",
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: "800",
-    color: "#1A1A2E",
+    fontWeight: "700",
+    color: C.text,
     letterSpacing: -0.3,
   },
   scroll: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 4,
     gap: 12,
   },
-  profileCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+  heroCard: {
+    backgroundColor: C.card,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    padding: 20,
-    alignItems: "center",
-    gap: 6,
+    borderColor: C.cardBorder,
+    padding: 16,
+    gap: 12,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -581,57 +1005,91 @@ const styles = StyleSheet.create({
       android: { elevation: 2 },
     }),
   },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: ACCENT_DIM,
+  heroTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  avatarWrap: {
+    width: 88,
+    height: 88,
+  },
+  avatarOuterRing: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: C.accentRing,
+    padding: 4,
+    shadowColor: C.accentRing,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  avatarRingInner: {
+    flex: 1,
+    borderRadius: 38,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  avatarPhoto: {
+    width: "100%",
+    height: "100%",
+  },
+  avatarPlaceholder: {
+    flex: 1,
+    backgroundColor: C.accentPale,
     borderWidth: 1,
-    borderColor: ACCENT_BORDER,
+    borderColor: C.accentBorder,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
   },
-  avatarText: {
-    fontSize: 22,
+  avatarInitials: {
+    fontSize: 24,
     fontWeight: "800",
-    color: "#92400E",
+    color: C.accentDark,
+  },
+  heroInfo: {
+    flex: 1,
+    minWidth: 0,
   },
   profileName: {
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: "700",
     color: "#0F172A",
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
+    lineHeight: 24,
   },
   profileEmail: {
-    fontSize: 13,
-    color: "#64748B",
+    marginTop: 2,
+    fontSize: 12,
+    color: C.textMuted,
     fontWeight: "500",
   },
-  profileBadges: {
+  badgeRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 8,
+    gap: 6,
     marginTop: 8,
   },
-  roleBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+  rolePill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
   },
-  roleBadgeText: {
-    fontSize: 12,
+  rolePillText: {
+    fontSize: 11,
     fontWeight: "700",
-    color: "#475569",
   },
-  statusBadge: {
+  statusPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 999,
   },
   statusDot: {
@@ -639,57 +1097,157 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
-  statusBadgeText: {
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  verifyRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  verifyChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  verifyChipOk: {
+    backgroundColor: "#ECFDF5",
+  },
+  verifyChipNo: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: C.divider,
+  },
+  verifyChipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: C.textMuted,
+  },
+  verifyChipTextOk: {
+    color: "#059669",
+  },
+  heroMeta: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: C.divider,
+  },
+  heroMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  heroMetaText: {
     fontSize: 12,
-    fontWeight: "800",
+    color: C.textMuted,
+    fontWeight: "500",
   },
   noticeCard: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    backgroundColor: ACCENT_DIM,
+    backgroundColor: C.accentPale,
     borderWidth: 1,
-    borderColor: ACCENT_BORDER,
-    borderRadius: 12,
+    borderColor: C.accentBorder,
+    borderRadius: 14,
     padding: 14,
   },
   noticeText: {
     flex: 1,
     fontSize: 13,
     lineHeight: 19,
-    color: "#78350F",
+    color: C.accentDark,
     fontWeight: "600",
   },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#64748B",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginTop: 4,
-    marginBottom: -4,
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
-  card: {
-    backgroundColor: "#FFFFFF",
+  statTile: {
+    flexGrow: 1,
+    minWidth: "46%",
+    backgroundColor: C.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    paddingHorizontal: 14,
+    borderColor: C.cardBorder,
+    padding: 12,
+    gap: 2,
+  },
+  statIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: C.accentPale,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: C.textLight,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  sectionCard: {
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
     overflow: "hidden",
+  },
+  sectionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.divider,
+    backgroundColor: "#FAFBFC",
+  },
+  sectionIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: C.accentPale,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: C.text,
   },
   detailRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: C.divider,
+  },
+  detailRowLast: {
+    borderBottomWidth: 0,
   },
   detailRowIcon: {
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: C.screenBg,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -698,61 +1256,179 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   detailRowLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
-    color: "#94A3B8",
+    color: C.textLight,
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   detailRowValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: "#0F172A",
+    lineHeight: 18,
   },
-  statsRow: {
+  profilePreview: {
+    marginHorizontal: 14,
+    marginBottom: 14,
+    width: 88,
+    height: 88,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+  },
+  tagline: {
+    marginHorizontal: 14,
+    marginBottom: 8,
+    fontSize: 13,
+    fontStyle: "italic",
+    color: C.textMuted,
+  },
+  bio: {
+    marginHorizontal: 14,
+    marginBottom: 14,
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#475569",
+  },
+  verifyItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: C.divider,
+    gap: 4,
+  },
+  verifyItemLast: {
+    borderBottomWidth: 0,
+  },
+  verifyItemTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: C.text,
+  },
+  verifyItemMeta: {
     flexDirection: "row",
     flexWrap: "wrap",
+    alignItems: "center",
     gap: 8,
   },
-  statChip: {
-    flexGrow: 1,
-    minWidth: "45%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+  miniChip: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: C.screenBg,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    alignItems: "center",
+    borderColor: C.cardBorder,
   },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-  statLabel: {
-    fontSize: 11,
+  miniChipText: {
+    fontSize: 10,
     fontWeight: "700",
-    color: "#94A3B8",
-    marginTop: 2,
+    color: C.textMuted,
+  },
+  verifyItemDate: {
+    fontSize: 11,
+    color: C.textLight,
+    fontWeight: "500",
+  },
+  emptySection: {
+    paddingHorizontal: 14,
+    paddingVertical: 18,
+    fontSize: 13,
+    color: C.textMuted,
+    textAlign: "center",
+  },
+  docsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    padding: 14,
+  },
+  docCard: {
+    width: "30%",
+    minWidth: 96,
+    flexGrow: 1,
+    alignItems: "center",
+    gap: 5,
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: C.screenBg,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+  },
+  docThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: "#E2E8F0",
+  },
+  docType: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: C.textMuted,
+    textAlign: "center",
+  },
+  docStatus: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  docStatusOk: { backgroundColor: "#ECFDF5" },
+  docStatusNo: { backgroundColor: "#FEF2F2" },
+  docStatusWait: { backgroundColor: C.accentPale },
+  docStatusText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: C.textMuted,
+  },
+  serviceItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: C.divider,
+    gap: 3,
+  },
+  serviceItemLast: {
+    borderBottomWidth: 0,
+  },
+  serviceName: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: C.text,
+  },
+  serviceMeta: {
+    fontSize: 11,
+    color: C.textMuted,
+    fontWeight: "500",
+  },
+  actionsBlock: {
+    gap: 8,
+    marginTop: 4,
+  },
+  actionsLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: C.textLight,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginLeft: 2,
   },
   actionsCard: {
-    gap: 10,
+    gap: 8,
   },
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: C.cardBorder,
     borderRadius: 12,
     paddingVertical: 14,
   },
   actionBtnPrimary: {
-    backgroundColor: ACCENT_DIM,
-    borderColor: ACCENT_BORDER,
+    backgroundColor: C.accentPale,
+    borderColor: C.accentBorder,
   },
   actionBtnDestructive: {
     borderColor: "#FECACA",
@@ -765,10 +1441,10 @@ const styles = StyleSheet.create({
   actionBtnText: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#1A1A2E",
+    color: C.text,
   },
   actionBtnTextPrimary: {
-    color: "#92400E",
+    color: C.accentDark,
   },
   actionBtnTextDestructive: {
     color: "#DC2626",
@@ -783,7 +1459,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   modalCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: C.card,
     borderRadius: 16,
     padding: 20,
     gap: 12,
@@ -796,7 +1472,7 @@ const styles = StyleSheet.create({
   modalBody: {
     fontSize: 14,
     lineHeight: 20,
-    color: "#64748B",
+    color: C.textMuted,
     fontWeight: "500",
   },
   modalInput: {
@@ -809,7 +1485,7 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     fontSize: 14,
     color: "#0F172A",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: C.screenBg,
   },
   modalActions: {
     flexDirection: "row",
@@ -824,10 +1500,10 @@ const styles = StyleSheet.create({
   modalCancelText: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#64748B",
+    color: C.textMuted,
   },
   modalConfirmBtn: {
-    backgroundColor: ACCENT,
+    backgroundColor: C.accent,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 18,

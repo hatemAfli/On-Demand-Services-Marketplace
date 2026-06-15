@@ -23,10 +23,24 @@ import {
 } from "../../../services/api";
 import { navigateAdminTab } from "../adminNavigation";
 
-const ACCENT = "#E8C97A";
-const ACCENT_DIM = "rgba(232,201,122,0.18)";
-const ACCENT_BORDER = "rgba(232,201,122,0.40)";
+// ─── Design tokens (aligned with client / provider orange) ─
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_DIM = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
 
+const T = {
+  bg: "#F4F3FA",
+  surface: "#FFFFFF",
+  dark: "#0F172A",
+  text: "#1A1A2E",
+  sub: "#64748B",
+  muted: "#94A3B8",
+  border: "#EBEBF5",
+  borderLt: "#F1F5F9",
+};
+
+// ─── Logic (all unchanged) ────────────────────────────────
 const ACTIVE_APPOINTMENT_STATUSES = [
   "PENDING",
   "CONFIRMED",
@@ -38,7 +52,7 @@ const ACTIVE_APPOINTMENT_STATUSES = [
 const CHART_STATUSES = [
   { key: "PENDING", label: "Pending", color: "#F59E0B" },
   { key: "CONFIRMED", label: "Confirmed", color: "#3B82F6" },
-  { key: "IN_PROGRESS", label: "In progress", color: "#6366F1" },
+  { key: "IN_PROGRESS", label: "In progress", color: "#7C5CFC" },
   { key: "COMPLETED", label: "Completed", color: "#16A34A" },
   { key: "DISPUTED", label: "Disputed", color: "#EF4444" },
 ] as const;
@@ -56,10 +70,7 @@ type DashboardData = {
   recentComplaints: AdminComplaintListItem[];
 };
 
-type AdminDashboardStackParamList = {
-  Dashboard: undefined;
-};
-
+type AdminDashboardStackParamList = { Dashboard: undefined };
 type Nav = NativeStackNavigationProp<AdminDashboardStackParamList, "Dashboard">;
 
 function formatToday(): string {
@@ -79,8 +90,7 @@ function formatRelativeTime(iso: string): string {
     if (mins < 60) return `${mins}m ago`;
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    return `${days}d ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
   } catch {
     return iso;
   }
@@ -99,46 +109,43 @@ async function fetchPendingVerificationCounts(): Promise<{
   providers: number;
   companies: number;
 }> {
-  const [
-    pendAll,
-    reviewAll,
-    pendProv,
-    reviewProv,
-    pendComp,
-    reviewComp,
-  ] = await Promise.all([
-    api.listAdminVerificationRequests({ status: "PENDING", take: 1, skip: 0 }),
-    api.listAdminVerificationRequests({
-      status: "UNDER_REVIEW",
-      take: 1,
-      skip: 0,
-    }),
-    api.listAdminVerificationRequests({
-      status: "PENDING",
-      ownerType: "PROVIDER",
-      take: 1,
-      skip: 0,
-    }),
-    api.listAdminVerificationRequests({
-      status: "UNDER_REVIEW",
-      ownerType: "PROVIDER",
-      take: 1,
-      skip: 0,
-    }),
-    api.listAdminVerificationRequests({
-      status: "PENDING",
-      ownerType: "COMPANY",
-      take: 1,
-      skip: 0,
-    }),
-    api.listAdminVerificationRequests({
-      status: "UNDER_REVIEW",
-      ownerType: "COMPANY",
-      take: 1,
-      skip: 0,
-    }),
-  ]);
-
+  const [pendAll, reviewAll, pendProv, reviewProv, pendComp, reviewComp] =
+    await Promise.all([
+      api.listAdminVerificationRequests({
+        status: "PENDING",
+        take: 1,
+        skip: 0,
+      }),
+      api.listAdminVerificationRequests({
+        status: "UNDER_REVIEW",
+        take: 1,
+        skip: 0,
+      }),
+      api.listAdminVerificationRequests({
+        status: "PENDING",
+        ownerType: "PROVIDER",
+        take: 1,
+        skip: 0,
+      }),
+      api.listAdminVerificationRequests({
+        status: "UNDER_REVIEW",
+        ownerType: "PROVIDER",
+        take: 1,
+        skip: 0,
+      }),
+      api.listAdminVerificationRequests({
+        status: "PENDING",
+        ownerType: "COMPANY",
+        take: 1,
+        skip: 0,
+      }),
+      api.listAdminVerificationRequests({
+        status: "UNDER_REVIEW",
+        ownerType: "COMPANY",
+        take: 1,
+        skip: 0,
+      }),
+    ]);
   return {
     total:
       (pendAll.data as { total: number }).total +
@@ -151,6 +158,8 @@ async function fetchPendingVerificationCounts(): Promise<{
       (reviewComp.data as { total: number }).total,
   };
 }
+
+// ─── Sub-components ───────────────────────────────────────
 
 function StatCard({
   title,
@@ -170,7 +179,7 @@ function StatCard({
   return (
     <View style={styles.statCard}>
       <View style={[styles.statIconWrap, { backgroundColor: bg }]}>
-        <Ionicons name={icon} size={20} color={color} />
+        <Ionicons name={icon} size={18} color={color} />
       </View>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statTitle}>{title}</Text>
@@ -195,22 +204,24 @@ function QuickActionCard({
   onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={styles.quickAction} onPress={onPress} activeOpacity={0.88}>
+    <TouchableOpacity
+      style={styles.quickAction}
+      onPress={onPress}
+      activeOpacity={0.88}
+    >
       <View style={[styles.quickActionIcon, { backgroundColor: bg }]}>
-        <Ionicons name={icon} size={20} color={color} />
+        <Ionicons name={icon} size={19} color={color} />
       </View>
       <Text style={styles.quickActionTitle}>{title}</Text>
       <Text style={styles.quickActionSub}>{subtitle}</Text>
-      <Ionicons
-        name="chevron-forward"
-        size={14}
-        color="#CBD5E1"
-        style={styles.quickActionChevron}
-      />
+      <View style={styles.quickActionChevron}>
+        <Ionicons name="chevron-forward" size={12} color={T.muted} />
+      </View>
     </TouchableOpacity>
   );
 }
 
+// ─── Main screen ─────────────────────────────────────────
 export const AdminDashboardScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<Nav>();
@@ -229,7 +240,6 @@ export const AdminDashboardScreen: React.FC = () => {
     if (!opts?.silent) setLoading(true);
     else setRefreshing(true);
     setError(null);
-
     try {
       const [appointmentStatsRes, complaintStatsRes, reviewStatsRes] =
         await Promise.all([
@@ -237,7 +247,6 @@ export const AdminDashboardScreen: React.FC = () => {
           api.getComplaintStats(),
           api.getReviewStats(),
         ]);
-
       const [usersRes, companiesRes, supportRes, recentComplaintsRes, pending] =
         await Promise.all([
           api.listAdminUsers({ take: 1, skip: 0 }),
@@ -246,7 +255,6 @@ export const AdminDashboardScreen: React.FC = () => {
           api.getAllComplaints({ take: 5, sort: "recent" }),
           fetchPendingVerificationCounts(),
         ]);
-
       setData({
         appointmentStats: appointmentStatsRes.data,
         complaintStats: complaintStatsRes.data,
@@ -269,7 +277,6 @@ export const AdminDashboardScreen: React.FC = () => {
   }, []);
 
   const isFirstFocus = useRef(true);
-
   useFocusEffect(
     useCallback(() => {
       void load({ silent: !isFirstFocus.current });
@@ -295,53 +302,52 @@ export const AdminDashboardScreen: React.FC = () => {
     }));
   }, [data]);
 
-  const maxChartCount = useMemo(() => {
-    const max = Math.max(...chartRows.map((r) => r.count), 1);
-    return max;
-  }, [chartRows]);
+  const maxChartCount = useMemo(
+    () => Math.max(...chartRows.map((r) => r.count), 1),
+    [chartRows],
+  );
 
   const primaryAlert = useMemo(() => {
     if (!data) return null;
-    if (data.pendingVerificationTotal > 0) {
+    if (data.pendingVerificationTotal > 0)
       return {
         tone: "warn" as const,
         title: `${data.pendingVerificationTotal} profile${data.pendingVerificationTotal === 1 ? "" : "s"} awaiting validation`,
         message: "Review pending provider and company verification requests.",
         tab: "ValidationsTab" as const,
       };
-    }
-    if (data.complaintStats.open > 0) {
+    if (data.complaintStats.open > 0)
       return {
         tone: "danger" as const,
         title: `${data.complaintStats.open} open complaint${data.complaintStats.open === 1 ? "" : "s"}`,
         message: "Clients are waiting for a response on active complaints.",
         tab: "ComplaintsTab" as const,
       };
-    }
-    if (data.appointmentStats.disputedActive > 0) {
+    if (data.appointmentStats.disputedActive > 0)
       return {
         tone: "danger" as const,
         title: `${data.appointmentStats.disputedActive} disputed appointment${data.appointmentStats.disputedActive === 1 ? "" : "s"}`,
         message: "Review appointments flagged for platform intervention.",
         tab: "ComplaintsTab" as const,
       };
-    }
-    if (data.newSupportMessages > 0) {
+    if (data.newSupportMessages > 0)
       return {
         tone: "warn" as const,
         title: `${data.newSupportMessages} new support message${data.newSupportMessages === 1 ? "" : "s"}`,
         message: "Unread messages from users need attention.",
         tab: "ProfileTab" as const,
       };
-    }
     return null;
   }, [data]);
 
+  /* ── States ── */
   if (loading && !data) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={ACCENT} />
-        <Text style={styles.loadingText}>Loading dashboard…</Text>
+        <View style={styles.loadingCard}>
+          <ActivityIndicator size="large" color={ACCENT} />
+          <Text style={styles.loadingText}>Loading dashboard…</Text>
+        </View>
       </View>
     );
   }
@@ -349,11 +355,14 @@ export const AdminDashboardScreen: React.FC = () => {
   if (error && !data) {
     return (
       <View style={[styles.centered, { paddingTop: insets.top }]}>
-        <Ionicons name="cloud-offline-outline" size={36} color="#94A3B8" />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={() => void load()}>
-          <Text style={styles.retryBtnText}>Try again</Text>
-        </TouchableOpacity>
+        <View style={styles.errorCard}>
+          <Ionicons name="cloud-offline-outline" size={32} color={T.muted} />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => void load()}>
+            <Ionicons name="refresh-outline" size={14} color={ACCENT_DARK} />
+            <Text style={styles.retryBtnText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -365,7 +374,7 @@ export const AdminDashboardScreen: React.FC = () => {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: 32 + insets.bottom },
+          { paddingBottom: 36 + insets.bottom },
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -373,9 +382,11 @@ export const AdminDashboardScreen: React.FC = () => {
             refreshing={refreshing}
             onRefresh={() => void load({ silent: true })}
             tintColor={ACCENT}
+            colors={[ACCENT]}
           />
         }
       >
+        {/* ── Hero header ── */}
         <View style={styles.header}>
           <View style={styles.headerIconWrap}>
             <Ionicons name="speedometer" size={22} color={ACCENT} />
@@ -386,6 +397,7 @@ export const AdminDashboardScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* ── Alert banner ── */}
         {primaryAlert ? (
           <TouchableOpacity
             style={[
@@ -395,11 +407,18 @@ export const AdminDashboardScreen: React.FC = () => {
             activeOpacity={0.9}
             onPress={() => navigateAdminTab(navigation, primaryAlert.tab)}
           >
-            <Ionicons
-              name="warning-outline"
-              size={20}
-              color={primaryAlert.tone === "danger" ? "#DC2626" : "#92400E"}
-            />
+            <View
+              style={[
+                styles.alertIconWrap,
+                primaryAlert.tone === "danger" && styles.alertIconWrapDanger,
+              ]}
+            >
+              <Ionicons
+                name="warning-outline"
+                size={16}
+                color={primaryAlert.tone === "danger" ? "#DC2626" : ACCENT_DARK}
+              />
+            </View>
             <View style={styles.alertBody}>
               <Text
                 style={[
@@ -411,11 +430,15 @@ export const AdminDashboardScreen: React.FC = () => {
               </Text>
               <Text style={styles.alertMessage}>{primaryAlert.message}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            <Ionicons name="chevron-forward" size={16} color={T.muted} />
           </TouchableOpacity>
         ) : null}
 
-        <Text style={styles.sectionTitle}>Key metrics</Text>
+        {/* ── Key metrics ── */}
+        <View style={styles.sectionRow}>
+          <View style={styles.sectionDot} />
+          <Text style={styles.sectionTitle}>Key metrics</Text>
+        </View>
         <View style={styles.statsGrid}>
           <StatCard
             title="Pending validations"
@@ -466,8 +489,8 @@ export const AdminDashboardScreen: React.FC = () => {
             value={data.reviewStats.averageRating.toFixed(1)}
             subtitle={`${data.reviewStats.total} reviews`}
             icon="star-outline"
-            color="#F59E0B"
-            bg="#FFFBEB"
+            color={ACCENT}
+            bg={ACCENT_DIM}
           />
           <StatCard
             title="Disputed orders"
@@ -487,7 +510,11 @@ export const AdminDashboardScreen: React.FC = () => {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Quick actions</Text>
+        {/* ── Quick actions ── */}
+        <View style={styles.sectionRow}>
+          <View style={styles.sectionDot} />
+          <Text style={styles.sectionTitle}>Quick actions</Text>
+        </View>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -519,11 +546,22 @@ export const AdminDashboardScreen: React.FC = () => {
           />
         </ScrollView>
 
+        {/* ── Appointments by status ── */}
         <View style={styles.panel}>
-          <Text style={styles.panelTitle}>Appointments by status</Text>
+          <View style={styles.panelHead}>
+            <Text style={styles.panelTitle}>Appointments by status</Text>
+            <View style={styles.panelTotalPill}>
+              <Text style={styles.panelTotalText}>
+                {data.appointmentStats.total} total
+              </Text>
+            </View>
+          </View>
           <View style={styles.chartList}>
             {chartRows.map((row) => (
               <View key={row.key} style={styles.chartRow}>
+                <View
+                  style={[styles.chartLabelDot, { backgroundColor: row.color }]}
+                />
                 <Text style={styles.chartLabel}>{row.label}</Text>
                 <View style={styles.chartTrack}>
                   <View
@@ -542,19 +580,20 @@ export const AdminDashboardScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* ── Review quality ── */}
         <View style={styles.panel}>
           <View style={styles.panelHead}>
             <Text style={styles.panelTitle}>Review quality</Text>
             <View style={styles.ratingPill}>
-              <Ionicons name="star" size={12} color="#F59E0B" />
+              <Ionicons name="star" size={12} color={ACCENT} />
               <Text style={styles.ratingPillText}>
                 {data.reviewStats.averageRating.toFixed(2)}
               </Text>
             </View>
           </View>
           <Text style={styles.panelSub}>
-            {data.reviewStats.withReply} with provider reply · {data.reviewStats.hidden}{" "}
-            hidden
+            {data.reviewStats.withReply} with provider reply ·{" "}
+            {data.reviewStats.hidden} hidden
           </Text>
           <View style={styles.ratingBars}>
             {([5, 4, 3, 2, 1] as const).map((star) => {
@@ -567,9 +606,7 @@ export const AdminDashboardScreen: React.FC = () => {
                 <View key={star} style={styles.ratingRow}>
                   <Text style={styles.ratingStar}>{star}★</Text>
                   <View style={styles.ratingTrack}>
-                    <View
-                      style={[styles.ratingBar, { width: `${pct}%` }]}
-                    />
+                    <View style={[styles.ratingBar, { width: `${pct}%` }]} />
                   </View>
                   <Text style={styles.ratingCount}>{count}</Text>
                 </View>
@@ -578,17 +615,28 @@ export const AdminDashboardScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* ── Recent complaints ── */}
         <View style={styles.panel}>
           <View style={styles.panelHead}>
             <Text style={styles.panelTitle}>Recent complaints</Text>
             <TouchableOpacity
               onPress={() => navigateAdminTab(navigation, "ComplaintsTab")}
+              style={styles.panelLinkBtn}
             >
               <Text style={styles.panelLink}>View all</Text>
+              <Ionicons name="arrow-forward" size={13} color={ACCENT} />
             </TouchableOpacity>
           </View>
+
           {data.recentComplaints.length === 0 ? (
-            <Text style={styles.emptyPanel}>No complaints yet</Text>
+            <View style={styles.emptyPanelWrap}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={24}
+                color={ACCENT}
+              />
+              <Text style={styles.emptyPanel}>No complaints yet</Text>
+            </View>
           ) : (
             data.recentComplaints.map((row, index) => {
               const clientName = personName(
@@ -600,7 +648,8 @@ export const AdminDashboardScreen: React.FC = () => {
                   key={row.id}
                   style={[
                     styles.recentRow,
-                    index < data.recentComplaints.length - 1 && styles.recentRowBorder,
+                    index < data.recentComplaints.length - 1 &&
+                      styles.recentRowBorder,
                   ]}
                   activeOpacity={0.88}
                   onPress={() =>
@@ -620,13 +669,21 @@ export const AdminDashboardScreen: React.FC = () => {
                       {clientName}
                     </Text>
                     <Text style={styles.recentMeta} numberOfLines={1}>
-                      {row.appointment.serviceName} · {formatRelativeTime(row.createdAt)}
+                      {row.appointment.serviceName} ·{" "}
+                      {formatRelativeTime(row.createdAt)}
                     </Text>
                   </View>
                   <View style={styles.recentStatusPill}>
                     <Text style={styles.recentStatusText}>
                       {statusLabel(row.status)}
                     </Text>
+                  </View>
+                  <View style={styles.recentChevron}>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={12}
+                      color={T.muted}
+                    />
                   </View>
                 </TouchableOpacity>
               );
@@ -638,77 +695,95 @@ export const AdminDashboardScreen: React.FC = () => {
   );
 };
 
+// ─── Styles ────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
+  root: { flex: 1, backgroundColor: T.bg },
+
+  /* States */
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: T.bg,
     paddingHorizontal: 24,
-    gap: 10,
   },
-  loadingText: {
-    fontSize: 14,
-    color: "#64748B",
-    fontWeight: "600",
+  loadingCard: {
+    backgroundColor: T.surface,
+    borderRadius: 20,
+    padding: 36,
+    alignItems: "center",
+    gap: 14,
+    borderWidth: 1,
+    borderColor: T.border,
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    elevation: 3,
+  },
+  loadingText: { fontSize: 14, color: T.sub, fontWeight: "600" },
+  errorCard: {
+    backgroundColor: T.surface,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: T.border,
   },
   errorText: {
-    fontSize: 15,
-    color: "#64748B",
+    fontSize: 14,
+    color: T.sub,
     fontWeight: "600",
     textAlign: "center",
   },
   retryBtn: {
-    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
     backgroundColor: ACCENT_DIM,
     borderWidth: 1,
     borderColor: ACCENT_BORDER,
   },
-  retryBtnText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#92400E",
-  },
-  scroll: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 16,
-  },
+  retryBtnText: { fontSize: 13, fontWeight: "800", color: ACCENT_DARK },
+
+  /* Scroll */
+  scroll: { paddingHorizontal: 16, paddingTop: 14, gap: 16 },
+
+  /* Header */
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
   headerIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 50,
+    height: 50,
+    borderRadius: 16,
     backgroundColor: ACCENT_DIM,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: ACCENT_BORDER,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
   },
   greeting: {
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: "800",
-    color: "#1A1A2E",
+    color: T.text,
     letterSpacing: -0.5,
   },
-  dateLine: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#94A3B8",
-    marginTop: 2,
-  },
+  dateLine: { fontSize: 12, fontWeight: "500", color: T.muted, marginTop: 2 },
+
+  /* Alert banner */
   alertBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -716,105 +791,103 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT_DIM,
     borderWidth: 1,
     borderColor: ACCENT_BORDER,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
   },
-  alertBannerDanger: {
-    backgroundColor: "#FEF2F2",
-    borderColor: "#FECACA",
+  alertBannerDanger: { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },
+  alertIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: ACCENT_DIM,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: ACCENT_BORDER,
+    flexShrink: 0,
   },
-  alertBody: {
-    flex: 1,
-    gap: 2,
-  },
-  alertTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#92400E",
-  },
-  alertTitleDanger: {
-    color: "#991B1B",
-  },
+  alertIconWrapDanger: { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },
+  alertBody: { flex: 1, gap: 2 },
+  alertTitle: { fontSize: 13, fontWeight: "800", color: ACCENT_DARK },
+  alertTitleDanger: { color: "#991B1B" },
   alertMessage: {
     fontSize: 12,
-    color: "#64748B",
+    color: T.sub,
     fontWeight: "500",
     lineHeight: 17,
   },
+
+  /* Section header */
+  sectionRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sectionDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: ACCENT },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "800",
-    color: "#64748B",
+    color: T.sub,
     textTransform: "uppercase",
-    letterSpacing: 0.6,
+    letterSpacing: 1,
   },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
+
+  /* Stat cards grid */
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   statCard: {
     width: "48%",
     flexGrow: 1,
     minWidth: "46%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+    backgroundColor: T.surface,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: T.border,
     padding: 14,
     gap: 4,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 6,
-      },
-      android: { elevation: 1 },
-    }),
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    ...Platform.select({ android: { elevation: 1 } }),
   },
   statIconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "800",
-    color: "#0F172A",
-    letterSpacing: -0.5,
+    color: T.dark,
+    letterSpacing: -0.8,
   },
-  statTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#475569",
-  },
+  statTitle: { fontSize: 12, fontWeight: "700", color: T.sub },
   statSubtitle: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#94A3B8",
-    lineHeight: 15,
+    fontSize: 10,
+    fontWeight: "500",
+    color: T.muted,
+    lineHeight: 14,
   },
-  quickActionsRow: {
-    gap: 10,
-    paddingBottom: 2,
-  },
+
+  /* Quick actions */
+  quickActionsRow: { gap: 10, paddingBottom: 2 },
   quickAction: {
     width: 148,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+    backgroundColor: T.surface,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: T.border,
     padding: 14,
     gap: 4,
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    ...Platform.select({ android: { elevation: 1 } }),
   },
   quickActionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 11,
+    width: 42,
+    height: 42,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
@@ -822,25 +895,35 @@ const styles = StyleSheet.create({
   quickActionTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#0F172A",
+    color: T.dark,
+    letterSpacing: -0.2,
   },
-  quickActionSub: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#94A3B8",
-  },
+  quickActionSub: { fontSize: 11, fontWeight: "500", color: T.muted },
   quickActionChevron: {
     position: "absolute",
     top: 14,
     right: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 8,
+    backgroundColor: T.bg,
+    alignItems: "center",
+    justifyContent: "center",
   },
+
+  /* Panel */
   panel: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    backgroundColor: T.surface,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: T.border,
     padding: 16,
     gap: 12,
+    shadowColor: "#1A1A2E",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    ...Platform.select({ android: { elevation: 1 } }),
   },
   panelHead: {
     flexDirection: "row",
@@ -850,86 +933,64 @@ const styles = StyleSheet.create({
   panelTitle: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#0F172A",
+    color: T.dark,
     letterSpacing: -0.3,
   },
-  panelSub: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#94A3B8",
-    marginTop: -6,
+  panelSub: { fontSize: 12, fontWeight: "500", color: T.muted, marginTop: -4 },
+  panelTotalPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: T.bg,
+    borderWidth: 1,
+    borderColor: T.border,
   },
-  panelLink: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#92400E",
-  },
-  chartList: {
-    gap: 10,
-  },
-  chartRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  chartLabel: {
-    width: 82,
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#64748B",
-  },
+  panelTotalText: { fontSize: 11, fontWeight: "700", color: T.sub },
+  panelLinkBtn: { flexDirection: "row", alignItems: "center", gap: 3 },
+  panelLink: { fontSize: 12, fontWeight: "800", color: ACCENT },
+
+  /* Chart */
+  chartList: { gap: 10 },
+  chartRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  chartLabelDot: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },
+  chartLabel: { width: 76, fontSize: 12, fontWeight: "600", color: T.sub },
   chartTrack: {
     flex: 1,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: T.bg,
     overflow: "hidden",
   },
-  chartBar: {
-    height: "100%",
-    borderRadius: 4,
-    minWidth: 4,
-  },
+  chartBar: { height: "100%", borderRadius: 4, minWidth: 4 },
   chartCount: {
     width: 28,
     fontSize: 12,
     fontWeight: "800",
-    color: "#0F172A",
+    color: T.dark,
     textAlign: "right",
   },
+
+  /* Rating */
   ratingPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#FFFBEB",
+    backgroundColor: ACCENT_DIM,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 999,
+    borderWidth: 1,
+    borderColor: ACCENT_BORDER,
   },
-  ratingPillText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#92400E",
-  },
-  ratingBars: {
-    gap: 8,
-  },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  ratingStar: {
-    width: 28,
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#64748B",
-  },
+  ratingPillText: { fontSize: 12, fontWeight: "800", color: ACCENT_DARK },
+  ratingBars: { gap: 8 },
+  ratingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  ratingStar: { width: 26, fontSize: 12, fontWeight: "700", color: T.sub },
   ratingTrack: {
     flex: 1,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: T.bg,
     overflow: "hidden",
   },
   ratingBar: {
@@ -942,63 +1003,63 @@ const styles = StyleSheet.create({
     width: 24,
     fontSize: 11,
     fontWeight: "700",
-    color: "#94A3B8",
+    color: T.muted,
     textAlign: "right",
   },
-  emptyPanel: {
-    fontSize: 13,
-    color: "#94A3B8",
-    fontWeight: "600",
+
+  /* Recent complaints */
+  emptyPanelWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     paddingVertical: 8,
   },
+  emptyPanel: { fontSize: 13, color: T.muted, fontWeight: "600" },
   recentRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 10,
+    paddingVertical: 11,
   },
-  recentRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
+  recentRowBorder: { borderBottomWidth: 1, borderBottomColor: T.borderLt },
   recentAvatar: {
     width: 38,
     height: 38,
-    borderRadius: 11,
+    borderRadius: 12,
     backgroundColor: ACCENT_DIM,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: ACCENT_BORDER,
+    flexShrink: 0,
   },
-  recentAvatarText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#92400E",
-  },
-  recentMid: {
-    flex: 1,
-    gap: 2,
-  },
-  recentName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#0F172A",
-  },
-  recentMeta: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#94A3B8",
-  },
+  recentAvatarText: { fontSize: 15, fontWeight: "800", color: ACCENT_DARK },
+  recentMid: { flex: 1, gap: 2 },
+  recentName: { fontSize: 13, fontWeight: "700", color: T.dark },
+  recentMeta: { fontSize: 11, fontWeight: "500", color: T.muted },
   recentStatusPill: {
-    backgroundColor: "#F1F5F9",
+    backgroundColor: T.bg,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
-    maxWidth: 100,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: T.border,
+    flexShrink: 0,
   },
   recentStatusText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "800",
-    color: "#475569",
+    color: T.sub,
     textTransform: "capitalize",
+    letterSpacing: 0.3,
+  },
+  recentChevron: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    backgroundColor: T.bg,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
 });

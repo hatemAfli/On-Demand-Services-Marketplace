@@ -19,10 +19,11 @@ import { api } from "../../../services/api";
 import { COLORS } from "../../../constants";
 import { AccountStatus, UserRole } from "../../../types";
 
-// ─── Brand accent ──────────────────────────────────────────
-const ACCENT = "#E8C97A";
-const ACCENT_DIM = "rgba(232,201,122,0.18)";
-const ACCENT_BORDER = "rgba(232,201,122,0.40)";
+// ─── Brand accent (aligned with client / provider orange) ─
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_DIM = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
 
 // ─── Types (unchanged) ────────────────────────────────────
 type RoleFilter = "ALL" | UserRole;
@@ -67,9 +68,9 @@ function rolePillColors(role: UserRole): {
   switch (role) {
     case UserRole.CLIENT:
       return {
-        bg: "#FFF8E7",
-        border: "#FDE68A",
-        text: "#92400E",
+        bg: ACCENT_DIM,
+        border: ACCENT_BORDER,
+        text: ACCENT_DARK,
         icon: "person-outline",
       };
     case UserRole.PROVIDER:
@@ -90,7 +91,7 @@ function rolePillColors(role: UserRole): {
       return {
         bg: ACCENT_DIM,
         border: ACCENT_BORDER,
-        text: "#92400E",
+        text: ACCENT_DARK,
         icon: "shield-checkmark-outline",
       };
     default:
@@ -137,9 +138,9 @@ function statusConfig(status: AccountStatus): StatusCfg {
       };
     case AccountStatus.PENDING:
       return {
-        bg: "#FFFBEB",
-        text: "#78350F",
-        dot: "#F59E0B",
+        bg: ACCENT_DIM,
+        text: ACCENT_DARK,
+        dot: ACCENT,
         label: "Pending",
       };
     case AccountStatus.REJECTED:
@@ -177,13 +178,13 @@ function statusConfig(status: AccountStatus): StatusCfg {
 function avatarAccent(role: UserRole): { bg: string; text: string } {
   switch (role) {
     case UserRole.CLIENT:
-      return { bg: "#FFF3C4", text: "#92400E" };
+      return { bg: ACCENT_DIM, text: ACCENT_DARK };
     case UserRole.PROVIDER:
       return { bg: "#DBEAFE", text: "#1E40AF" };
     case UserRole.COMPANY_ADMIN:
       return { bg: "#EDE9FE", text: "#5B21B6" };
     case UserRole.PLATFORM_ADMIN:
-      return { bg: ACCENT_DIM, text: "#92400E" };
+      return { bg: ACCENT_DIM, text: ACCENT_DARK };
     default:
       return { bg: COLORS.gray[100], text: COLORS.gray[600] };
   }
@@ -492,7 +493,7 @@ export const AdminUsersScreen: React.FC = () => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F4F3FA",
   },
 
   // ── Header
@@ -574,7 +575,7 @@ const styles = StyleSheet.create({
     color: "#6B6B80",
   },
   filterChipTextActive: {
-    color: "#92400E",
+    color: ACCENT_DARK,
   },
 
   // ── List
@@ -746,7 +747,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   retryBtnText: {
-    color: "#92400E",
+    color: ACCENT_DARK,
     fontWeight: "800",
     fontSize: 14,
   },

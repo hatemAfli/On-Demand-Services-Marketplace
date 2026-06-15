@@ -7,6 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
   StatusBar,
   ActivityIndicator,
 } from "react-native";
@@ -21,6 +23,10 @@ import { UserRole } from "../../types";
 import type { AuthStackParamList } from "../../navigation/types";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const ACCENT = "#EA580C";
+const ACCENT_SOFT = "#FFEDD5";
+const SCREEN_BG = "#F1F5F9";
 
 interface EmailVerificationScreenProps {
   navigation: NativeStackNavigationProp<AuthStackParamList, "EmailVerification">;
@@ -43,7 +49,6 @@ export const EmailVerificationScreen: React.FC<
     message: string;
   }>({ visible: false, title: "", message: "" });
 
-  // Countdown timer for resend
   useEffect(() => {
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -53,12 +58,9 @@ export const EmailVerificationScreen: React.FC<
     }
   }, [countdown]);
 
-  // Listen for email verification
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log("Auth event:", event);
-
         if (event === "SIGNED_IN" && session) {
           navigation.replace("CompleteProfile", { role });
         }
@@ -136,7 +138,11 @@ export const EmailVerificationScreen: React.FC<
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
       <View style={[styles.topBackContainer, { top: insets.top + 8 }]}>
         <TouchableOpacity
           style={styles.backButton}
@@ -146,74 +152,96 @@ export const EmailVerificationScreen: React.FC<
           <Text style={styles.backText}>← {t("auth.backToLogin")}</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingTop: insets.top + 64,
-            paddingBottom: Math.max(insets.bottom, 12) + 24,
-          },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={styles.panel}>
-          <View style={styles.iconWrap}>
-            <Ionicons name="mail-open-outline" size={34} color="#4F46E5" />
-          </View>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: insets.top + 64,
+              paddingBottom: 16 + insets.bottom,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.panel}>
+            <View style={styles.iconWrap}>
+              <Ionicons name="mail-open-outline" size={34} color={ACCENT} />
+            </View>
 
-          <Text style={[styles.title, isRTL && styles.rtlText]}>
-            {t("auth.verifyEmail")}
-          </Text>
-          <Text style={[styles.description, isRTL && styles.rtlText]}>
-            {t("auth.verificationSentTo")}
-          </Text>
-          <Text style={[styles.email, isRTL && styles.rtlText]}>{email}</Text>
-          <Text style={[styles.instruction, isRTL && styles.rtlText]}>
-            {t("auth.emailVerifyInstruction")}
-          </Text>
-
-          <TouchableOpacity
-            style={styles.verifyButton}
-            onPress={handleCheckVerification}
-            activeOpacity={0.9}
-            disabled={isChecking}
-          >
-            {isChecking ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <View style={styles.verifyButtonContent}>
-                <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.verifyButtonText}>
-                  {t("auth.verifyEmailAction")}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          <View style={styles.resendContainer}>
-            <Text style={[styles.resendText, isRTL && styles.rtlText]}>
-              {t("auth.didNotReceiveEmail")}
+            <Text style={[styles.title, isRTL && styles.rtlText]}>
+              {t("auth.verifyEmail")}
             </Text>
-            {canResend ? (
-              <TouchableOpacity onPress={handleResendEmail}>
-                <Text style={styles.resendLink}>{t("auth.resendEmail")}</Text>
-              </TouchableOpacity>
-            ) : (
-              <Text style={styles.countdown}>
-                {t("auth.resendIn", { count: countdown })}
-              </Text>
-            )}
-          </View>
+            <Text style={[styles.description, isRTL && styles.rtlText]}>
+              {t("auth.verificationSentTo")}
+            </Text>
+            <Text style={[styles.email, isRTL && styles.rtlText]}>{email}</Text>
+            <Text style={[styles.instruction, isRTL && styles.rtlText]}>
+              {t("auth.emailVerifyInstruction")}
+            </Text>
 
-          <View style={styles.tipCard}>
-            <Text style={styles.tipTitle}>{t("auth.tipsTitle")}</Text>
-            <Text style={styles.tipText}>{t("auth.emailTipSpam")}</Text>
-            <Text style={styles.tipText}>{t("auth.emailTipAddress", { email })}</Text>
-            <Text style={styles.tipText}>{t("auth.emailTipExpiry")}</Text>
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                isChecking && styles.primaryButtonDisabled,
+              ]}
+              onPress={handleCheckVerification}
+              activeOpacity={0.9}
+              disabled={isChecking}
+            >
+              {isChecking ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <View style={styles.primaryButtonContent}>
+                  <Text style={styles.primaryButtonText}>
+                    {t("auth.verifyEmailAction")}
+                  </Text>
+                  <View style={styles.primaryButtonIconWrap}>
+                    <Ionicons
+                      name="checkmark-circle-outline"
+                      size={18}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.resendContainer}>
+              <Text style={[styles.resendText, isRTL && styles.rtlText]}>
+                {t("auth.didNotReceiveEmail")}
+              </Text>
+              {canResend ? (
+                <TouchableOpacity onPress={handleResendEmail}>
+                  <Text style={styles.resendLink}>{t("auth.resendEmail")}</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.countdown}>
+                  {t("auth.resendIn", { count: countdown })}
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.tipsSection}>
+              <Text style={[styles.tipTitle, isRTL && styles.rtlText]}>
+                {t("auth.tipsTitle")}
+              </Text>
+              <Text style={[styles.tipText, isRTL && styles.rtlText]}>
+                • {t("auth.emailTipSpam")}
+              </Text>
+              <Text style={[styles.tipText, isRTL && styles.rtlText]}>
+                • {t("auth.emailTipAddress", { email })}
+              </Text>
+              <Text style={[styles.tipText, isRTL && styles.rtlText]}>
+                • {t("auth.emailTipExpiry")}
+              </Text>
+            </View>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <AuthNoticeModal
         visible={noticeModal.visible}
@@ -234,16 +262,19 @@ export const EmailVerificationScreen: React.FC<
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: SCREEN_BG,
   },
   topBackContainer: {
     position: "absolute",
     left: 24,
     zIndex: 10,
   },
+  container: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 0,
     justifyContent: "center",
   },
   backButton: {
@@ -253,45 +284,37 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   backText: {
-    color: "#4F46E5",
+    color: ACCENT,
     fontSize: 16,
     fontWeight: "600",
   },
   panel: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-    padding: 16,
     width: "100%",
-    maxWidth: 420,
-    alignSelf: "center",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 1,
+    alignSelf: "stretch",
+    backgroundColor: SCREEN_BG,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+    marginTop: 8,
   },
   iconWrap: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#EEF2FF",
-    borderWidth: 1,
-    borderColor: "#E0E7FF",
+    backgroundColor: ACCENT_SOFT,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: 20,
     alignSelf: "center",
   },
   title: {
     fontSize: 24,
-    lineHeight: 28,
-    fontWeight: "700",
-    color: "#0F172A",
+    lineHeight: 30,
+    fontWeight: "800",
+    color: "#111827",
     textAlign: "center",
     marginBottom: 10,
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
   description: {
     fontSize: 13,
@@ -301,83 +324,92 @@ const styles = StyleSheet.create({
   },
   email: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#4F46E5",
+    fontWeight: "700",
+    color: ACCENT,
     marginBottom: 12,
     textAlign: "center",
   },
   instruction: {
-    fontSize: 12,
-    color: "#64748B",
+    fontSize: 13,
+    color: "#475569",
     textAlign: "center",
-    marginBottom: 18,
-    lineHeight: 18,
+    marginBottom: 24,
+    lineHeight: 20,
   },
-  verifyButton: {
-    alignSelf: "center",
-    minWidth: 210,
-    height: 48,
-    borderRadius: 999,
-    backgroundColor: "#6366F1",
+  primaryButton: {
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#4338CA",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
     shadowRadius: 10,
     elevation: 3,
-    marginBottom: 14,
+    marginBottom: 20,
   },
-  verifyButtonContent: {
+  primaryButtonDisabled: {
+    opacity: 0.65,
+  },
+  primaryButtonContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  verifyButtonText: {
+  primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
     letterSpacing: 0.2,
+  },
+  primaryButtonIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   resendContainer: {
     alignItems: "center",
-    marginBottom: 14,
+    marginBottom: 28,
   },
   resendText: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#64748B",
     marginBottom: 6,
   },
   resendLink: {
     fontSize: 13,
-    color: "#4F46E5",
+    color: ACCENT,
     fontWeight: "600",
   },
   countdown: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#94A3B8",
   },
-  tipCard: {
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    padding: 14,
-    borderRadius: 16,
+  tipsSection: {
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
   },
   tipTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 8,
+    color: "#334155",
+    marginBottom: 10,
+    marginTop: 16,
   },
   tipText: {
     fontSize: 12,
     color: "#64748B",
-    marginBottom: 4,
+    marginBottom: 8,
+    lineHeight: 18,
   },
   rtlText: {
     textAlign: "right",
     writingDirection: "rtl",
   },
 });
-

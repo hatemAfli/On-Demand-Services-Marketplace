@@ -17,9 +17,14 @@ const BAR_COLORS: Record<Exclude<PasswordStrengthLevel, 0>, string> = {
 
 type Props = {
   password: string;
+  /** Use "light" on pale form backgrounds (e.g. SignUp). Default: "light". */
+  variant?: "light" | "dark";
 };
 
-export const PasswordStrengthIndicator: React.FC<Props> = ({ password }) => {
+export const PasswordStrengthIndicator: React.FC<Props> = ({
+  password,
+  variant = "light",
+}) => {
   const { t, isRTL } = useAppTranslation();
   const { level } = scorePasswordStrength(password);
 
@@ -38,17 +43,24 @@ export const PasswordStrengthIndicator: React.FC<Props> = ({ password }) => {
           ? "auth.passwordStrengthGood"
           : "auth.passwordStrengthStrong";
 
+  const isLight = variant === "light";
+  const inactiveBar = isLight ? "#CBD5E1" : "rgba(255,255,255,0.12)";
+
   return (
     <View style={styles.wrap}>
-      <Text style={[styles.label, isRTL && styles.rtlText]}>
+      <Text
+        style={[
+          styles.label,
+          isLight ? styles.labelLight : styles.labelDark,
+          isRTL && styles.rtlText,
+        ]}
+      >
         {t("auth.passwordStrengthLabel")}: {t(labelKey)}
       </Text>
       <View style={[styles.bars, isRTL && styles.barsRtl]}>
         {([1, 2, 3, 4] as const).map((i) => {
           const active = strengthTier >= i;
-          const color = active
-            ? BAR_COLORS[strengthTier]
-            : "rgba(255,255,255,0.12)";
+          const color = active ? BAR_COLORS[strengthTier] : inactiveBar;
           return (
             <View
               key={i}
@@ -61,7 +73,13 @@ export const PasswordStrengthIndicator: React.FC<Props> = ({ password }) => {
           );
         })}
       </View>
-      <Text style={[styles.hint, isRTL && styles.rtlText]}>
+      <Text
+        style={[
+          styles.hint,
+          isLight ? styles.hintLight : styles.hintDark,
+          isRTL && styles.rtlText,
+        ]}
+      >
         {t("auth.passwordStrengthHint")}
       </Text>
     </View>
@@ -76,8 +94,13 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.88)",
     marginBottom: 8,
+  },
+  labelLight: {
+    color: "#334155",
+  },
+  labelDark: {
+    color: "rgba(255,255,255,0.88)",
   },
   bars: {
     flexDirection: "row",
@@ -101,6 +124,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     lineHeight: 17,
+  },
+  hintLight: {
+    color: "#64748B",
+  },
+  hintDark: {
     color: "rgba(181, 184, 201, 0.95)",
   },
   rtlText: {

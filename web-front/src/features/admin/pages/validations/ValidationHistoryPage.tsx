@@ -4,7 +4,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
   SolutionOutlined,
-} from '@ant-design/icons'
+} from "@ant-design/icons";
 import {
   App,
   Button,
@@ -15,83 +15,97 @@ import {
   Table,
   Tag,
   Typography,
-} from 'antd'
-import type { ColumnsType } from 'antd/es/table'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from '../../../../services/api'
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { api } from "../../../../services/api";
 import type {
   AdminVerificationRequestItem,
   VerificationReviewStatus,
-} from '../../../../types/verification-admin'
-import { VerificationRequestDrawer } from './VerificationRequestDrawer'
-import '../users/UsersAdminPage.css'
+} from "../../../../types/verification-admin";
+import { VerificationRequestDrawer } from "./VerificationRequestDrawer";
+import "../users/UsersAdminPage.css";
 
 function formatApiMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { message?: unknown } } })?.response?.data
-  const msg = data?.message
-  if (Array.isArray(msg)) return msg.join(', ')
-  if (typeof msg === 'string') return msg
-  return (err as Error)?.message || 'Something went wrong'
+  const data = (err as { response?: { data?: { message?: unknown } } })
+    ?.response?.data;
+  const msg = data?.message;
+  if (Array.isArray(msg)) return msg.join(", ");
+  if (typeof msg === "string") return msg;
+  return (err as Error)?.message || "Something went wrong";
 }
 
 function outcomeColor(s: VerificationReviewStatus): string {
-  return s === 'APPROVED' ? 'success' : 'error'
+  return s === "APPROVED" ? "success" : "error";
 }
 
 export function ValidationHistoryPage() {
-  const { message } = App.useApp()
-  const [loading, setLoading] = useState(true)
-  const [rawItems, setRawItems] = useState<AdminVerificationRequestItem[]>([])
-  const [search, setSearch] = useState('')
-  const [drawerId, setDrawerId] = useState<string | null>(null)
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const { message } = App.useApp();
+  const [loading, setLoading] = useState(true);
+  const [rawItems, setRawItems] = useState<AdminVerificationRequestItem[]>([]);
+  const [search, setSearch] = useState("");
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const [approved, rejected] = await Promise.all([
-        api.listAdminVerificationRequests({ status: 'APPROVED', take: 200, skip: 0 }),
-        api.listAdminVerificationRequests({ status: 'REJECTED', take: 200, skip: 0 }),
-      ])
-      const merged = [...(approved.data.items ?? []), ...(rejected.data.items ?? [])].sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-      )
-      setRawItems(merged)
+        api.listAdminVerificationRequests({
+          status: "APPROVED",
+          take: 200,
+          skip: 0,
+        }),
+        api.listAdminVerificationRequests({
+          status: "REJECTED",
+          take: 200,
+          skip: 0,
+        }),
+      ]);
+      const merged = [
+        ...(approved.data.items ?? []),
+        ...(rejected.data.items ?? []),
+      ].sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
+      setRawItems(merged);
     } catch (e) {
-      message.error(formatApiMessage(e))
-      setRawItems([])
+      message.error(formatApiMessage(e));
+      setRawItems([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [message])
+  }, [message]);
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return rawItems
+    const q = search.trim().toLowerCase();
+    if (!q) return rawItems;
     return rawItems.filter((row) => {
-      const name = `${row.user.firstName} ${row.user.lastName}`.toLowerCase()
-      const email = row.user.email.toLowerCase()
-      const company = row.user.companyAdmin?.company?.companyName?.toLowerCase() ?? ''
-      const service = row.service?.name?.toLowerCase() ?? ''
-      const ot = row.ownerType.toLowerCase()
+      const name = `${row.user.firstName} ${row.user.lastName}`.toLowerCase();
+      const email = row.user.email.toLowerCase();
+      const company =
+        row.user.companyAdmin?.company?.companyName?.toLowerCase() ?? "";
+      const service = row.service?.name?.toLowerCase() ?? "";
+      const ot = row.ownerType.toLowerCase();
       return (
         name.includes(q) ||
         email.includes(q) ||
         company.includes(q) ||
         service.includes(q) ||
         ot.includes(q)
-      )
-    })
-  }, [rawItems, search])
+      );
+    });
+  }, [rawItems, search]);
 
   const columns: ColumnsType<AdminVerificationRequestItem> = [
     {
-      title: 'Outcome',
-      dataIndex: 'requestStatus',
+      title: "Outcome",
+      dataIndex: "requestStatus",
       width: 120,
       render: (s: VerificationReviewStatus) => (
         <Tag color={outcomeColor(s)} style={{ fontWeight: 700 }}>
@@ -100,11 +114,12 @@ export function ValidationHistoryPage() {
       ),
     },
     {
-      title: 'Applicant',
-      key: 'applicant',
+      title: "Applicant",
+      key: "applicant",
       render: (_, row) => {
         const name =
-          `${row.user.firstName ?? ''} ${row.user.lastName ?? ''}`.trim() || '—'
+          `${row.user.firstName ?? ""} ${row.user.lastName ?? ""}`.trim() ||
+          "—";
         return (
           <div>
             <Typography.Text strong>{name}</Typography.Text>
@@ -114,15 +129,15 @@ export function ValidationHistoryPage() {
               </Typography.Text>
             </div>
           </div>
-        )
+        );
       },
     },
     {
-      title: 'Type',
-      key: 'ownerType',
+      title: "Type",
+      key: "ownerType",
       width: 120,
       render: (_, row) =>
-        row.ownerType === 'COMPANY' ? (
+        row.ownerType === "COMPANY" ? (
           <Tag color="purple" icon={<BankOutlined />}>
             Company
           </Tag>
@@ -133,53 +148,33 @@ export function ValidationHistoryPage() {
         ),
     },
     {
-      title: 'Subject',
-      key: 'subject',
+      title: "Subject",
+      key: "subject",
       ellipsis: true,
       render: (_, row) => {
-        if (row.ownerType === 'COMPANY' && row.user.companyAdmin?.company) {
-          return row.user.companyAdmin.company.companyName
+        if (row.ownerType === "COMPANY" && row.user.companyAdmin?.company) {
+          return row.user.companyAdmin.company.companyName;
         }
-        return row.service?.name ?? '—'
+        return row.service?.name ?? "—";
       },
     },
     {
-      title: 'Last update',
-      dataIndex: 'updatedAt',
+      title: "Last update",
+      dataIndex: "updatedAt",
       width: 140,
       render: (iso: string) =>
         new Date(iso).toLocaleString(undefined, {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
         }),
     },
-  ]
+  ];
 
   return (
     <div className="users-admin">
-      <div className="users-admin-hero">
-        <div className="users-admin-hero-inner">
-          <div className="users-admin-kicker">Archive</div>
-          <Typography.Title level={2} className="users-admin-title">
-            Validation history
-          </Typography.Title>
-          <p className="users-admin-subtitle">
-            Approved and rejected verification requests, most recently updated first. Open a
-            row to review the full record and documents.
-          </p>
-          <div className="users-admin-stats">
-            <span className="users-admin-stat-pill">
-              <HistoryOutlined style={{ color: '#6366f1' }} />
-              <strong>{filtered.length}</strong> record{filtered.length === 1 ? '' : 's'}
-              {search.trim() ? ' (filtered)' : ''}
-            </span>
-          </div>
-        </div>
-      </div>
-
       <Card className="users-admin-card" variant="borderless">
         <div className="users-admin-toolbar">
           <div className="users-admin-toolbar-left">
@@ -190,7 +185,7 @@ export function ValidationHistoryPage() {
           <Input
             className="users-admin-search"
             allowClear
-            prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
+            prefix={<SearchOutlined style={{ color: "#94a3b8" }} />}
             placeholder="Search name, email, company, service, or type…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -216,10 +211,10 @@ export function ValidationHistoryPage() {
             }}
             onRow={(record) => ({
               onClick: () => {
-                setDrawerId(record.id)
-                setDrawerOpen(true)
+                setDrawerId(record.id);
+                setDrawerOpen(true);
               },
-              style: { cursor: 'pointer' },
+              style: { cursor: "pointer" },
             })}
             scroll={{ x: 880 }}
           />
@@ -230,11 +225,11 @@ export function ValidationHistoryPage() {
         open={drawerOpen}
         requestId={drawerId}
         onClose={() => {
-          setDrawerOpen(false)
-          setDrawerId(null)
+          setDrawerOpen(false);
+          setDrawerId(null);
         }}
         onAfterMutation={() => void load()}
       />
     </div>
-  )
+  );
 }

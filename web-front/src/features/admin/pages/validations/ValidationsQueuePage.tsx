@@ -1,62 +1,98 @@
 import {
-  BankOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
-  SolutionOutlined,
-} from '@ant-design/icons'
+} from "@ant-design/icons";
 import {
   App,
+  Avatar,
   Button,
   Card,
   Empty,
   Input,
-  Space,
+  Segmented,
   Spin,
   Table,
-  Tag,
+  Tooltip,
   Typography,
-} from 'antd'
-import type { ColumnsType } from 'antd/es/table'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
-import { api } from '../../../../services/api'
-import type { AdminOutletContext } from '../../layout/adminOutletContext'
+} from "antd";
+import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useOutletContext } from "react-router-dom";
+import { api } from "../../../../services/api";
+import type { AdminOutletContext } from "../../layout/adminOutletContext";
 import type {
   AdminVerificationRequestItem,
   VerificationOwnerType,
   VerificationReviewStatus,
-} from '../../../../types/verification-admin'
-import { VerificationRequestDrawer } from './VerificationRequestDrawer'
-import '../users/UsersAdminPage.css'
+} from "../../../../types/verification-admin";
+import { VerificationRequestDrawer } from "./VerificationRequestDrawer";
+import "../users/UsersAdminPage.css";
+import "./ValidationsQueuePage.css";
 
-const QUEUE_STATUSES: VerificationReviewStatus[] = ['PENDING', 'UNDER_REVIEW']
+const PAGE_SIZE = 12;
+const SEARCH_DEBOUNCE_MS = 350;
+
+const QUEUE_STATUSES: VerificationReviewStatus[] = ["PENDING", "UNDER_REVIEW"];
+
+type StatusFilter = "all" | VerificationReviewStatus;
 
 function formatApiMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { message?: unknown } } })?.response?.data
-  const msg = data?.message
-  if (Array.isArray(msg)) return msg.join(', ')
-  if (typeof msg === 'string') return msg
-  return (err as Error)?.message || 'Something went wrong'
+  const data = (err as { response?: { data?: { message?: unknown } } })
+    ?.response?.data;
+  const msg = data?.message;
+  if (Array.isArray(msg)) return msg.join(", ");
+  if (typeof msg === "string") return msg;
+  return (err as Error)?.message || "Something went wrong";
 }
 
-function statusTagColor(s: VerificationReviewStatus): string {
+function verificationStatusClass(s: VerificationReviewStatus): string {
   switch (s) {
-    case 'PENDING':
-      return 'gold'
-    case 'UNDER_REVIEW':
-      return 'blue'
+    case "PENDING":
+      return "ua-status-pending";
+    case "UNDER_REVIEW":
+      return "ua-status-review";
+    case "APPROVED":
+      return "ua-status-active";
+    case "REJECTED":
+      return "ua-status-rejected";
     default:
-      return 'default'
+      return "ua-status-deleted";
   }
 }
 
-export type ValidationsQueuePageProps = {
-  ownerType: VerificationOwnerType
-  heroKicker: string
-  heroTitle: string
-  heroSubtitle: string
+function formatStatusLabel(s: VerificationReviewStatus): string {
+  if (s === "UNDER_REVIEW") return "Under review";
+  return s.charAt(0) + s.slice(1).toLowerCase();
 }
+
+function applicantInitials(row: AdminVerificationRequestItem): string {
+  const a = (row.user.firstName || "").trim().charAt(0);
+  const b = (row.user.lastName || "").trim().charAt(0);
+  return `${a}${b}`.toUpperCase() || "?";
+}
+
+function applicantPhoto(row: AdminVerificationRequestItem): string | null {
+  const providerPhoto = row.user.provider?.photoUrl?.trim();
+  if (providerPhoto) return providerPhoto;
+  const companyLogo = row.user.companyAdmin?.company?.logo?.trim();
+  if (companyLogo) return companyLogo;
+  return null;
+}
+
+function defaultSubtitle(ownerType: VerificationOwnerType): string {
+  if (ownerType === "COMPANY") {
+    return "Company verification requests from business representatives. Review legal identity and documents before approval.";
+  }
+  return "Provider verification requests. Review identity documents and service credentials before approval.";
+}
+
+export type ValidationsQueuePageProps = {
+  ownerType: VerificationOwnerType;
+  heroKicker: string;
+  heroTitle: string;
+  heroSubtitle: string;
+};
 
 export function ValidationsQueuePage({
   ownerType,
@@ -64,156 +100,229 @@ export function ValidationsQueuePage({
   heroTitle,
   heroSubtitle,
 }: ValidationsQueuePageProps) {
-  const { message } = App.useApp()
-  const { refresh: refreshQueueCounts } = useOutletContext<AdminOutletContext>()
-  const [loading, setLoading] = useState(true)
-  const [rawItems, setRawItems] = useState<AdminVerificationRequestItem[]>([])
-  const [search, setSearch] = useState('')
-  const [drawerId, setDrawerId] = useState<string | null>(null)
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const { message } = App.useApp();
+  const { refresh: refreshQueueCounts } =
+    useOutletContext<AdminOutletContext>();
+
+  const [loading, setLoading] = useState(true);
+  const [rawItems, setRawItems] = useState<AdminVerificationRequestItem[]>([]);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [page, setPage] = useState(1);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+      setPage(1);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   const load = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const res = await api.listAdminVerificationRequests({
         ownerType,
         take: 200,
         skip: 0,
-      })
+      });
       const items = (res.data.items ?? []).filter((r) =>
         QUEUE_STATUSES.includes(r.requestStatus),
-      )
-      setRawItems(items)
+      );
+      setRawItems(items);
     } catch (e) {
-      message.error(formatApiMessage(e))
-      setRawItems([])
+      message.error(formatApiMessage(e));
+      setRawItems([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [ownerType, message])
+  }, [ownerType, message]);
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void load();
+  }, [load]);
+
+  const pendingCount = useMemo(
+    () => rawItems.filter((r) => r.requestStatus === "PENDING").length,
+    [rawItems],
+  );
+
+  const underReviewCount = useMemo(
+    () => rawItems.filter((r) => r.requestStatus === "UNDER_REVIEW").length,
+    [rawItems],
+  );
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return rawItems
-    return rawItems.filter((row) => {
-      const name = `${row.user.firstName} ${row.user.lastName}`.toLowerCase()
-      const email = row.user.email.toLowerCase()
-      const company = row.user.companyAdmin?.company?.companyName?.toLowerCase() ?? ''
-      const service = row.service?.name?.toLowerCase() ?? ''
+    let rows = rawItems;
+    if (statusFilter !== "all") {
+      rows = rows.filter((r) => r.requestStatus === statusFilter);
+    }
+    const q = searchQuery.toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row) => {
+      const name = `${row.user.firstName} ${row.user.lastName}`.toLowerCase();
+      const email = row.user.email.toLowerCase();
+      const company =
+        row.user.companyAdmin?.company?.companyName?.toLowerCase() ?? "";
+      const service = row.service?.name?.toLowerCase() ?? "";
       return (
         name.includes(q) ||
         email.includes(q) ||
         company.includes(q) ||
         service.includes(q)
-      )
-    })
-  }, [rawItems, search])
+      );
+    });
+  }, [rawItems, searchQuery, statusFilter]);
 
   const onAfterMutation = useCallback(() => {
-    void load()
-    void refreshQueueCounts()
-  }, [load, refreshQueueCounts])
+    void load();
+    void refreshQueueCounts();
+  }, [load, refreshQueueCounts]);
+
+  const statusSegmentOptions = useMemo(
+    () => [
+      { label: `All (${rawItems.length})`, value: "all" as const },
+      { label: `Pending (${pendingCount})`, value: "PENDING" as const },
+      { label: `In review (${underReviewCount})`, value: "UNDER_REVIEW" as const },
+    ],
+    [rawItems.length, pendingCount, underReviewCount],
+  );
+
+  const pagination: TablePaginationConfig = {
+    current: page,
+    pageSize: PAGE_SIZE,
+    total: filtered.length,
+    showSizeChanger: false,
+    showTotal: (t) => `${t} request${t === 1 ? "" : "s"}`,
+    onChange: (p) => setPage(p),
+  };
 
   const columns: ColumnsType<AdminVerificationRequestItem> = [
     {
-      title: 'Applicant',
-      key: 'applicant',
+      title: "Applicant",
+      key: "applicant",
+      width: 280,
       render: (_, row) => {
         const name =
-          `${row.user.firstName ?? ''} ${row.user.lastName ?? ''}`.trim() || '—'
+          `${row.user.firstName ?? ""} ${row.user.lastName ?? ""}`.trim() ||
+          "—";
+        const photo = applicantPhoto(row);
         return (
-          <div>
-            <Typography.Text strong>{name}</Typography.Text>
-            <div>
-              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                {row.user.email}
+          <div className="users-admin-name-cell">
+            <Avatar
+              className="users-admin-avatar"
+              size={36}
+              src={photo ?? undefined}
+            >
+              {!photo ? applicantInitials(row) : null}
+            </Avatar>
+            <div style={{ minWidth: 0 }}>
+              <Typography.Text strong style={{ display: "block", fontSize: 13 }}>
+                {name}
               </Typography.Text>
+              <Tooltip title={row.user.email}>
+                <span className="vq-applicant-email">{row.user.email}</span>
+              </Tooltip>
             </div>
           </div>
-        )
+        );
       },
     },
     {
-      title: 'Context',
-      key: 'ctx',
-      width: 260,
+      title: "Context",
+      key: "ctx",
+      width: 240,
       ellipsis: true,
       render: (_, row) => {
-        if (row.ownerType === 'COMPANY' && row.user.companyAdmin?.company) {
+        if (row.ownerType === "COMPANY" && row.user.companyAdmin?.company) {
           return (
-            <Space>
-              <Tag color="purple" icon={<BankOutlined />}>
-                Company
-              </Tag>
-              <span>{row.user.companyAdmin.company.companyName}</span>
-            </Space>
-          )
-        }
-        if (row.service) {
-          return (
-            <Space direction="vertical" size={0}>
-              <Tag color="blue" icon={<SolutionOutlined />}>
-                Provider
-              </Tag>
-              <Typography.Text ellipsis style={{ maxWidth: 220 }}>
-                {row.service.name}
-              </Typography.Text>
-            </Space>
-          )
+            <div>
+              <span className="ua-role-tag ua-role-company">Company</span>
+              <span className="vq-context-name">
+                {row.user.companyAdmin.company.companyName}
+              </span>
+            </div>
+          );
         }
         return (
-          <Tag color="blue" icon={<SolutionOutlined />}>
-            Provider
-          </Tag>
-        )
+          <div>
+            <span className="ua-role-tag ua-role-provider">Provider</span>
+            {row.service ? (
+              <Tooltip title={row.service.name}>
+                <span className="vq-context-name">{row.service.name}</span>
+              </Tooltip>
+            ) : null}
+          </div>
+        );
       },
     },
     {
-      title: 'Status',
-      dataIndex: 'requestStatus',
-      width: 140,
+      title: "Status",
+      dataIndex: "requestStatus",
+      width: 120,
       render: (s: VerificationReviewStatus) => (
-        <Tag color={statusTagColor(s)}>{s}</Tag>
+        <span className={`ua-status-tag ${verificationStatusClass(s)}`}>
+          {formatStatusLabel(s)}
+        </span>
       ),
     },
     {
-      title: 'Docs',
-      key: 'docs',
+      title: "Docs",
+      key: "docs",
       width: 72,
-      align: 'center',
-      render: (_, row) => row.documents.length,
+      align: "center",
+      render: (_, row) => (
+        <span className="vq-docs-pill">{row.documents.length}</span>
+      ),
     },
     {
-      title: 'Submitted',
-      dataIndex: 'createdAt',
+      title: "Submitted",
+      dataIndex: "createdAt",
       width: 120,
-      render: (iso: string) =>
-        new Date(iso).toLocaleDateString(undefined, {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-        }),
+      render: (iso: string) => {
+        try {
+          return (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {new Date(iso).toLocaleDateString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })}
+            </Typography.Text>
+          );
+        } catch {
+          return iso;
+        }
+      },
     },
-  ]
+  ];
+
+  const subtitle = heroSubtitle || defaultSubtitle(ownerType);
 
   return (
     <div className="users-admin">
       <div className="users-admin-hero">
+        <div className="users-admin-hero-blob" aria-hidden />
         <div className="users-admin-hero-inner">
-          <div className="users-admin-kicker">{heroKicker}</div>
+          <span className="users-admin-kicker">
+            <SafetyCertificateOutlined /> {heroKicker}
+          </span>
           <Typography.Title level={2} className="users-admin-title">
             {heroTitle}
           </Typography.Title>
-          <p className="users-admin-subtitle">{heroSubtitle}</p>
+          <p className="users-admin-subtitle">{subtitle}</p>
           <div className="users-admin-stats">
             <span className="users-admin-stat-pill">
-              <SafetyCertificateOutlined style={{ color: '#d97706' }} />
-              <strong>{filtered.length}</strong> in queue
-              {search.trim() ? ' (filtered)' : ''}
+              <strong>{rawItems.length}</strong> in queue
+            </span>
+            <span className="users-admin-stat-pill">
+              <strong>{pendingCount}</strong> pending
+            </span>
+            <span className="users-admin-stat-pill">
+              <strong>{underReviewCount}</strong> under review
             </span>
           </div>
         </div>
@@ -222,17 +331,29 @@ export function ValidationsQueuePage({
       <Card className="users-admin-card" variant="borderless">
         <div className="users-admin-toolbar">
           <div className="users-admin-toolbar-left">
-            <Button icon={<ReloadOutlined />} onClick={() => void load()}>
+            <Segmented<StatusFilter>
+              value={statusFilter}
+              onChange={(val) => {
+                setStatusFilter(val);
+                setPage(1);
+              }}
+              options={statusSegmentOptions}
+            />
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => void load()}
+              size="middle"
+            >
               Refresh
             </Button>
           </div>
           <Input
             className="users-admin-search"
             allowClear
-            prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
+            prefix={<SearchOutlined style={{ color: "#AFA9EC" }} />}
             placeholder="Search name, email, company, or service…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
         </div>
 
@@ -242,7 +363,7 @@ export function ValidationsQueuePage({
             rowKey="id"
             columns={columns}
             dataSource={filtered}
-            pagination={{ pageSize: 12, showSizeChanger: false }}
+            pagination={pagination}
             locale={{
               emptyText: loading ? (
                 <span />
@@ -255,10 +376,10 @@ export function ValidationsQueuePage({
             }}
             onRow={(record) => ({
               onClick: () => {
-                setDrawerId(record.id)
-                setDrawerOpen(true)
+                setDrawerId(record.id);
+                setDrawerOpen(true);
               },
-              style: { cursor: 'pointer' },
+              style: { cursor: "pointer" },
             })}
             scroll={{ x: 900 }}
           />
@@ -269,11 +390,11 @@ export function ValidationsQueuePage({
         open={drawerOpen}
         requestId={drawerId}
         onClose={() => {
-          setDrawerOpen(false)
-          setDrawerId(null)
+          setDrawerOpen(false);
+          setDrawerId(null);
         }}
         onAfterMutation={onAfterMutation}
       />
     </div>
-  )
+  );
 }

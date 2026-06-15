@@ -1,20 +1,17 @@
 import React, { useMemo, useState } from "react";
-import {
-  View,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Text,
-} from "react-native";
+import { View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AuthNoticeModal, Input } from "../../../components/common";
 import { useAuth } from "../../../context/AuthContext";
 import { api } from "../../../services/api";
 import type { AdminProfileStackParamList } from "./adminProfileNavigation";
-import { AdminProfileSubHeader, profileScreenStyles } from "./adminProfileUi";
+import {
+  AdminFormCard,
+  AdminFormCardHeader,
+  AdminFormSaveButton,
+  AdminSettingsFormLayout,
+  adminFormStyles,
+} from "./adminProfileUi";
 
 type Props = NativeStackScreenProps<
   AdminProfileStackParamList,
@@ -22,7 +19,6 @@ type Props = NativeStackScreenProps<
 >;
 
 export const AdminChangePhoneScreen: React.FC<Props> = ({ navigation }) => {
-  const insets = useSafeAreaInsets();
   const { user, refreshUser } = useAuth();
   const initialPhone = user?.phoneNumber?.trim() ?? "";
 
@@ -86,51 +82,37 @@ export const AdminChangePhoneScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   return (
-    <View style={profileScreenStyles.root}>
-      <AdminProfileSubHeader
-        title="Change phone"
-        onBack={() => navigation.goBack()}
-      />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
-        >
-          <View style={profileScreenStyles.formCard}>
-            <Text style={profileScreenStyles.formHint}>
-              Include country code when possible (e.g. +216…).
-            </Text>
-            <Input
-              label="Phone number"
-              value={phoneNumber}
-              onChangeText={(v) => {
-                setPhoneNumber(v);
-                if (error) setError(undefined);
-              }}
-              error={error}
-              keyboardType="phone-pad"
-            />
-          </View>
+    <AdminSettingsFormLayout onBack={() => navigation.goBack()}>
+      <AdminFormCard>
+        <AdminFormCardHeader
+          icon="call-outline"
+          title="Change phone"
+          subtitle="Include country code when possible (e.g. +216…)"
+        />
 
-          <TouchableOpacity
-            style={[
-              profileScreenStyles.saveBtn,
-              (!isDirty || saving) && profileScreenStyles.saveBtnDisabled,
-            ]}
-            onPress={() => void onSave()}
-            disabled={!isDirty || saving}
-          >
-            {saving ? (
-              <ActivityIndicator color="#92400E" />
-            ) : (
-              <Text style={profileScreenStyles.saveBtnText}>Save phone</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <View style={adminFormStyles.form}>
+          <Input
+            label="Phone"
+            placeholder="+216…"
+            value={phoneNumber}
+            onChangeText={(v) => {
+              setPhoneNumber(v);
+              if (error) setError(undefined);
+            }}
+            keyboardType="phone-pad"
+            autoCapitalize="none"
+            leftIcon="call-outline"
+            error={error}
+          />
+        </View>
+
+        <AdminFormSaveButton
+          label="Save phone"
+          onPress={() => void onSave()}
+          disabled={!isDirty}
+          loading={saving}
+        />
+      </AdminFormCard>
 
       <AuthNoticeModal
         visible={notice.visible}
@@ -146,6 +128,6 @@ export const AdminChangePhoneScreen: React.FC<Props> = ({ navigation }) => {
           if (notice.success) navigation.goBack();
         }}
       />
-    </View>
+    </AdminSettingsFormLayout>
   );
 };

@@ -1,39 +1,49 @@
 .users-admin {
   max-width: 1280px;
   margin: 0 auto;
+  padding: 0 0 2rem;
 }
 
+/* ── Hero ── */
 .users-admin-hero {
   position: relative;
-  border-radius: 16px;
-  padding: 28px 32px 32px;
-  margin-bottom: 24px;
+  border-radius: 20px;
+  padding: 32px 36px 36px;
+  margin-bottom: 20px;
   overflow: hidden;
-  background: linear-gradient(
-    135deg,
-    #f8fafc 0%,
-    #eef2ff 45%,
-    #faf5ff 100%
-  );
-  border: 1px solid rgba(99, 102, 241, 0.12);
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 12px 40px rgba(99, 102, 241, 0.08);
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-tertiary);
 }
 
-.users-admin-hero::after {
+.users-admin-hero-blob {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.users-admin-hero-blob::before {
   content: '';
   position: absolute;
-  inset: -40% -20% auto auto;
-  width: 280px;
-  height: 280px;
+  top: -60px;
+  right: -60px;
+  width: 260px;
+  height: 260px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(99, 102, 241, 0.18) 0%,
-    transparent 70%
-  );
-  pointer-events: none;
+  background: #EEEDFE;
+}
+
+.users-admin-hero-blob::after {
+  content: '';
+  position: absolute;
+  bottom: -40px;
+  right: 120px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: #E1F5EE;
+  opacity: 0.7;
 }
 
 .users-admin-hero-inner {
@@ -42,100 +52,169 @@
 }
 
 .users-admin-kicker {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #6366f1;
-  margin-bottom: 8px;
+  color: #534AB7;
+  background: #EEEDFE;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 14px;
 }
 
 .users-admin-title {
-  margin: 0 0 8px !important;
-  font-weight: 800 !important;
+  margin: 0 0 6px !important;
+  font-size: 26px !important;
+  font-weight: 500 !important;
   letter-spacing: -0.02em;
-  color: #0f172a !important;
+  color: var(--color-text-primary) !important;
 }
 
 .users-admin-subtitle {
-  font-size: 15px;
-  line-height: 1.55;
-  color: #64748b;
-  max-width: 640px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  max-width: 560px;
+  margin: 0 0 20px;
 }
 
 .users-admin-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 20px;
+  gap: 8px;
 }
 
 .users-admin-stat-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
+  gap: 7px;
+  padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-tertiary);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
 }
 
 .users-admin-stat-pill strong {
-  color: #4f46e5;
-  font-weight: 800;
+  color: #534AB7;
+  font-weight: 500;
 }
 
+/* ── Card ── */
 .users-admin-card.ant-card {
   border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+  border: 0.5px solid var(--color-border-tertiary);
+  background: var(--color-background-primary);
 }
 
+/* ── Toolbar ── */
 .users-admin-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
 
 .users-admin-toolbar-left {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
 .users-admin-search {
-  width: min(320px, 100%);
+  width: min(300px, 100%);
+  font-size: 13px;
 }
 
+.users-admin-card .ant-segmented {
+  font-size: 12px;
+}
+
+.users-admin-card .ant-btn {
+  font-size: 13px;
+}
+
+/* ── Table ── */
 .users-admin-table .ant-table-thead > tr > th {
-  background: #f8fafc !important;
-  font-weight: 700;
-  color: #475569 !important;
-  text-transform: uppercase;
+  background: var(--color-background-secondary) !important;
+  font-weight: 500;
+  color: var(--color-text-secondary) !important;
   font-size: 11px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-bottom: 0.5px solid var(--color-border-tertiary) !important;
+}
+
+.users-admin-table .ant-table-tbody > tr > td {
+  border-bottom: 0.5px solid var(--color-border-tertiary) !important;
+  font-size: 12px;
+}
+
+.users-admin-table .ant-pagination {
+  font-size: 12px;
 }
 
 .users-admin-table .ant-table-tbody > tr:hover > td {
-  background: #fafbff !important;
+  background: #EEEDFE22 !important;
 }
 
+/* ── Name cell ── */
 .users-admin-name-cell {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
+/* ── Avatar ── */
 .users-admin-avatar.ant-avatar {
   flex-shrink: 0;
-  font-weight: 800;
-  border: 2px solid rgba(99, 102, 241, 0.25);
+  font-size: 12px;
+  font-weight: 500;
+  background: #EEEDFE !important;
+  color: #534AB7 !important;
+  border: 0.5px solid #AFA9EC;
 }
+
+/* ── Role tags ── */
+.ua-role-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-top: 3px;
+  letter-spacing: 0.02em;
+}
+
+.ua-role-client   { background: #FAEEDA; color: #854F0B; }
+.ua-role-provider { background: #E6F1FB; color: #185FA5; }
+.ua-role-company  { background: #EEEDFE; color: #534AB7; }
+.ua-role-admin    { background: #FBEAF0; color: #993556; }
+
+/* ── Status tags ── */
+.ua-status-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.ua-status-active    { background: #EAF3DE; color: #3B6D11; }
+.ua-status-pending   { background: #FAEEDA; color: #854F0B; }
+.ua-status-rejected  { background: #FCEBEB; color: #A32D2D; }
+.ua-status-suspended { background: #FBEAF0; color: #993556; }
+.ua-status-deleted   { background: var(--color-background-secondary); color: var(--color-text-secondary); }
+
+/* ── Verified badges ── */
+.ua-verify-yes { background: #E1F5EE; color: #0F6E56; font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 999px; display: inline-block; }
+.ua-verify-no  { background: var(--color-background-secondary); color: var(--color-text-secondary); font-size: 10px; font-weight: 400; padding: 2px 7px; border-radius: 999px; display: inline-block; border: 0.5px solid var(--color-border-tertiary); }

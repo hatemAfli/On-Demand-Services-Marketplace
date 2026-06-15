@@ -22,7 +22,11 @@ import { AuthNoticeModal } from "../../../components/common";
 import { COLORS } from "../../../constants";
 import type { AdminValidationsStackParamList } from "./adminValidationsNavigation";
 
-const ACCENT = "#E8C97A";
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_DIM = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const ACCENT_MUTED = "#FDBA74";
 
 type CompanyEntity = {
   id: string;
@@ -627,7 +631,7 @@ export const AdminValidationProviderDetailScreen: React.FC<Props> = ({
         ) : (
           <View style={styles.warnBanner}>
             <View style={styles.warnBannerIconWrap}>
-              <Ionicons name="warning-outline" size={18} color="#B45309" />
+              <Ionicons name="warning-outline" size={18} color={ACCENT_DARK} />
             </View>
             <Text style={styles.warnBannerText}>
               Company profile is not linked to this admin yet. Check the
@@ -851,7 +855,7 @@ export const AdminValidationProviderDetailScreen: React.FC<Props> = ({
               onPress={() => void load()}
               style={styles.retryBtn}
             >
-              <Ionicons name="refresh-outline" size={14} color="#1A1A0A" />
+              <Ionicons name="refresh-outline" size={14} color={ACCENT_DARK} />
               <Text style={styles.retryBtnText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -960,7 +964,7 @@ export const AdminValidationProviderDetailScreen: React.FC<Props> = ({
                 <Ionicons
                   name="documents-outline"
                   size={13}
-                  color={ACCENT === "#E8C97A" ? "#B45309" : "#B45309"}
+                  color={ACCENT_DARK}
                 />
               </View>
               <Text style={styles.docsSectionTitle}>
@@ -1054,7 +1058,7 @@ export const AdminValidationProviderDetailScreen: React.FC<Props> = ({
                           <Ionicons
                             name="document-text"
                             size={32}
-                            color="#B45309"
+                            color={ACCENT_DARK}
                           />
                           <Text style={styles.previewHint}>PDF / file</Text>
                         </View>
@@ -1067,7 +1071,7 @@ export const AdminValidationProviderDetailScreen: React.FC<Props> = ({
                         <Ionicons
                           name="open-outline"
                           size={17}
-                          color="#1A1A0A"
+                          color="#FFFFFF"
                         />
                         <Text style={styles.openBtnText}>Open file</Text>
                       </TouchableOpacity>
@@ -1203,7 +1207,7 @@ export const AdminValidationProviderDetailScreen: React.FC<Props> = ({
                   <Ionicons
                     name="checkmark-circle"
                     size={16}
-                    color={allDocsAccepted ? "#1A1A0A" : "#9B9BB0"}
+                    color={allDocsAccepted ? ACCENT_DARK : "#9B9BB0"}
                   />
                   <Text
                     style={[
@@ -1263,10 +1267,10 @@ export const AdminValidationProviderDetailScreen: React.FC<Props> = ({
               <View
                 style={[
                   styles.modalTitleIcon,
-                  { backgroundColor: "rgba(232,201,122,0.2)" },
+                  { backgroundColor: ACCENT_DIM },
                 ]}
               >
-                <Ionicons name="checkmark-circle" size={22} color="#B45309" />
+                <Ionicons name="checkmark-circle" size={22} color={ACCENT_DARK} />
               </View>
             </View>
             <Text style={styles.modalTitle}>Approve verification</Text>
@@ -1276,7 +1280,7 @@ export const AdminValidationProviderDetailScreen: React.FC<Props> = ({
             </Text>
             {!allDocsAccepted ? (
               <View style={styles.modalWarnBox}>
-                <Ionicons name="warning-outline" size={14} color="#B45309" />
+                <Ionicons name="warning-outline" size={14} color={ACCENT_DARK} />
                 <Text style={styles.modalWarn}>
                   You must accept each document first (use Accept on every
                   file).
@@ -1347,7 +1351,7 @@ export const AdminValidationProviderDetailScreen: React.FC<Props> = ({
                     <Ionicons
                       name="checkmark-circle"
                       size={14}
-                      color="#B45309"
+                      color={ACCENT_DARK}
                     />
                   ) : (
                     <Ionicons
@@ -1501,8 +1505,8 @@ function statusPillStyle(status: string) {
       };
     default:
       return {
-        backgroundColor: "#FFFBEB",
-        borderColor: "#FDE68A",
+        backgroundColor: ACCENT_DIM,
+        borderColor: ACCENT_BORDER,
         borderWidth: 1,
       };
   }
@@ -1517,7 +1521,7 @@ function statusPillTextStyle(status: string) {
     case "UNDER_REVIEW":
       return { color: "#1D4ED8" };
     default:
-      return { color: "#B45309" };
+      return { color: ACCENT_DARK };
   }
 }
 
@@ -1621,9 +1625,9 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 16,
-    backgroundColor: "rgba(232,201,122,0.22)",
+    backgroundColor: ACCENT_DIM,
     borderWidth: 2,
-    borderColor: "rgba(232,201,122,0.5)",
+    borderColor: ACCENT_BORDER,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -1632,7 +1636,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#EDE9FE",
     borderColor: "#C4B5FD",
   },
-  avatarText: { fontSize: 18, fontWeight: "800", color: "#B45309" },
+  avatarText: { fontSize: 18, fontWeight: "800", color: ACCENT_DARK },
   avatarTextCompany: { color: "#6D28D9" },
 
   heroTitle: { fontSize: 17, fontWeight: "800", color: "#1A1A2E" },
@@ -1677,7 +1681,7 @@ const styles = StyleSheet.create({
   docProgressFill: { height: "100%" },
   docProgressAccepted: { backgroundColor: "#34D399" },
   docProgressRejected: { backgroundColor: "#F87171" },
-  docProgressPending: { backgroundColor: "#FDE68A" },
+  docProgressPending: { backgroundColor: ACCENT_MUTED },
   docProgressLabel: { fontSize: 11, color: "#9B9BB0", fontWeight: "600" },
 
   /* Scroll */
@@ -1778,10 +1782,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     padding: 14,
-    backgroundColor: "#FFFBEB",
+    backgroundColor: ACCENT_DIM,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#FDE68A",
+    borderColor: ACCENT_BORDER,
     alignItems: "flex-start",
   },
   warnBannerIconWrap: {
@@ -1796,7 +1800,7 @@ const styles = StyleSheet.create({
   warnBannerText: {
     flex: 1,
     fontSize: 13,
-    color: "#92400E",
+    color: ACCENT_DARK,
     lineHeight: 18,
     fontWeight: "500",
   },
@@ -1893,14 +1897,14 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 8,
-    backgroundColor: "rgba(232,201,122,0.2)",
+    backgroundColor: ACCENT_DIM,
     alignItems: "center",
     justifyContent: "center",
   },
   docsSectionTitle: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#B45309",
+    color: ACCENT_DARK,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
@@ -1931,7 +1935,7 @@ const styles = StyleSheet.create({
   docCardStripe: { width: 4, alignSelf: "stretch" },
   docCardStripeAccepted: { backgroundColor: "#34D399" },
   docCardStripeRejected: { backgroundColor: "#F87171" },
-  docCardStripePending: { backgroundColor: "#FDE68A" },
+  docCardStripePending: { backgroundColor: ACCENT_MUTED },
   docCardBody: { flex: 1, padding: 12 },
   docCardHeader: {
     flexDirection: "row",
@@ -2004,11 +2008,11 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 12,
-    backgroundColor: "rgba(232,201,122,0.12)",
+    backgroundColor: ACCENT_DIM,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(232,201,122,0.35)",
+    borderColor: ACCENT_BORDER,
   },
   previewHint: { fontSize: 10, color: "#9B9BB0", marginTop: 4 },
   openBtn: {
@@ -2022,7 +2026,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignSelf: "stretch",
   },
-  openBtnText: { color: "#1A1A0A", fontWeight: "800", fontSize: 14 },
+  openBtnText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
 
   docDecisionRow: {
     flexDirection: "row",
@@ -2126,7 +2130,7 @@ const styles = StyleSheet.create({
   actionReviewText: { color: "#0369A1", fontWeight: "700", fontSize: 12 },
   actionReviewTextDisabled: { color: "#9B9BB0" },
   actionApprove: { backgroundColor: ACCENT },
-  actionApproveText: { color: "#1A1A0A", fontWeight: "800", fontSize: 12 },
+  actionApproveText: { color: "#FFFFFF", fontWeight: "800", fontSize: 12 },
   actionApproveTextDisabled: { color: "#9B9BB0" },
   actionBtnDisabled: { opacity: 0.45 },
   actionReject: {
@@ -2181,11 +2185,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 999,
-    backgroundColor: "rgba(232,201,122,0.2)",
+    backgroundColor: ACCENT_DIM,
     borderWidth: 1.5,
     borderColor: ACCENT,
   },
-  retryBtnText: { color: "#1A1A0A", fontWeight: "700", fontSize: 14 },
+  retryBtnText: { color: ACCENT_DARK, fontWeight: "700", fontSize: 14 },
 
   /* Modals */
   modalBackdrop: {
@@ -2242,18 +2246,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 8,
-    backgroundColor: "#FFFBEB",
+    backgroundColor: ACCENT_DIM,
     padding: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#FDE68A",
+    borderColor: ACCENT_BORDER,
     marginBottom: 14,
   },
   modalWarn: {
     flex: 1,
     fontSize: 12,
     fontWeight: "600",
-    color: "#B45309",
+    color: ACCENT_DARK,
     lineHeight: 16,
   },
   rejectHint: {
@@ -2276,10 +2280,10 @@ const styles = StyleSheet.create({
   },
   presetChipOn: {
     borderColor: ACCENT,
-    backgroundColor: "rgba(232,201,122,0.15)",
+    backgroundColor: ACCENT_DIM,
   },
   presetChipText: { fontSize: 13, color: "#6B6B80", flex: 1 },
-  presetChipTextOn: { color: "#B45309", fontWeight: "700" },
+  presetChipTextOn: { color: ACCENT_DARK, fontWeight: "700" },
   customLabel: {
     marginTop: 8,
     marginBottom: 8,
@@ -2316,6 +2320,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   modalDanger: { backgroundColor: "#B91C1C" },
-  modalConfirmText: { color: "#1A1A0A", fontWeight: "800", fontSize: 14 },
+  modalConfirmText: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
   modalConfirmTextLight: { color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
 });

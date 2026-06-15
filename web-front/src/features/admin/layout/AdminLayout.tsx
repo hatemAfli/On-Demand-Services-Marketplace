@@ -1,6 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { FaArrowRightFromBracket, FaBars } from 'react-icons/fa6'
+import {
+  FaAnglesLeft,
+  FaAnglesRight,
+  FaArrowRightFromBracket,
+  FaBars,
+} from 'react-icons/fa6'
 import { useAdminQueueCounts } from '../../../hooks/useAdminQueueCounts'
 import { authService } from '../../../services/auth.service'
 import { useAuthStore } from '../../../stores/authStore'
@@ -13,6 +18,8 @@ import {
 import './AdminLayout.css'
 
 const PLATFORM_BRAND = '#6366f1'
+const SIDEBAR_COLLAPSED_KEY = 'admin-sidebar-collapsed'
+const MOBILE_BREAKPOINT = 1024
 
 function initialsFromName(first?: string | null, last?: string | null): string {
   const a = (first?.[0] ?? '').toUpperCase()
@@ -26,6 +33,21 @@ export function AdminLayout() {
   const user = useAuthStore((s) => s.user)
   const setUser = useAuthStore((s) => s.setUser)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true',
+  )
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(sidebarCollapsed))
+  }, [sidebarCollapsed])
+
+  const toggleSidebar = () => {
+    if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches) {
+      setMobileMenuOpen((open) => !open)
+      return
+    }
+    setSidebarCollapsed((collapsed) => !collapsed)
+  }
 
   const counts = useAdminQueueCounts()
 
@@ -82,7 +104,11 @@ export function AdminLayout() {
         />
       ) : null}
 
-      <aside className={`admin-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+      <aside
+        className={`admin-sidebar ${mobileMenuOpen ? 'open' : ''} ${
+          sidebarCollapsed ? 'collapsed' : ''
+        }`}
+      >
         <div className="admin-sidebar-logo-area">
           <div
             className="admin-sidebar-logo-mark"
@@ -95,6 +121,15 @@ export function AdminLayout() {
             <span className="admin-sidebar-logo-text">ServeMe</span>
             <span className="admin-sidebar-logo-sub">Platform admin</span>
           </div>
+          <button
+            type="button"
+            className="admin-sidebar-collapse-btn"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            aria-label={sidebarCollapsed ? 'Expand menu' : 'Collapse menu'}
+            title={sidebarCollapsed ? 'Expand menu' : 'Collapse menu'}
+          >
+            {sidebarCollapsed ? <FaAnglesRight /> : <FaAnglesLeft />}
+          </button>
         </div>
 
         <nav className="admin-sidebar-nav">
@@ -111,14 +146,20 @@ export function AdminLayout() {
                     key={item.key}
                     type="button"
                     className={`admin-menu-item ${active ? 'active' : ''}`}
+                    title={sidebarCollapsed ? item.label : undefined}
                     onClick={() => {
                       navigate(item.key)
                       setMobileMenuOpen(false)
                     }}
                   >
-                    <Icon className="admin-menu-item-icon" />
-                    <span>{item.label}</span>
-                    {item.badge && item.badge > 0 ? (
+                    <span className="admin-menu-item-icon-wrap">
+                      <Icon className="admin-menu-item-icon" />
+                      {sidebarCollapsed && item.badge && item.badge > 0 ? (
+                        <span className="admin-menu-badge-dot" aria-hidden />
+                      ) : null}
+                    </span>
+                    <span className="admin-menu-item-label">{item.label}</span>
+                    {!sidebarCollapsed && item.badge && item.badge > 0 ? (
                       <span className="admin-menu-badge">{item.badge}</span>
                     ) : null}
                   </button>
@@ -165,8 +206,9 @@ export function AdminLayout() {
             <button
               type="button"
               className="admin-mobile-menu-btn"
-              onClick={() => setMobileMenuOpen((v) => !v)}
-              aria-label="Toggle menu"
+              onClick={toggleSidebar}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen || !sidebarCollapsed}
             >
               <FaBars />
             </button>

@@ -4,7 +4,7 @@ import {
   EditOutlined,
   LinkOutlined,
   ReloadOutlined,
-} from '@ant-design/icons'
+} from "@ant-design/icons";
 import {
   App,
   Button,
@@ -21,116 +21,115 @@ import {
   Tooltip,
   Typography,
   Popconfirm,
-} from 'antd'
-import type { ColumnsType } from 'antd/es/table'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api } from '../../../../services/api'
-import type { ServiceCategory } from '../../../../types/service-category'
-import { SLUG_PATTERN, slugifyName } from '../../../../utils/slugify'
-import { getCategoryFa5Icon } from './categoryFa5Icons'
-import { CategoryIconPickerField } from './CategoryIconPickerField'
-import './ServiceCategoriesAdminPage.css'
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { api } from "../../../../services/api";
+import type { ServiceCategory } from "../../../../types/service-category";
+import { SLUG_PATTERN, slugifyName } from "../../../../utils/slugify";
+import { getCategoryFa5Icon } from "./categoryFa5Icons";
+import { CategoryIconPickerField } from "./CategoryIconPickerField";
+import "./ServiceCategoriesAdminPage.css";
 
 type FormValues = {
-  nameEn: string
-  nameAr?: string
-  slug?: string
-  iconKey?: string
-  iconUrl?: string
-  sortOrder?: number | null
-  active: boolean
-}
+  nameEn: string;
+  nameAr?: string;
+  slug?: string;
+  iconKey?: string;
+  iconUrl?: string;
+  sortOrder?: number | null;
+  active: boolean;
+};
 
 function formatApiMessage(err: unknown): string {
-  const data = (err as { response?: { data?: { message?: unknown } } })?.response
-    ?.data
-  const msg = data?.message
-  if (Array.isArray(msg)) return msg.join(', ')
-  if (typeof msg === 'string') return msg
-  return (err as Error)?.message || 'Something went wrong'
+  const data = (err as { response?: { data?: { message?: unknown } } })
+    ?.response?.data;
+  const msg = data?.message;
+  if (Array.isArray(msg)) return msg.join(", ");
+  if (typeof msg === "string") return msg;
+  return (err as Error)?.message || "Something went wrong";
 }
 
 export function ServiceCategoriesAdminPage() {
-  const { message, notification } = App.useApp()
-  const [form] = Form.useForm<FormValues>()
-  const [rows, setRows] = useState<ServiceCategory[]>([])
-  const [loading, setLoading] = useState(true)
-  const [mutatingIds, setMutatingIds] = useState<Record<string, boolean>>({})
-  const [activeOnly, setActiveOnly] = useState(false)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [editingCategory, setEditingCategory] = useState<ServiceCategory | null>(
-    null,
-  )
-  const pendingActionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>(
-    {},
-  )
+  const { message, notification } = App.useApp();
+  const [form] = Form.useForm<FormValues>();
+  const [rows, setRows] = useState<ServiceCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mutatingIds, setMutatingIds] = useState<Record<string, boolean>>({});
+  const [activeOnly, setActiveOnly] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [editingCategory, setEditingCategory] =
+    useState<ServiceCategory | null>(null);
+  const pendingActionTimers = useRef<
+    Record<string, ReturnType<typeof setTimeout>>
+  >({});
 
-  const nameWatch = Form.useWatch('nameEn', form)
-  const slugWatch = Form.useWatch('slug', form)
+  const nameWatch = Form.useWatch("nameEn", form);
+  const slugWatch = Form.useWatch("slug", form);
 
   const slugPreview = useMemo(() => {
-    if (slugWatch?.trim()) return slugWatch.trim().toLowerCase()
-    if (nameWatch?.trim()) return slugifyName(nameWatch)
-    return '—'
-  }, [nameWatch, slugWatch])
+    if (slugWatch?.trim()) return slugWatch.trim().toLowerCase();
+    if (nameWatch?.trim()) return slugifyName(nameWatch);
+    return "—";
+  }, [nameWatch, slugWatch]);
 
   const load = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const res = await api.listAdminServiceCategories({
         activeOnly: activeOnly || undefined,
-      })
-      setRows(res.data)
+      });
+      setRows(res.data);
     } catch (e) {
-      message.error(formatApiMessage(e))
-      setRows([])
+      message.error(formatApiMessage(e));
+      setRows([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [activeOnly, message])
+  }, [activeOnly, message]);
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void load();
+  }, [load]);
 
   useEffect(
     () => () => {
       Object.keys(pendingActionTimers.current).forEach((k) => {
-        const t = pendingActionTimers.current[k]
-        clearTimeout(t)
-      })
+        const t = pendingActionTimers.current[k];
+        clearTimeout(t);
+      });
     },
     [],
-  )
+  );
 
   const setRowMutating = (id: string, value: boolean) => {
     setMutatingIds((prev) => {
-      if (value) return { ...prev, [id]: true }
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
-  }
+      if (value) return { ...prev, [id]: true };
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
 
   const clearPendingAction = (actionKey: string) => {
-    const t = pendingActionTimers.current[actionKey]
+    const t = pendingActionTimers.current[actionKey];
     if (t) {
-      clearTimeout(t)
-      delete pendingActionTimers.current[actionKey]
+      clearTimeout(t);
+      delete pendingActionTimers.current[actionKey];
     }
-  }
+  };
 
   const openCreate = () => {
-    setEditingCategory(null)
-    setModalOpen(true)
-  }
+    setEditingCategory(null);
+    setModalOpen(true);
+  };
   const openEdit = (row: ServiceCategory) => {
-    setEditingCategory(row)
-    setModalOpen(true)
-  }
+    setEditingCategory(row);
+    setModalOpen(true);
+  };
 
-  const closeModal = () => setModalOpen(false)
+  const closeModal = () => setModalOpen(false);
 
   const onModalOpenChange = (open: boolean) => {
     if (open) {
@@ -138,156 +137,158 @@ export function ServiceCategoriesAdminPage() {
         nameEn:
           editingCategory?.translations?.en?.name ??
           editingCategory?.name ??
-          '',
-        nameAr: editingCategory?.translations?.ar?.name ?? '',
-        slug: editingCategory?.slug ?? '',
-        iconKey: editingCategory?.iconKey ?? '',
-        iconUrl: editingCategory?.iconUrl ?? '',
+          "",
+        nameAr: editingCategory?.translations?.ar?.name ?? "",
+        slug: editingCategory?.slug ?? "",
+        iconKey: editingCategory?.iconKey ?? "",
+        iconUrl: editingCategory?.iconUrl ?? "",
         sortOrder: editingCategory?.sortOrder ?? 0,
         active: editingCategory?.active ?? true,
-      })
+      });
     } else {
-      form.resetFields()
-      setEditingCategory(null)
+      form.resetFields();
+      setEditingCategory(null);
     }
-  }
+  };
 
   const submitSave = async () => {
     try {
-      const values = await form.validateFields()
-      setSubmitting(true)
-      const slugTrim = values.slug?.trim().toLowerCase()
+      const values = await form.validateFields();
+      setSubmitting(true);
+      const slugTrim = values.slug?.trim().toLowerCase();
       const payload = {
         translations: {
           en: { name: values.nameEn.trim() },
-          ...(values.nameAr?.trim() ? { ar: { name: values.nameAr.trim() } } : {}),
+          ...(values.nameAr?.trim()
+            ? { ar: { name: values.nameAr.trim() } }
+            : {}),
         },
         ...(slugTrim ? { slug: slugTrim } : {}),
-        ...(values.iconKey?.trim()
-          ? { iconKey: values.iconKey.trim() }
-          : {}),
-        ...(values.iconUrl?.trim()
-          ? { iconUrl: values.iconUrl.trim() }
-          : {}),
-        ...(typeof values.sortOrder === 'number'
+        ...(values.iconKey?.trim() ? { iconKey: values.iconKey.trim() } : {}),
+        ...(values.iconUrl?.trim() ? { iconUrl: values.iconUrl.trim() } : {}),
+        ...(typeof values.sortOrder === "number"
           ? { sortOrder: values.sortOrder }
           : {}),
         active: values.active !== false,
-      }
+      };
       if (editingCategory) {
-        await api.updateAdminServiceCategory(editingCategory.id, payload)
-        message.success('Category updated')
+        await api.updateAdminServiceCategory(editingCategory.id, payload);
+        message.success("Category updated");
       } else {
-        await api.createAdminServiceCategory(payload)
-        message.success('Category created')
+        await api.createAdminServiceCategory(payload);
+        message.success("Category created");
       }
-      closeModal()
-      await load()
+      closeModal();
+      await load();
     } catch (e) {
-      if ((e as { errorFields?: unknown })?.errorFields) return
-      message.error(formatApiMessage(e))
+      if ((e as { errorFields?: unknown })?.errorFields) return;
+      message.error(formatApiMessage(e));
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   const toggleActive = async (row: ServiceCategory, checked: boolean) => {
-    const actionKey = `toggle:${row.id}`
-    clearPendingAction(actionKey)
-    notification.destroy(actionKey)
-    const previousValue = row.active
+    const actionKey = `toggle:${row.id}`;
+    clearPendingAction(actionKey);
+    notification.destroy(actionKey);
+    const previousValue = row.active;
     setRows((prev) =>
       prev.map((c) => (c.id === row.id ? { ...c, active: checked } : c)),
-    )
-    setRowMutating(row.id, true)
+    );
+    setRowMutating(row.id, true);
 
     const rollback = () => {
-      clearPendingAction(actionKey)
-      notification.destroy(actionKey)
+      clearPendingAction(actionKey);
+      notification.destroy(actionKey);
       setRows((prev) =>
-        prev.map((c) => (c.id === row.id ? { ...c, active: previousValue } : c)),
-      )
-      setRowMutating(row.id, false)
-    }
+        prev.map((c) =>
+          c.id === row.id ? { ...c, active: previousValue } : c,
+        ),
+      );
+      setRowMutating(row.id, false);
+    };
 
     notification.open({
       key: actionKey,
-      message: checked ? 'Category activated' : 'Category deactivated',
-      description: 'Undo within 5 seconds if this was accidental.',
+      message: checked ? "Category activated" : "Category deactivated",
+      description: "Undo within 5 seconds if this was accidental.",
       duration: 5,
       btn: (
         <Button size="small" onClick={rollback}>
           Undo
         </Button>
       ),
-    })
+    });
 
     pendingActionTimers.current[actionKey] = setTimeout(async () => {
-      clearPendingAction(actionKey)
-      notification.destroy(actionKey)
+      clearPendingAction(actionKey);
+      notification.destroy(actionKey);
       try {
-        await api.updateAdminServiceCategory(row.id, { active: checked })
+        await api.updateAdminServiceCategory(row.id, { active: checked });
       } catch (e) {
         setRows((prev) =>
-          prev.map((c) => (c.id === row.id ? { ...c, active: previousValue } : c)),
-        )
-        message.error(formatApiMessage(e))
+          prev.map((c) =>
+            c.id === row.id ? { ...c, active: previousValue } : c,
+          ),
+        );
+        message.error(formatApiMessage(e));
       } finally {
-        setRowMutating(row.id, false)
+        setRowMutating(row.id, false);
       }
-    }, 5000)
-  }
+    }, 5000);
+  };
 
   const removeCategory = async (row: ServiceCategory) => {
-    const actionKey = `delete:${row.id}`
-    clearPendingAction(actionKey)
-    notification.destroy(actionKey)
-    const prevRows = rows
-    const index = rows.findIndex((c) => c.id === row.id)
+    const actionKey = `delete:${row.id}`;
+    clearPendingAction(actionKey);
+    notification.destroy(actionKey);
+    const prevRows = rows;
+    const index = rows.findIndex((c) => c.id === row.id);
 
-    setRows((prev) => prev.filter((c) => c.id !== row.id))
+    setRows((prev) => prev.filter((c) => c.id !== row.id));
     notification.open({
       key: actionKey,
-      message: 'Category removed',
-      description: 'Undo within 5 seconds before the deletion is committed.',
+      message: "Category removed",
+      description: "Undo within 5 seconds before the deletion is committed.",
       duration: 5,
       btn: (
         <Button
           size="small"
           onClick={() => {
-            clearPendingAction(actionKey)
-            notification.destroy(actionKey)
+            clearPendingAction(actionKey);
+            notification.destroy(actionKey);
             setRows((prev) => {
-              const next = [...prev]
-              const safeIndex = index >= 0 ? index : prev.length
-              next.splice(safeIndex, 0, row)
-              return next
-            })
+              const next = [...prev];
+              const safeIndex = index >= 0 ? index : prev.length;
+              next.splice(safeIndex, 0, row);
+              return next;
+            });
           }}
         >
           Undo
         </Button>
       ),
-    })
+    });
 
     pendingActionTimers.current[actionKey] = setTimeout(async () => {
-      clearPendingAction(actionKey)
-      notification.destroy(actionKey)
+      clearPendingAction(actionKey);
+      notification.destroy(actionKey);
       try {
-        await api.deleteAdminServiceCategory(row.id)
-        message.success('Category deleted')
+        await api.deleteAdminServiceCategory(row.id);
+        message.success("Category deleted");
       } catch (e) {
-        setRows(prevRows)
-        message.error(formatApiMessage(e))
+        setRows(prevRows);
+        message.error(formatApiMessage(e));
       }
-    }, 5000)
-  }
+    }, 5000);
+  };
 
   const columns: ColumnsType<ServiceCategory> = [
     {
-      title: 'Name',
-      dataIndex: 'name',
-      key: 'name',
+      title: "Name",
+      dataIndex: "name",
+      key: "name",
       render: (text, record) => (
         <Space direction="vertical" size={0}>
           <Typography.Text strong>
@@ -305,12 +306,12 @@ export function ServiceCategoriesAdminPage() {
       ),
     },
     {
-      title: 'Icon',
-      key: 'icons',
+      title: "Icon",
+      key: "icons",
       width: 160,
       render: (_, r) => {
-        if (!r.iconKey?.trim()) return '—'
-        const FaIcon = getCategoryFa5Icon(r.iconKey)
+        if (!r.iconKey?.trim()) return "—";
+        const FaIcon = getCategoryFa5Icon(r.iconKey);
         return (
           <Space size={8} wrap className="svc-cat-icon-cell">
             {FaIcon ? (
@@ -318,20 +319,20 @@ export function ServiceCategoriesAdminPage() {
             ) : null}
             <Tag>{r.iconKey}</Tag>
           </Space>
-        )
+        );
       },
     },
     {
-      title: 'Order',
-      dataIndex: 'sortOrder',
-      key: 'sortOrder',
+      title: "Order",
+      dataIndex: "sortOrder",
+      key: "sortOrder",
       width: 88,
       sorter: (a, b) => a.sortOrder - b.sortOrder,
     },
     {
-      title: 'Status',
-      dataIndex: 'active',
-      key: 'active',
+      title: "Status",
+      dataIndex: "active",
+      key: "active",
       width: 120,
       render: (active: boolean) =>
         active ? (
@@ -341,24 +342,24 @@ export function ServiceCategoriesAdminPage() {
         ),
     },
     {
-      title: 'Updated',
-      dataIndex: 'updatedAt',
-      key: 'updatedAt',
+      title: "Updated",
+      dataIndex: "updatedAt",
+      key: "updatedAt",
       width: 120,
       render: (iso: string) =>
         new Date(iso).toLocaleDateString(undefined, {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
+          day: "numeric",
+          month: "short",
+          year: "numeric",
         }),
     },
     {
-      title: 'Actions',
-      key: 'actions',
+      title: "Actions",
+      key: "actions",
       width: 240,
       render: (_, row) => (
         <Space wrap>
-          <Tooltip title={row.active ? 'Deactivate' : 'Activate'}>
+          <Tooltip title={row.active ? "Deactivate" : "Activate"}>
             <Switch
               checked={row.active}
               loading={!!mutatingIds[row.id]}
@@ -398,22 +399,10 @@ export function ServiceCategoriesAdminPage() {
         </Space>
       ),
     },
-  ]
+  ];
 
   return (
     <div className="svc-cat-page">
-      <div className="svc-cat-hero">
-        <div className="svc-cat-hero-inner">
-          <Typography.Title level={3} className="svc-cat-hero-title">
-            Service categories
-          </Typography.Title>
-          <Typography.Paragraph className="svc-cat-hero-desc">
-            Organize marketplace services into browsable categories. Slugs are
-            stable identifiers for APIs and deep links.
-          </Typography.Paragraph>
-        </div>
-      </div>
-
       <Card className="svc-cat-card" variant="borderless">
         <div className="svc-cat-toolbar">
           <Space wrap>
@@ -453,7 +442,9 @@ export function ServiceCategoriesAdminPage() {
           columns={columns}
           dataSource={rows}
           rowClassName={(row) =>
-            mutatingIds[row.id] ? 'svc-cat-row-mutating svc-cat-row-skeleton' : ''
+            mutatingIds[row.id]
+              ? "svc-cat-row-mutating svc-cat-row-skeleton"
+              : ""
           }
           pagination={{ pageSize: 10, showSizeChanger: true }}
           className="svc-cat-table"
@@ -465,7 +456,9 @@ export function ServiceCategoriesAdminPage() {
           <Space>
             <AppstoreAddOutlined className="svc-cat-modal-icon" />
             <span>
-              {editingCategory ? 'Edit service category' : 'New service category'}
+              {editingCategory
+                ? "Edit service category"
+                : "New service category"}
             </span>
           </Space>
         }
@@ -475,7 +468,7 @@ export function ServiceCategoriesAdminPage() {
         width={560}
         destroyOnClose
         className="svc-cat-modal"
-        okText={editingCategory ? 'Save changes' : 'Create category'}
+        okText={editingCategory ? "Save changes" : "Create category"}
         okButtonProps={{ loading: submitting }}
         onOk={() => void submitSave()}
       >
@@ -488,8 +481,8 @@ export function ServiceCategoriesAdminPage() {
             name="nameEn"
             label="English name"
             rules={[
-              { required: true, message: 'Enter an English category name' },
-              { max: 120, message: 'Max 120 characters' },
+              { required: true, message: "Enter an English category name" },
+              { max: 120, message: "Max 120 characters" },
             ]}
           >
             <Input
@@ -502,7 +495,7 @@ export function ServiceCategoriesAdminPage() {
           <Form.Item
             name="nameAr"
             label="Arabic name (optional)"
-            rules={[{ max: 120, message: 'Max 120 characters' }]}
+            rules={[{ max: 120, message: "Max 120 characters" }]}
           >
             <Input
               size="large"
@@ -520,13 +513,13 @@ export function ServiceCategoriesAdminPage() {
             rules={[
               {
                 validator: async (_, value) => {
-                  const v = String(value ?? '').trim()
-                  if (!v) return
-                  const lower = v.toLowerCase()
+                  const v = String(value ?? "").trim();
+                  if (!v) return;
+                  const lower = v.toLowerCase();
                   if (!SLUG_PATTERN.test(lower)) {
                     throw new Error(
-                      'Use lowercase letters, numbers, and single hyphens only',
-                    )
+                      "Use lowercase letters, numbers, and single hyphens only",
+                    );
                   }
                 },
               },
@@ -542,7 +535,7 @@ export function ServiceCategoriesAdminPage() {
 
           <div className="svc-cat-slug-preview">
             <Typography.Text type="secondary">
-              Preview key:{' '}
+              Preview key:{" "}
               <Typography.Text code className="svc-cat-slug-code">
                 {slugPreview}
               </Typography.Text>
@@ -563,22 +556,18 @@ export function ServiceCategoriesAdminPage() {
             rules={[
               {
                 validator: async (_, v) => {
-                  const s = String(v ?? '').trim()
-                  if (!s) return
+                  const s = String(v ?? "").trim();
+                  if (!s) return;
                   try {
-                    void new URL(s)
+                    void new URL(s);
                   } catch {
-                    throw new Error('Enter a valid URL')
+                    throw new Error("Enter a valid URL");
                   }
                 },
               },
             ]}
           >
-            <Input
-              size="large"
-              placeholder="https://…"
-              maxLength={2048}
-            />
+            <Input size="large" placeholder="https://…" maxLength={2048} />
           </Form.Item>
 
           <Form.Item name="sortOrder" label="Sort order">
@@ -601,5 +590,5 @@ export function ServiceCategoriesAdminPage() {
         </Form>
       </Modal>
     </div>
-  )
+  );
 }

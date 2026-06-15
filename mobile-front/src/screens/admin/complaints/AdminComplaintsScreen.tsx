@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -23,21 +24,25 @@ import {
 import { CATEGORY_OPTIONS, getCategoryOption } from "../../client/complaints/categoryMeta";
 import type { AdminComplaintsStackParamList } from "./adminComplaintsNavigation";
 
-const ACCENT = "#E8C97A";
-const HEADER_BG = "#0F172A";
-const CHIP_ACTIVE_BG = "rgba(232,201,122,0.22)";
-const CHIP_ACTIVE_BORDER = "rgba(232,201,122,0.55)";
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_DIM = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
 
 type StatusFilterKey = "ALL" | "OPEN" | "UNDER_REVIEW" | "RESOLVED" | "DISMISSED";
 
 const PAGE_SIZE = 20;
 
-const FILTER_CHIPS: { key: StatusFilterKey; label: string }[] = [
-  { key: "ALL", label: "All" },
-  { key: "OPEN", label: "Open" },
-  { key: "UNDER_REVIEW", label: "Under review" },
-  { key: "RESOLVED", label: "Resolved" },
-  { key: "DISMISSED", label: "Dismissed" },
+const FILTER_CHIPS: {
+  key: StatusFilterKey;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}[] = [
+  { key: "ALL", label: "All", icon: "apps-outline" },
+  { key: "OPEN", label: "Open", icon: "alert-circle-outline" },
+  { key: "UNDER_REVIEW", label: "In review", icon: "time-outline" },
+  { key: "RESOLVED", label: "Resolved", icon: "checkmark-circle-outline" },
+  { key: "DISMISSED", label: "Dismissed", icon: "close-circle-outline" },
 ];
 
 function parseYmdLocal(ymd: string): Date {
@@ -79,7 +84,7 @@ function statusPillStyle(status: ComplaintStatus): { bg: string; text: string } 
     case "OPEN":
       return { bg: "#FEF2F2", text: "#B91C1C" };
     case "UNDER_REVIEW":
-      return { bg: "#FFFBEB", text: "#B45309" };
+      return { bg: ACCENT_DIM, text: ACCENT_DARK };
     case "RESOLVED":
       return { bg: "#ECFDF5", text: "#047857" };
     case "DISMISSED":
@@ -183,22 +188,29 @@ export const AdminComplaintsScreen: React.FC = () => {
   const [filter, setFilter] = useState<StatusFilterKey>("ALL");
   const [items, setItems] = useState<AdminComplaintListItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [unresolvedTotal, setUnresolvedTotal] = useState(0);
+  const [openTotal, setOpenTotal] = useState(0);
+  const [underReviewTotal, setUnderReviewTotal] = useState(0);
+  const [grandTotal, setGrandTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
   const loadUnresolved = useCallback(async () => {
     try {
-      const [openRes, urRes] = await Promise.all([
+      const [openRes, urRes, allRes] = await Promise.all([
         api.getAllComplaints({ status: "OPEN", take: 1, skip: 0 }),
         api.getAllComplaints({ status: "UNDER_REVIEW", take: 1, skip: 0 }),
+        api.getAllComplaints({ take: 1, skip: 0 }),
       ]);
-      setUnresolvedTotal(
-        (openRes.data?.total ?? 0) + (urRes.data?.total ?? 0),
-      );
+      const open = openRes.data?.total ?? 0;
+      const underReview = urRes.data?.total ?? 0;
+      setOpenTotal(open);
+      setUnderReviewTotal(underReview);
+      setGrandTotal(allRes.data?.total ?? 0);
     } catch {
-      setUnresolvedTotal(0);
+      setOpenTotal(0);
+      setUnderReviewTotal(0);
+      setGrandTotal(0);
     }
   }, []);
 
@@ -284,19 +296,27 @@ export const AdminComplaintsScreen: React.FC = () => {
     }
   }, [filter]);
 
-  const renderChip = (key: StatusFilterKey, label: string) => {
+  const renderChip = (
+    key: StatusFilterKey,
+    label: string,
+    icon: keyof typeof Ionicons.glyphMap,
+  ) => {
     const active = filter === key;
     return (
       <TouchableOpacity
         key={key}
         onPress={() => onFilterChange(key)}
-        style={[
-          styles.chip,
-          active && styles.chipActive,
-        ]}
-        activeOpacity={0.85}
+        style={[styles.filterChip, active && styles.filterChipActive]}
+        activeOpacity={0.82}
       >
-        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+        <Ionicons
+          name={icon}
+          size={13}
+          color={active ? ACCENT_DARK : "#9B9BB0"}
+        />
+        <Text
+          style={[styles.filterChipText, active && styles.filterChipTextActive]}
+        >
           {label}
         </Text>
       </TouchableOpacity>
@@ -380,29 +400,51 @@ export const AdminComplaintsScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.darkHeader, { paddingTop: insets.top + 12 }]}>
-        <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Complaints</Text>
-          {unresolvedTotal > 0 ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unresolvedTotal}</Text>
-              <Text style={styles.badgeSub}>open</Text>
-            </View>
-          ) : null}
+    <View style={[styles.root, { paddingTop: insets.top + 8 }]}>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View style={styles.headerIconWrap}>
+            <Ionicons name="shield-outline" size={24} color={ACCENT} />
+          </View>
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.title}>Complaints</Text>
+            <Text style={styles.titleSub}>Platform reclamation queue</Text>
+          </View>
         </View>
+
+        {!loading && (
+          <View style={styles.statsRow}>
+            <View style={styles.statChip}>
+              <View style={[styles.statDot, { backgroundColor: "#EF4444" }]} />
+              <Text style={styles.statText}>{openTotal} open</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statChip}>
+              <View style={[styles.statDot, { backgroundColor: "#F59E0B" }]} />
+              <Text style={styles.statText}>{underReviewTotal} in review</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statChip}>
+              <Text style={styles.statText}>{grandTotal} total</Text>
+            </View>
+          </View>
+        )}
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsScroll}
+          contentContainerStyle={styles.filterRow}
         >
-          {FILTER_CHIPS.map((c) => renderChip(c.key, c.label))}
+          {FILTER_CHIPS.map((c) => renderChip(c.key, c.label, c.icon))}
         </ScrollView>
       </View>
 
       {loading && items.length === 0 ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={ACCENT} />
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="large" color={ACCENT} />
+            <Text style={styles.loadingText}>Loading complaints…</Text>
+          </View>
         </View>
       ) : (
         <FlatList
@@ -410,11 +452,16 @@ export const AdminComplaintsScreen: React.FC = () => {
           keyExtractor={(it) => it.id}
           renderItem={renderItem}
           contentContainerStyle={[
-            styles.listPad,
-            { paddingBottom: 24 + insets.bottom },
+            styles.listContent,
+            { paddingBottom: 36 + insets.bottom },
           ]}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={ACCENT}
+              colors={[ACCENT]}
+            />
           }
           onEndReachedThreshold={0.35}
           onEndReached={() => void loadMore()}
@@ -438,76 +485,130 @@ export const AdminComplaintsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F8FAFC" },
-  darkHeader: {
-    backgroundColor: HEADER_BG,
+  root: { flex: 1, backgroundColor: "#F4F3FA" },
+
+  header: {
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 20,
-    paddingBottom: 14,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: "#EBEBF5",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#1A1A2E",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+      },
+      android: { elevation: 2 },
+    }),
+    gap: 14,
   },
-  headerRow: {
+  headerTop: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
+    gap: 14,
+    paddingTop: 4,
   },
-  headerTitle: {
+  headerIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    backgroundColor: ACCENT_DIM,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: ACCENT_BORDER,
+  },
+  headerTextWrap: { flex: 1 },
+  title: {
     fontSize: 24,
     fontWeight: "800",
-    color: "#F8FAFC",
-    letterSpacing: -0.5,
+    color: "#1A1A2E",
+    letterSpacing: -0.4,
   },
-  badge: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 6,
-    backgroundColor: CHIP_ACTIVE_BG,
-    borderWidth: 1,
-    borderColor: CHIP_ACTIVE_BORDER,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
+  titleSub: {
+    fontSize: 12,
+    color: "#9B9BB0",
+    fontWeight: "500",
+    marginTop: 1,
   },
-  badgeText: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: ACCENT,
-  },
-  badgeSub: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "rgba(248,250,252,0.75)",
-    textTransform: "uppercase",
-  },
-  chipsScroll: {
-    gap: 8,
+  statsRow: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#F9F8FF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  statChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  statDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  statText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B6B80",
+  },
+  statDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: "#EBEBF5",
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: 8,
     paddingBottom: 2,
   },
-  chip: {
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 9,
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 12,
+    backgroundColor: "#F4F3FA",
+    borderWidth: 1.5,
+    borderColor: "#EBEBF5",
   },
-  chipActive: {
-    backgroundColor: CHIP_ACTIVE_BG,
-    borderColor: CHIP_ACTIVE_BORDER,
+  filterChipActive: {
+    backgroundColor: ACCENT_DIM,
+    borderColor: ACCENT,
   },
-  chipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "rgba(248,250,252,0.65)",
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#9B9BB0",
   },
-  chipTextActive: {
-    color: ACCENT,
+  filterChipTextActive: {
+    color: ACCENT_DARK,
   },
-  listPad: { padding: 16, flexGrow: 1 },
+  listContent: { paddingHorizontal: 16, paddingTop: 16, flexGrow: 1 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingCard: {
+    alignItems: "center",
+    gap: 12,
+    padding: 28,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#EBEBF5",
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#9B9BB0",
+  },
   card: {
     flexDirection: "row",
     backgroundColor: COLORS.white,

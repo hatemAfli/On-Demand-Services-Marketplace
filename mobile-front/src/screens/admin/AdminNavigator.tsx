@@ -1,4 +1,5 @@
 import React from "react";
+import { View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -128,6 +129,10 @@ type TabIconName =
   | "shield-outline"
   | "person-circle-outline";
 
+const TAB_ACCENT = "#EA580C";
+const TAB_ACCENT_LIGHT = "#FFF7ED";
+const TAB_ACCENT_BORDER = "#FFEDD5";
+
 const getTabIcon = (routeName: keyof AdminTabParamList): TabIconName => {
   switch (routeName) {
     case "DashboardTab":
@@ -155,8 +160,8 @@ export const AdminNavigator: React.FC = () => {
       initialRouteName="DashboardTab"
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: "#E8C97A",
-        tabBarInactiveTintColor: "#6B7280",
+        tabBarActiveTintColor: TAB_ACCENT,
+        tabBarInactiveTintColor: "#94A3B8",
         tabBarStyle: {
           minHeight: tabBarMinHeight,
           paddingTop: 8,
@@ -168,12 +173,19 @@ export const AdminNavigator: React.FC = () => {
           fontSize: 11,
           fontWeight: "600",
         },
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons
-            name={getTabIcon(route.name)}
-            color={color}
-            size={size}
-          />
+        tabBarIcon: ({ color, size, focused }) => (
+          <View
+            style={[
+              tabStyles.iconWrap,
+              focused && tabStyles.iconWrapActive,
+            ]}
+          >
+            <Ionicons
+              name={getTabIcon(route.name)}
+              color={color}
+              size={focused ? size + 1 : size}
+            />
+          </View>
         ),
       })}
     >
@@ -205,3 +217,18 @@ export const AdminNavigator: React.FC = () => {
     </Tab.Navigator>
   );
 };
+
+const tabStyles = StyleSheet.create({
+  iconWrap: {
+    width: 36,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+  },
+  iconWrapActive: {
+    backgroundColor: TAB_ACCENT_LIGHT,
+    borderWidth: 1,
+    borderColor: TAB_ACCENT_BORDER,
+  },
+});

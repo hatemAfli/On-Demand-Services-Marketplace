@@ -28,8 +28,10 @@ import { ProviderType } from "../../../types";
 import { CATEGORY_OPTIONS, getCategoryOption } from "../../client/complaints/categoryMeta";
 import type { AdminComplaintsStackParamList } from "./adminComplaintsNavigation";
 
-const ACCENT = "#E8C97A";
-const HEADER_BG = "#0F172A";
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_DIM = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
 
 type Props = NativeStackScreenProps<AdminComplaintsStackParamList, "AdminComplaintDetail">;
 
@@ -361,7 +363,7 @@ export const AdminComplaintDetailScreen: React.FC<Props> = ({
           style={styles.backBtn}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Ionicons name="chevron-back" size={24} color="#F8FAFC" />
+          <Ionicons name="chevron-back" size={22} color="#1A1A2E" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Complaint</Text>
         <View style={{ width: 40 }} />
@@ -584,22 +586,31 @@ export const AdminComplaintDetailScreen: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F8FAFC" },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  root: { flex: 1, backgroundColor: "#F4F3FA" },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F4F3FA" },
   muted: { color: COLORS.gray[500] },
   link: { color: ACCENT, fontWeight: "700" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: HEADER_BG,
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: "#EBEBF5",
   },
-  backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-  headerTitle: { fontSize: 18, fontWeight: "800", color: "#F8FAFC" },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: ACCENT_DIM,
+    borderWidth: 1,
+    borderColor: ACCENT_BORDER,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: { fontSize: 17, fontWeight: "800", color: "#1A1A2E", letterSpacing: -0.3 },
   scroll: { padding: 16, gap: 8 },
   sectionHeading: {
     fontSize: 12,
@@ -678,11 +689,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   statusChipOn: {
-    backgroundColor: "rgba(232,201,122,0.25)",
-    borderColor: "rgba(232,201,122,0.55)",
+    backgroundColor: ACCENT_DIM,
+    borderColor: ACCENT_BORDER,
   },
   statusChipTxt: { fontSize: 12, fontWeight: "700", color: COLORS.gray[600] },
-  statusChipTxtOn: { color: "#1E293B" },
+  statusChipTxtOn: { color: ACCENT_DARK },
   decisionGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -701,11 +712,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.gray[50],
   },
   decisionChipOn: {
-    backgroundColor: "rgba(232,201,122,0.28)",
-    borderColor: "rgba(232,201,122,0.6)",
+    backgroundColor: ACCENT_DIM,
+    borderColor: ACCENT_BORDER,
   },
   decisionTxt: { fontSize: 12, fontWeight: "700", color: COLORS.text.secondary, flex: 1 },
-  decisionTxtOn: { color: "#1E293B" },
+  decisionTxtOn: { color: ACCENT_DARK },
   input: {
     marginTop: 6,
     minHeight: 88,
@@ -726,7 +737,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   submitBtnOff: { opacity: 0.45 },
-  submitBtnTxt: { fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  submitBtnTxt: { fontSize: 16, fontWeight: "800", color: "#FFFFFF" },
   readonly: {
     marginTop: 4,
     fontSize: 14,
