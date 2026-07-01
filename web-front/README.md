@@ -1,73 +1,125 @@
-# React + TypeScript + Vite
+# Web App — On-Demand Services Marketplace
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite web application for **platform administrators** and **company administrators**. Manages users, validations, service catalog, appointments, complaints, reviews, FAQ, support messages, and company operations.
 
-Currently, two official plugins are available:
+**Quick setup:** see [QuickStart.md](./QuickStart.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+**Full project documentation:** [../docs/TECHNICAL_DOCUMENTATION.md](../docs/TECHNICAL_DOCUMENTATION.md)
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Technology stack
 
-## Expanding the ESLint configuration
+| Layer | Technology |
+|-------|------------|
+| Framework | React 19, Vite 8 |
+| Language | TypeScript |
+| UI | Ant Design 6 |
+| Routing | React Router 7 |
+| HTTP | Axios |
+| State | Zustand |
+| Auth | Supabase Auth (JWT) |
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Prerequisites
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- **Node.js** 18+
+- **npm** 9+
+- **Backend API** running (`../backend/` on port 3000)
+- A **PLATFORM_ADMIN** or **COMPANY_ADMIN** account
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+---
+
+## Environment
+
+```bash
+cp .env.example .env
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+| Variable | Description |
+|----------|-------------|
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
+| `VITE_API_URL` | Backend API base URL (default `http://localhost:3000/api`) |
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+---
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm install` | Install dependencies |
+| `npm run dev` | Start dev server (`http://localhost:5173`) |
+| `npm run build` | Production build |
+| `npm run preview` | Preview production build |
+| `npm run lint` | ESLint |
+
+---
+
+## Applications & routes
+
+### Platform admin (`PLATFORM_ADMIN`)
+
+Login → `/admin/dashboard`
+
+| Area | Route |
+|------|-------|
+| Dashboard | `/admin/dashboard` |
+| Users | `/admin/users/*` |
+| Companies | `/admin/companies` |
+| Validations | `/admin/validations/*` |
+| Catalog | `/admin/catalog/categories`, `/admin/catalog/services` |
+| Appointments | `/admin/appointments/list` |
+| Complaints | `/admin/reclamations` |
+| Reviews | `/admin/reviews` |
+| Support messages | `/admin/messages` |
+| Chatbot sessions | `/admin/chatbot` |
+| FAQ & legal | `/admin/content/faq`, `/admin/content/legal-documents` |
+| Activity logs | `/admin/activity-logs` |
+
+### Company admin (`COMPANY_ADMIN`)
+
+Login → `/company/dashboard`
+
+| Area | Route |
+|------|-------|
+| Dashboard | `/company/dashboard` |
+| Providers | `/company/providers` |
+| Services | `/company/services` |
+| Orders | `/company/orders` |
+| Schedule | `/company/schedule-capacity` |
+| Complaints | `/company/complaints` |
+| Ratings | `/company/ratings` |
+| Settings | `/company/settings` |
+
+Other roles are redirected to login or an access-blocked page.
+
+---
+
+## Project structure
+
 ```
+web-front/
+├── src/
+│   ├── features/
+│   │   ├── admin/           # Platform admin pages & layout
+│   │   └── company_admin/   # Company admin pages & layout
+│   ├── services/            # API clients (api.ts, adminApi, companyApi)
+│   ├── stores/              # Auth store (Zustand)
+│   ├── hooks/               # Auth bootstrap, admin counts
+│   ├── components/          # Shared admin UI
+│   └── types/               # TypeScript types
+├── .env.example
+├── QuickStart.md
+└── package.json
+```
+
+---
+
+## Related apps
+
+| App | Folder | Must run first? |
+|-----|--------|-----------------|
+| Backend API | `../backend/` | **Yes** |
+| Mobile | `../mobile-front/` | No (clients/providers use mobile) |

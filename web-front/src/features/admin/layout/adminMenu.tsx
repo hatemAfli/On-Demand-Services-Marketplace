@@ -8,6 +8,7 @@ import {
   FaHandshake,
   FaListCheck,
   FaMessage,
+  FaRobot,
   FaShieldHalved,
   FaStar,
   FaTriangleExclamation,
@@ -111,6 +112,11 @@ export function buildAdminMenuSections(c: MenuCountProps): AdminMenuSection[] {
           icon: FaMessage,
         },
         {
+          key: "/admin/chatbot",
+          label: "AI Chatbot",
+          icon: FaRobot,
+        },
+        {
           key: "/admin/content/legal-documents",
           label: "Terms & Privacy",
           icon: FaFileLines,
@@ -165,6 +171,9 @@ export function resolveAdminPageMeta(pathname: string): {
   if (pathname.startsWith("/admin/reviews/")) {
     return { label: "Review details", icon: null };
   }
+  if (pathname.startsWith("/admin/chatbot/")) {
+    return { label: "Chatbot conversation", icon: FaRobot };
+  }
 
   return { label: "Administration", icon: null };
 }
@@ -181,6 +190,9 @@ export function resolveAdminSubtitle(pathname: string): string {
   }
   if (pathname.startsWith("/admin/activity-logs")) {
     return "Audit trail of platform administrator actions.";
+  }
+  if (pathname.startsWith("/admin/chatbot")) {
+    return "Review client AI assistant sessions and monitor response quality.";
   }
   return "";
 }

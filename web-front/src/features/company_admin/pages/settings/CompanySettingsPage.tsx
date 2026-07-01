@@ -3,7 +3,6 @@ import { AxiosError } from 'axios'
 import {
   FaBars,
   FaBriefcase,
-  FaBuilding,
   FaCalendarCheck,
   FaChartPie,
   FaClock,
@@ -11,39 +10,18 @@ import {
   FaFileInvoiceDollar,
   FaHeadset,
   FaMagnifyingGlass,
-  FaMapLocationDot,
   FaPen,
-  FaPenToSquare,
-  FaPlus,
   FaShieldHalved,
-  FaStore,
-  FaTrash,
   FaUsers,
-  FaWarehouse,
   FaXmark,
 } from 'react-icons/fa6'
-import { FaRegBell, FaRegBuilding } from 'react-icons/fa'
+import { FaRegBell } from 'react-icons/fa'
 import companyApi from '../../../../services/companyApi'
 import type {
   CompanyAuditLogEntry,
-  CompanyBranch,
-  CompanyBranchStatus,
   CompanySettingsProfile,
-  UpsertCompanyBranchPayload,
 } from '../../../../types/company'
 import './CompanySettingsPage.css'
-
-type SectionId = 'general' | 'locations'
-const SECTION_IDS: SectionId[] = ['general', 'locations']
-
-const BRANCH_STATUS_CLS: Record<string, string> = {
-  OPERATIONAL: 'green',
-  COMING_SOON: 'yellow',
-  INACTIVE: 'gray',
-}
-
-const BRANCH_ICONS = [FaBuilding, FaStore, FaWarehouse]
-const BRANCH_ICON_CLS = ['blue', 'orange', 'gray']
 
 const LOGO_MAX_BYTES = 2 * 1024 * 1024
 const LOGO_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml'
@@ -83,7 +61,6 @@ function formatAuditTime(iso: string): string {
 }
 
 function auditIcon(action: string) {
-  if (action.includes('BRANCH')) return { icon: <FaMapLocationDot />, cls: 'blue' }
   if (action.includes('BRANDING')) return { icon: <FaPen />, cls: 'purple' }
   if (action.includes('NOTIFICATION')) return { icon: <FaRegBell />, cls: 'blue' }
   if (action.includes('EXPORT')) return { icon: <FaFileInvoiceDollar />, cls: 'green' }
@@ -111,18 +88,9 @@ async function downloadExport(
   URL.revokeObjectURL(url)
 }
 
-const EMPTY_BRANCH_FORM: UpsertCompanyBranchPayload = {
-  name: '',
-  subtitle: '',
-  city: '',
-  address: '',
-  status: 'OPERATIONAL',
-}
-
 export function CompanySettingsPage() {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [activeTab, setActiveTab] = useState<SectionId>('general')
   const year = useMemo(() => new Date().getFullYear(), [])
 
   const [loading, setLoading] = useState(true)
@@ -130,15 +98,9 @@ export function CompanySettingsPage() {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   const [profile, setProfile] = useState<CompanySettingsProfile | null>(null)
-  const [branches, setBranches] = useState<CompanyBranch[]>([])
   const [auditLogs, setAuditLogs] = useState<CompanyAuditLogEntry[]>([])
 
   const [searchQuery, setSearchQuery] = useState('')
-
-  const [branchModalOpen, setBranchModalOpen] = useState(false)
-  const [editingBranch, setEditingBranch] = useState<CompanyBranch | null>(null)
-  const [branchForm, setBranchForm] = useState<UpsertCompanyBranchPayload>(EMPTY_BRANCH_FORM)
-  const [branchSaving, setBranchSaving] = useState(false)
 
   const [auditModalOpen, setAuditModalOpen] = useState(false)
   const [allAuditLogs, setAllAuditLogs] = useState<CompanyAuditLogEntry[]>([])
@@ -153,7 +115,6 @@ export function CompanySettingsPage() {
     try {
       const data = await companyApi.getCompanySettings()
       setProfile(data.profile)
-      setBranches(data.branches)
       setAuditLogs(data.auditPreview)
     } catch (err) {
       setError(errorMessage(err, 'Could not load company settings.'))
@@ -273,55 +234,6 @@ export function CompanySettingsPage() {
     })
   }
 
-  const openBranchModal = (branch?: CompanyBranch) => {
-    if (branch) {
-      setEditingBranch(branch)
-      setBranchForm({
-        name: branch.name,
-        subtitle: branch.subtitle ?? '',
-        city: branch.city,
-        address: branch.address ?? '',
-        status: branch.status,
-      })
-    } else {
-      setEditingBranch(null)
-      setBranchForm({ ...EMPTY_BRANCH_FORM })
-    }
-    setBranchModalOpen(true)
-  }
-
-  const saveBranch = async () => {
-    setBranchSaving(true)
-    try {
-      if (editingBranch) {
-        const updated = await companyApi.updateCompanyBranch(editingBranch.id, branchForm)
-        setBranches((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
-      } else {
-        const created = await companyApi.createCompanyBranch(branchForm)
-        setBranches((prev) => [...prev, created])
-      }
-      setBranchModalOpen(false)
-      const preview = await companyApi.getCompanyAuditLogs({ take: 5 })
-      setAuditLogs(preview.items)
-    } catch (err) {
-      setError(errorMessage(err, 'Could not save branch.'))
-    } finally {
-      setBranchSaving(false)
-    }
-  }
-
-  const deleteBranch = async (branch: CompanyBranch) => {
-    if (!window.confirm(`Delete branch "${branch.name}"?`)) return
-    try {
-      await companyApi.deleteCompanyBranch(branch.id)
-      setBranches((prev) => prev.filter((b) => b.id !== branch.id))
-      const preview = await companyApi.getCompanyAuditLogs({ take: 5 })
-      setAuditLogs(preview.items)
-    } catch (err) {
-      setError(errorMessage(err, 'Could not delete branch.'))
-    }
-  }
-
   const openAllAuditLogs = async () => {
     setAuditModalOpen(true)
     try {
@@ -332,23 +244,6 @@ export function CompanySettingsPage() {
       setError(errorMessage(err, 'Could not load audit logs.'))
     }
   }
-
-  const scrollToSection = useCallback((id: SectionId) => {
-    const el = document.getElementById(id)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [])
-
-  const handleScroll = useCallback(() => {
-    const container = containerRef.current
-    if (!container) return
-    let current: SectionId = 'general'
-    for (const id of SECTION_IDS) {
-      const section = document.getElementById(id)
-      if (!section) continue
-      if (container.scrollTop >= section.offsetTop - 150) current = id
-    }
-    setActiveTab(current)
-  }, [])
 
   const sectionVisible = useCallback(
     (keywords: string[]) => {
@@ -408,26 +303,8 @@ export function CompanySettingsPage() {
 
       {error ? <div className="st-error-banner">{error}</div> : null}
 
-      <div ref={containerRef} onScroll={handleScroll} className="st-body">
+      <div ref={containerRef} className="st-body">
         <div className="st-content">
-          <div className="st-tabs-bar">
-            <nav className="st-tabs-nav">
-              {([
-                { id: 'general', icon: <FaRegBuilding />, label: 'General & Branding' },
-                { id: 'locations', icon: <FaMapLocationDot />, label: 'Locations' },
-              ] as { id: SectionId; icon: React.ReactNode; label: string }[]).map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => scrollToSection(t.id)}
-                  className={`st-tab${activeTab === t.id ? ' active' : ''}`}
-                >
-                  {t.icon} {t.label}
-                </button>
-              ))}
-            </nav>
-          </div>
-
           {sectionVisible(['general', 'branding', 'company', 'export']) ? (
             <section id="general" className="st-section">
               <div className="st-section-grid">
@@ -579,75 +456,6 @@ export function CompanySettingsPage() {
             </section>
           ) : null}
 
-          {sectionVisible(['locations', 'branch', 'service areas']) ? (
-            <section id="locations" className="st-section">
-              <div className="st-section-head">
-                <div>
-                  <h2>Locations &amp; Service Areas</h2>
-                  <p>Manage your branches and operational zones across cities.</p>
-                </div>
-                <button type="button" className="st-add-btn" onClick={() => openBranchModal()}>
-                  <FaPlus className="st-add-icon" />
-                  <span>Add New Branch</span>
-                </button>
-              </div>
-
-              <div className="st-table-wrap">
-                <table className="st-table">
-                  <thead>
-                    <tr>
-                      <th>Branch Name</th>
-                      <th>City / Region</th>
-                      <th>Status</th>
-                      <th>Providers</th>
-                      <th className="right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {branches.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="st-empty-cell">No branches yet.</td>
-                      </tr>
-                    ) : (
-                      branches.map((b, i) => {
-                        const Icon = BRANCH_ICONS[i % BRANCH_ICONS.length]
-                        const iconCls = BRANCH_ICON_CLS[i % BRANCH_ICON_CLS.length]
-                        return (
-                          <tr key={b.id}>
-                            <td>
-                              <div className="st-branch-cell">
-                                <div className={`st-branch-icon ${iconCls}`}><Icon /></div>
-                                <div>
-                                  <strong>{b.name}</strong>
-                                  <small>{b.subtitle ?? 'Branch'}</small>
-                                </div>
-                              </div>
-                            </td>
-                            <td>{b.city}</td>
-                            <td>
-                              <span className={`st-status-badge ${BRANCH_STATUS_CLS[b.status] ?? 'gray'}`}>
-                                {b.statusLabel}
-                              </span>
-                            </td>
-                            <td>{b.activeProviders > 0 ? `${b.activeProviders} active` : '—'}</td>
-                            <td className="right">
-                              <button type="button" className="st-tbl-action edit" onClick={() => openBranchModal(b)}>
-                                <FaPenToSquare />
-                              </button>
-                              <button type="button" className="st-tbl-action del" onClick={() => void deleteBranch(b)}>
-                                <FaTrash />
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ) : null}
-
           <section id="audit" className="st-card">
             <div className="st-card-head-row">
               <div>
@@ -701,84 +509,6 @@ export function CompanySettingsPage() {
           </footer>
         </div>
       </div>
-
-      {branchModalOpen ? (
-        <div className="st-modal-overlay" onClick={() => setBranchModalOpen(false)} role="presentation">
-          <div className="st-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="st-modal-head">
-              <h3>{editingBranch ? 'Edit Branch' : 'Add Branch'}</h3>
-              <button type="button" className="st-modal-close" onClick={() => setBranchModalOpen(false)}>
-                <FaXmark />
-              </button>
-            </div>
-            <div className="st-modal-body">
-              <div className="st-field">
-                <label>Branch name</label>
-                <input
-                  className="st-input"
-                  value={branchForm.name}
-                  onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
-                />
-              </div>
-              <div className="st-field">
-                <label>Subtitle</label>
-                <input
-                  className="st-input"
-                  value={branchForm.subtitle ?? ''}
-                  onChange={(e) => setBranchForm({ ...branchForm, subtitle: e.target.value })}
-                  placeholder="Main Office"
-                />
-              </div>
-              <div className="st-field">
-                <label>City</label>
-                <input
-                  className="st-input"
-                  value={branchForm.city}
-                  onChange={(e) => setBranchForm({ ...branchForm, city: e.target.value })}
-                />
-              </div>
-              <div className="st-field">
-                <label>Address</label>
-                <input
-                  className="st-input"
-                  value={branchForm.address ?? ''}
-                  onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
-                />
-              </div>
-              <div className="st-field">
-                <label>Status</label>
-                <select
-                  className="st-select"
-                  value={branchForm.status ?? 'OPERATIONAL'}
-                  onChange={(e) =>
-                    setBranchForm({
-                      ...branchForm,
-                      status: e.target.value as CompanyBranchStatus,
-                    })
-                  }
-                >
-                  <option value="OPERATIONAL">Operational</option>
-                  <option value="COMING_SOON">Coming Soon</option>
-                  <option value="INACTIVE">Inactive</option>
-                </select>
-              </div>
-            </div>
-            <div className="st-modal-foot">
-              <button type="button" className="st-link-btn" onClick={() => setBranchModalOpen(false)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="st-publish-btn"
-                disabled={branchSaving || !branchForm.name.trim() || !branchForm.city.trim()}
-                onClick={() => void saveBranch()}
-              >
-                {branchSaving ? 'Saving…' : 'Save branch'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {auditModalOpen ? (
         <div className="st-modal-overlay" onClick={() => setAuditModalOpen(false)} role="presentation">

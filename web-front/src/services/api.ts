@@ -19,7 +19,6 @@ import type {
   AddLegalDocumentVersionInput,
   CreateLegalDocumentInput,
   LegalDocumentAdminItem,
-  LegalDocumentType,
   PatchLegalDocumentVersionInput,
   UpdateLegalDocumentInput,
 } from '../types/legal-document'
@@ -177,9 +176,6 @@ export const api = {
 
   deleteAdminLegalDocument: (id: string) =>
     apiClient.delete(`/admin/legal-documents/${id}`),
-
-  getLatestLegalDocument: (type: LegalDocumentType, lang: 'en' | 'ar') =>
-    apiClient.get('/legal-documents/latest', { params: { type, lang } }),
 
   listAdminFaq: () => apiClient.get<import('../types/support').FaqAdminItem[]>('/admin/faq'),
 

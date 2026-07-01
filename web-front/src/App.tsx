@@ -24,6 +24,8 @@ import {
   AdminReviewDetailPage,
   FaqAdminPage,
   SupportMessagesAdminPage,
+  AdminChatbotSessionsPage,
+  AdminChatbotSessionDetailPage,
 } from './features/admin'
 import {
   CompanyAdminLayout,
@@ -158,6 +160,11 @@ function AppShell() {
                   element={<PlaceholderPage title="Payouts" />}
                 />
                 <Route path="messages" element={<SupportMessagesAdminPage />} />
+                <Route path="chatbot" element={<AdminChatbotSessionsPage />} />
+                <Route
+                  path="chatbot/:sessionId"
+                  element={<AdminChatbotSessionDetailPage />}
+                />
                 <Route
                   path="analytics/overview"
                   element={<PlaceholderPage title="Analytics overview" />}

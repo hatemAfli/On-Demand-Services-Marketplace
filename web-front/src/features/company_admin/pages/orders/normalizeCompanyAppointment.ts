@@ -16,7 +16,6 @@ export function normalizeCompanyAppointment(
   if (typeof r.id !== 'string') return null
 
   return {
-    ...(r as CompanyAppointment),
     id: r.id,
     status: r.status as CompanyAppointment['status'],
     scheduledDate: toYmd(r.scheduledDate) ?? '',

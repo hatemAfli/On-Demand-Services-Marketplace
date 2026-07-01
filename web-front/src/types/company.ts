@@ -483,8 +483,6 @@ export interface ListCompanyReviewsParams {
 
 // ─── Company settings ────────────────────────────────────────────────────────────
 
-export type CompanyBranchStatus = 'OPERATIONAL' | 'COMING_SOON' | 'INACTIVE'
-
 export interface CompanySettingsProfile {
   companyName: string
   taxId: string
@@ -495,19 +493,6 @@ export interface CompanySettingsProfile {
   about: string
   serviceZones: string[]
   logo: string | null
-}
-
-export interface CompanyBranch {
-  id: string
-  name: string
-  subtitle: string | null
-  city: string
-  address: string | null
-  status: CompanyBranchStatus
-  statusLabel: string
-  activeProviders: number
-  createdAt: string
-  updatedAt: string
 }
 
 export interface CompanyAuditLogEntry {
@@ -522,7 +507,6 @@ export interface CompanyAuditLogEntry {
 
 export interface CompanySettingsResponse {
   profile: CompanySettingsProfile
-  branches: CompanyBranch[]
   auditPreview: CompanyAuditLogEntry[]
 }
 
@@ -531,14 +515,6 @@ export interface CompanyAuditLogsResponse {
   total: number
   skip: number
   take: number
-}
-
-export interface UpsertCompanyBranchPayload {
-  name: string
-  subtitle?: string
-  city: string
-  address?: string
-  status?: CompanyBranchStatus
 }
 
 export type CompanyComplaintStatus =

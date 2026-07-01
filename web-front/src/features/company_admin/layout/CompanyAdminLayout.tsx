@@ -1,20 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import {
-  FaArrowRightFromBracket,
-  FaBars,
-  FaBuilding,
-  FaChevronDown,
-  FaLocationDot,
-  FaPlus,
-} from 'react-icons/fa6'
+import { FaArrowRightFromBracket, FaBars } from 'react-icons/fa6'
 import { authService } from '../../../services/auth.service'
 import companyApi from '../../../services/companyApi'
 import { useAuthStore } from '../../../stores/authStore'
-import type { CompanyBranch, CompanySettingsProfile } from '../../../types/company'
+import type { CompanySettingsProfile } from '../../../types/company'
 import { CompanyNotificationBell } from '../notifications/CompanyNotificationBell'
 import { companyAdminMenuSections } from './companyAdminMenu'
-import { getStoredBranchId, setStoredBranchId } from './companyBranchStorage'
 import './CompanyAdminLayout.css'
 
 const DEFAULT_BRAND = '#7621C2'
@@ -30,14 +22,6 @@ function companyInitials(name: string): string {
   if (parts.length === 0) return 'C'
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
   return `${parts[0]![0] ?? ''}${parts[parts.length - 1]![0] ?? ''}`.toUpperCase()
-}
-
-function pickDefaultBranchId(branches: CompanyBranch[]): string | null {
-  if (branches.length === 0) return null
-  const stored = getStoredBranchId()
-  if (stored && branches.some((b) => b.id === stored)) return stored
-  const operational = branches.find((b) => b.status === 'OPERATIONAL')
-  return operational?.id ?? branches[0]!.id
 }
 
 function resolvePageMeta(pathname: string): {
@@ -65,7 +49,7 @@ function resolveSubtitle(pathname: string, companyName: string): string {
     return `Welcome back — here is what is happening at ${companyName} today.`
   }
   if (pathname.startsWith('/company/settings')) {
-    return 'Manage profile, branches, branding, and team preferences.'
+    return 'Manage profile, branding, and team preferences.'
   }
   return `${companyName} administration workspace.`
 }
@@ -77,13 +61,8 @@ export function CompanyAdminLayout() {
   const setUser = useAuthStore((s) => s.setUser)
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [branchMenuOpen, setBranchMenuOpen] = useState(false)
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [profile, setProfile] = useState<CompanySettingsProfile | null>(null)
-  const [branches, setBranches] = useState<CompanyBranch[]>([])
-  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null)
-
-  const branchMenuRef = useRef<HTMLDivElement>(null)
 
   const brandColor = DEFAULT_BRAND
 
@@ -92,14 +71,9 @@ export function CompanyAdminLayout() {
     try {
       const data = await companyApi.getCompanySettings()
       setProfile(data.profile)
-      setBranches(data.branches)
-      const defaultId = pickDefaultBranchId(data.branches)
-      setSelectedBranchId(defaultId)
-      if (defaultId) setStoredBranchId(defaultId)
       document.documentElement.style.setProperty('--company-brand', DEFAULT_BRAND)
     } catch {
       setProfile(null)
-      setBranches([])
       document.documentElement.style.setProperty('--company-brand', DEFAULT_BRAND)
     } finally {
       setSettingsLoading(false)
@@ -122,20 +96,6 @@ export function CompanyAdminLayout() {
     document.documentElement.style.setProperty('--company-brand', brandColor)
   }, [brandColor])
 
-  useEffect(() => {
-    if (!branchMenuOpen) return
-    const onDocClick = (e: MouseEvent) => {
-      if (
-        branchMenuRef.current &&
-        !branchMenuRef.current.contains(e.target as Node)
-      ) {
-        setBranchMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDocClick)
-    return () => document.removeEventListener('mousedown', onDocClick)
-  }, [branchMenuOpen])
-
   const logout = async () => {
     await authService.logout()
     setUser(null)
@@ -151,11 +111,6 @@ export function CompanyAdminLayout() {
   const companyName = profile?.companyName?.trim() || 'Your company'
   const companyLogo = profile?.logo?.trim() || null
 
-  const selectedBranch = useMemo(
-    () => branches.find((b) => b.id === selectedBranchId) ?? null,
-    [branches, selectedBranchId],
-  )
-
   const pageMeta = useMemo(
     () => resolvePageMeta(location.pathname),
     [location.pathname],
@@ -166,12 +121,6 @@ export function CompanyAdminLayout() {
     () => resolveSubtitle(location.pathname, companyName),
     [location.pathname, companyName],
   )
-
-  const selectBranch = (branch: CompanyBranch) => {
-    setSelectedBranchId(branch.id)
-    setStoredBranchId(branch.id)
-    setBranchMenuOpen(false)
-  }
 
   return (
     <div className="company-admin-shell">
@@ -206,109 +155,6 @@ export function CompanyAdminLayout() {
             </span>
             <span className="company-sidebar-logo-sub">Company admin</span>
           </div>
-        </div>
-
-        <div className="company-branch-switcher-wrap" ref={branchMenuRef}>
-          <button
-            type="button"
-            className={`company-branch-switcher${branchMenuOpen ? ' open' : ''}`}
-            onClick={() => setBranchMenuOpen((v) => !v)}
-            aria-expanded={branchMenuOpen}
-            aria-haspopup="listbox"
-            disabled={settingsLoading}
-          >
-            <div className="company-branch-left">
-              <div
-                className="company-branch-icon"
-                style={{ borderColor: `${brandColor}33`, color: brandColor }}
-              >
-                <FaLocationDot />
-              </div>
-              <div className="company-branch-text">
-                <div className="company-branch-kicker">Current branch</div>
-                <div className="company-branch-name">
-                  {settingsLoading
-                    ? 'Loading branches…'
-                    : selectedBranch
-                      ? selectedBranch.name
-                      : branches.length === 0
-                        ? 'No branches yet'
-                        : 'Select a branch'}
-                </div>
-                {selectedBranch?.city ? (
-                  <div className="company-branch-city">{selectedBranch.city}</div>
-                ) : null}
-              </div>
-            </div>
-            <FaChevronDown
-              className={`company-branch-chevron${branchMenuOpen ? ' rotated' : ''}`}
-            />
-          </button>
-
-          {branchMenuOpen ? (
-            <div className="company-branch-menu" role="listbox">
-              {branches.length === 0 ? (
-                <div className="company-branch-menu-empty">
-                  <FaBuilding />
-                  <p>No branches configured.</p>
-                  <button
-                    type="button"
-                    className="company-branch-menu-link"
-                    onClick={() => {
-                      navigate('/company/settings')
-                      setBranchMenuOpen(false)
-                      setMobileMenuOpen(false)
-                    }}
-                  >
-                    Add a branch in Settings
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {branches.map((branch) => {
-                    const active = branch.id === selectedBranchId
-                    return (
-                      <button
-                        key={branch.id}
-                        type="button"
-                        role="option"
-                        aria-selected={active}
-                        className={`company-branch-option${active ? ' active' : ''}`}
-                        onClick={() => selectBranch(branch)}
-                      >
-                        <div className="company-branch-option-main">
-                          <span className="company-branch-option-name">
-                            {branch.name}
-                          </span>
-                          <span className="company-branch-option-meta">
-                            {branch.city}
-                            {branch.subtitle ? ` · ${branch.subtitle}` : ''}
-                          </span>
-                        </div>
-                        <span
-                          className={`company-branch-status company-branch-status--${branch.status.toLowerCase()}`}
-                        >
-                          {branch.statusLabel}
-                        </span>
-                      </button>
-                    )
-                  })}
-                  <button
-                    type="button"
-                    className="company-branch-menu-footer"
-                    onClick={() => {
-                      navigate('/company/settings')
-                      setBranchMenuOpen(false)
-                      setMobileMenuOpen(false)
-                    }}
-                  >
-                    <FaPlus />
-                    Manage branches
-                  </button>
-                </>
-              )}
-            </div>
-          ) : null}
         </div>
 
         <nav className="company-sidebar-nav">

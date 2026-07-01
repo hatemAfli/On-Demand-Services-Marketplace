@@ -33,15 +33,6 @@ export function CompanyNotificationBell({ brandColor = '#7621C2' }: Props) {
     markAllRead,
   } = useCompanyNotifications(true)
 
-  const handleListScroll = useCallback(() => {
-    const el = listRef.current
-    if (!el || loading || loadingMore || !hasMore) return
-    const remaining = el.scrollHeight - el.scrollTop - el.clientHeight
-    if (remaining < 72) {
-      void loadMoreNotifications()
-    }
-  }, [loading, loadingMore, hasMore, loadMoreNotifications])
-
   useEffect(() => {
     if (open) void loadNotifications()
   }, [open, loadNotifications])
@@ -154,7 +145,7 @@ export function CompanyNotificationBell({ brandColor = '#7621C2' }: Props) {
             ) : null}
           </div>
 
-          <div className="cnb-list" role="list">
+          <div className="cnb-list" role="list" ref={listRef}>
             {loading ? (
               <div className="cnb-loading">
                 {[1, 2, 3, 4].map((i) => (

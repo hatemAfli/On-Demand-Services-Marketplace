@@ -1,6 +1,5 @@
 import {
   BankOutlined,
-  HistoryOutlined,
   ReloadOutlined,
   SearchOutlined,
   SolutionOutlined,

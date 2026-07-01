@@ -25,4 +25,6 @@ export {
   FaqAdminPage,
   SupportMessagesAdminPage,
   ActivityLogsAdminPage,
+  AdminChatbotSessionsPage,
+  AdminChatbotSessionDetailPage,
 } from './pages'

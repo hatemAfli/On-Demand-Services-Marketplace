@@ -1,6 +1,5 @@
 import type {
   CompanyAppointmentStatus,
-  CompanyDashboardData,
 } from '../../../../types/company'
 
 export const STATUS_UI: Record<

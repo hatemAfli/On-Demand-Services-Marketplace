@@ -549,44 +549,6 @@
 .st-table.users tbody tr.alt { background: rgba(59, 130, 246, 0.04); }
 .st-table.users tbody tr.alt:hover { background: rgba(59, 130, 246, 0.08); }
 
-.st-branch-cell {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.st-branch-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  flex-shrink: 0;
-}
-
-.st-branch-icon.blue   { background: #eff6ff; color: #2563eb; }
-.st-branch-icon.orange { background: #fff7ed; color: #ea580c; }
-.st-branch-icon.gray   { background: #f3f4f6; color: #4b5563; }
-
-.st-branch-cell strong { display: block; font-size: 13px; color: #111827; }
-.st-branch-cell small  { font-size: 11px; color: #6b7280; }
-
-.st-status-badge {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  border: 1px solid;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 10px;
-}
-
-.st-status-badge.green  { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
-.st-status-badge.orange { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
-.st-status-badge.yellow { background: #fefce8; color: #a16207; border-color: #fde68a; }
-.st-status-badge.gray   { background: #f3f4f6; color: #4b5563; border-color: #e5e7eb; }
-
 .st-tbl-action {
   border: 0;
   background: transparent;
@@ -600,11 +562,6 @@
 .st-tbl-action.edit:hover { color: #7621c2; }
 .st-tbl-action.del  { color: #9ca3af; margin-left: 6px; }
 .st-tbl-action.del:hover  { color: #ef4444; }
-
-/* Select (branch modal) */
-.st-select-wrap {
-  position: relative;
-}
 
 .st-select {
   width: 100%;

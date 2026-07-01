@@ -1,4 +1,12 @@
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios'
+import { env } from '../config/env'
+import { supabase } from '../lib/supabase'
+import type {
+  AdminChatbotSessionDetail,
+  AdminChatbotSessionsResponse,
+  AdminChatbotStats,
+  GetAdminChatbotSessionsParams,
+} from '../types/chatbot-admin'
 import type {
   AdminAppointment,
   AdminComplaint,
@@ -17,45 +25,15 @@ import type {
   PlatformActivityLogStats,
 } from '../types/admin'
 
-const baseURL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api').replace(
-  /\/$/,
-  '',
-)
-
-/** Optional explicit JWT override; Supabase session in localStorage is used when unset. */
-export const ADMIN_JWT_STORAGE_KEY = 'admin_access_token'
-
-function readAdminJwtFromLocalStorage(): string | null {
-  const explicit = localStorage.getItem(ADMIN_JWT_STORAGE_KEY)
-  if (explicit) return explicit
-
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i)
-    if (!key?.endsWith('-auth-token')) continue
-    try {
-      const raw = localStorage.getItem(key)
-      if (!raw) continue
-      const parsed = JSON.parse(raw) as {
-        access_token?: string
-        currentSession?: { access_token?: string }
-      }
-      return parsed.access_token ?? parsed.currentSession?.access_token ?? null
-    } catch {
-      continue
-    }
-  }
-
-  return null
-}
-
 const adminApiClient: AxiosInstance = axios.create({
-  baseURL,
+  baseURL: env.apiBaseUrl,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 })
 
-adminApiClient.interceptors.request.use((config) => {
-  const token = readAdminJwtFromLocalStorage()
+adminApiClient.interceptors.request.use(async (config) => {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -191,6 +169,17 @@ export const adminApi = {
 
   exportActivityLogsCsv: (): Promise<AxiosResponse<Blob>> =>
     adminApiClient.get('/admin/activity-logs/export', { responseType: 'blob' }),
-}
 
-export default adminApiClient
+  getChatbotStats: (): Promise<AxiosResponse<AdminChatbotStats>> =>
+    adminApiClient.get('/admin/chatbot/stats'),
+
+  getAdminChatbotSessions: (
+    params?: GetAdminChatbotSessionsParams,
+  ): Promise<AxiosResponse<AdminChatbotSessionsResponse>> =>
+    adminApiClient.get('/admin/chatbot/sessions', { params }),
+
+  getAdminChatbotSession: (
+    sessionId: string,
+  ): Promise<AxiosResponse<AdminChatbotSessionDetail>> =>
+    adminApiClient.get(`/admin/chatbot/sessions/${sessionId}`),
+}

@@ -1,7 +1,6 @@
 import {
   ReloadOutlined,
   SearchOutlined,
-  TeamOutlined,
 } from "@ant-design/icons";
 import {
   App,
@@ -178,12 +177,6 @@ export function UsersAdminPage() {
   const onSegmentChange = (val: SegmentValue) => {
     navigate(PATH_BY_SEGMENT[val]);
   };
-
-  const filterLabel =
-    segment === "all" ? "all roles" : roleInfo(segment as UserRole).label + "s";
-
-  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(page * PAGE_SIZE, total);
 
   const columns: ColumnsType<AdminUserListItem> = [
     {

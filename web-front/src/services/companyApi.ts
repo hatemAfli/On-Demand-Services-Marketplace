@@ -29,9 +29,7 @@ import type {
   ListCompanyReviewsParams,
   CompanySettingsResponse,
   CompanySettingsProfile,
-  CompanyBranch,
   CompanyAuditLogsResponse,
-  UpsertCompanyBranchPayload,
   CompanyComplaintStats,
   CompanyComplaintsResponse,
   CompanyComplaintListItem,
@@ -323,26 +321,6 @@ export const companyApi = {
       })
       .then((r) => r.data)
   },
-
-  getCompanyBranches: () =>
-    apiClient
-      .get<CompanyBranch[]>('/company/settings/branches')
-      .then((r) => r.data),
-
-  createCompanyBranch: (payload: UpsertCompanyBranchPayload) =>
-    apiClient
-      .post<CompanyBranch>('/company/settings/branches', payload)
-      .then((r) => r.data),
-
-  updateCompanyBranch: (id: string, payload: UpsertCompanyBranchPayload) =>
-    apiClient
-      .patch<CompanyBranch>(`/company/settings/branches/${id}`, payload)
-      .then((r) => r.data),
-
-  deleteCompanyBranch: (id: string) =>
-    apiClient
-      .delete<{ deleted: boolean }>(`/company/settings/branches/${id}`)
-      .then((r) => r.data),
 
   getCompanyAuditLogs: (params?: { take?: number; skip?: number }) =>
     apiClient

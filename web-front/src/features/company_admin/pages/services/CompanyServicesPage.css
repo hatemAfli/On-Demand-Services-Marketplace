@@ -915,36 +915,6 @@
 
 .cs-trash-btn:hover { color: #dc2626; }
 
-/* Branch chips */
-.cs-branch-checks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.cs-branch-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  color: #4b5563;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
-}
-
-.cs-branch-chip.checked {
-  border-color: rgba(118, 33, 194, 0.3);
-  background: rgba(118, 33, 194, 0.05);
-  color: #7621c2;
-}
-
-.cs-branch-chip input { width: 14px; height: 14px; cursor: pointer; accent-color: #7621c2; }
-
 /* Providers list */
 .cs-count-badge { font-size: 12px; color: #6b7280; }
 
