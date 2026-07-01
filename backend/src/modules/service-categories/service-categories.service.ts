@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Locale, PlatformAuditAction, Prisma } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
+import { RedisService } from '../../config/redis.service';
 import { localeFallbackChain } from '../../common/i18n/locale';
 import { PlatformAuditService } from '../platform-audit/platform-audit.service';
 import type { PlatformAuditContext } from '../platform-audit/platform-audit.types';
@@ -47,12 +48,22 @@ function toCategoryTranslationMap(
 
 @Injectable()
 export class ServiceCategoriesService {
+  private readonly cacheTtlSeconds = 600;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: PlatformAuditService,
+    private readonly redis: RedisService,
   ) {}
 
   async findActiveForMarketplace(locale: Locale = Locale.EN) {
+    const cacheKey = `cache:global:service-categories:${locale}`;
+    return this.redis.getOrSetJson(cacheKey, this.cacheTtlSeconds, () =>
+      this.loadActiveForMarketplace(locale),
+    );
+  }
+
+  private async loadActiveForMarketplace(locale: Locale = Locale.EN) {
     const requestedLocales = localeFallbackChain(locale);
     const rows = await this.prisma.serviceCategory.findMany({
       where: { active: true },

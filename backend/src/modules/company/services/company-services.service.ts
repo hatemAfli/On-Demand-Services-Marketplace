@@ -9,6 +9,7 @@ import { SupabaseService } from '../../../config/supabase.config';
 import { CompanyAuditService } from '../audit/company-audit.service';
 import { UpdateGivenServiceDto } from './dto/update-given-service.dto';
 import type { GalleryUploadFile } from './gallery-upload-file.type';
+import { EmbeddingsService } from '../../embeddings/embeddings.service';
 
 const GALLERY_BUCKET = 'gallery';
 
@@ -80,6 +81,7 @@ export class CompanyServicesService {
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
     private readonly audit: CompanyAuditService,
+    private readonly embeddingsService: EmbeddingsService,
   ) {}
 
   private assertGalleryUrlForGivenService(
@@ -390,6 +392,7 @@ export class CompanyServicesService {
       ipAddress,
     );
 
+    this.embeddingsService.scheduleSync(givenServiceId);
     return updated;
   }
 
@@ -424,6 +427,7 @@ export class CompanyServicesService {
       ipAddress,
     );
 
+    this.embeddingsService.scheduleSync(givenServiceId);
     return updated;
   }
 

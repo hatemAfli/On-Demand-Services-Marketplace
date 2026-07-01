@@ -9,7 +9,6 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useWindowDimensions } from "react-native";
 import type { ProviderStackParamList } from "./types";
-import { ProviderSidebarProvider } from "./ProviderSidebarContext";
 import { COLORS } from "../constants";
 import { useAppTranslation } from "../hooks/useAppTranslation";
 
@@ -46,6 +45,7 @@ import { TermsScreen } from "../screens/auth/TermsScreen";
 import { PrivacyScreen } from "../screens/auth/PrivacyScreen";
 import { FaqScreen } from "../screens/shared/FaqScreen";
 import { ContactUsScreen } from "../screens/shared/ContactUsScreen";
+import { ProviderIncomingRequestOverlay } from "../components/provider/ProviderIncomingRequestOverlay";
 
 const Stack = createNativeStackNavigator<ProviderStackParamList>();
 
@@ -83,7 +83,6 @@ export const ProviderOverlayNavigator: React.FC = () => {
 
   return (
     <React.Fragment>
-      <ProviderSidebarProvider openSidebar={() => setIsSidebarOpen(true)}>
       <Stack.Navigator
         initialRouteName="ProviderHome"
         screenListeners={{
@@ -259,7 +258,6 @@ export const ProviderOverlayNavigator: React.FC = () => {
         <Stack.Screen name="ProviderFaq" component={FaqScreen} />
         <Stack.Screen name="ProviderContactUs" component={ContactUsScreen} />
       </Stack.Navigator>
-      </ProviderSidebarProvider>
 
       <Animated.View
         pointerEvents={isSidebarOpen ? "auto" : "none"}
@@ -294,6 +292,8 @@ export const ProviderOverlayNavigator: React.FC = () => {
           onClose={() => setIsSidebarOpen(false)}
         />
       </Animated.View>
+
+      <ProviderIncomingRequestOverlay />
     </React.Fragment>
   );
 };

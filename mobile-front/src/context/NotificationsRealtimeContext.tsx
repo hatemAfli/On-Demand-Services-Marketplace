@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../services/supabase";
 import { api, type AppNotification } from "../services/api";
 import { useAuth } from "./AuthContext";
 

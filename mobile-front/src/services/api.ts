@@ -7,6 +7,21 @@ import type { AccountStatus, UserRole } from "../types";
 import i18n from "../i18n";
 import { supabase } from "./supabase";
 
+export type PopularNearbyItem = {
+  ownerId: string;
+  ownerType: "PROVIDER" | "COMPANY";
+  givenServiceId: string;
+  serviceId: string;
+  serviceName: string;
+  displayName: string;
+  imageUrl: string | null;
+  city: string;
+  rating: number;
+  distanceKm: number | null;
+  isTopProvider: boolean;
+  isAvailableImmediately: boolean;
+};
+
 type FavoriteType = "CATEGORY" | "SERVICE" | "PROVIDER";
 
 export type ProviderAvailabilityDayOfWeek =
@@ -316,6 +331,8 @@ export type ChatMessage = {
   mediaUrls: string[];
   status: MessageStatus;
   createdAt: string;
+  editedAt?: string | null;
+  deletedAt?: string | null;
 };
 
 export type ProviderCalendarAppointment = {
@@ -572,22 +589,20 @@ export const api = {
   completeRegistration: (data: any) =>
     apiClient.post("/auth/complete-registration", data),
   getCurrentUser: () => apiClient.get("/auth/me"),
-  updateMyIdentity: (data: {
+  updateAdminMe: (data: {
     firstName?: string;
     lastName?: string;
     phoneNumber?: string;
-  }) => apiClient.patch("/auth/me/identity", data),
+    email?: string;
+  }) => apiClient.patch("/admins/me", data),
   lookupMagicLoginAccount: (data: { email: string }) =>
     apiClient.post<{ exists: boolean }>("/auth/magic-login/lookup", data),
   checkEmailChangeAvailability: (data: { email: string }) =>
     apiClient.post<{ available: boolean }>("/auth/email-change/check", data),
 
-  // User endpoints
-  updateProfile: (data: any) => apiClient.put("/users/me", data),
-  deleteAccount: () => apiClient.delete("/users/me"),
+  // User endpoints — profile updates use role-specific PATCH routes.
 
   // Client endpoints (role CLIENT)
-  getClientMe: () => apiClient.get("/clients/me"),
   updateClientMe: (data: Record<string, unknown>) =>
     apiClient.patch("/clients/me", data),
   getClientSearchHistory: (params?: { lang?: "en" | "ar" }) =>
@@ -595,6 +610,13 @@ export const api = {
   addClientSearchHistory: (data: { serviceId: string; query?: string }) =>
     apiClient.post("/clients/me/search-history", data),
   clearClientSearchHistory: () => apiClient.delete("/clients/me/search-history"),
+  getPopularNearby: (params?: { clientLat?: number; clientLng?: number }) =>
+    apiClient.get<PopularNearbyItem[]>("/clients/me/home/popular-nearby", {
+      params: {
+        ...params,
+        lang: i18n.language?.startsWith("ar") ? "ar" : "en",
+      },
+    }),
   getClientFavorites: (params?: { type?: FavoriteType; lang?: "en" | "ar" }) =>
     apiClient.get<{
       items: {
@@ -747,6 +769,18 @@ export const api = {
   markConversationRead: (conversationId: string) =>
     apiClient.patch("/messaging/messages/read", { conversationId }),
 
+  markMessagesDelivered: (conversationId: string, messageIds: string[]) =>
+    apiClient.patch("/messaging/messages/delivered", {
+      conversationId,
+      messageIds,
+    }),
+
+  updateChatMessage: (messageId: string, text: string) =>
+    apiClient.patch<ChatMessage>(`/messaging/messages/${messageId}`, { text }),
+
+  withdrawChatMessage: (messageId: string) =>
+    apiClient.delete<ChatMessage>(`/messaging/messages/${messageId}`),
+
   softDeleteProviderAccount: (data: { password: string }) =>
     apiClient.post<{ message: string; deletedAt: string }>(
       "/providers/me/soft-delete",
@@ -776,10 +810,6 @@ export const api = {
     apiClient.delete(`/providers/me/given-services/${serviceId}/gallery`, {
       data,
     }),
-
-  // Company endpoints
-  getCompanyProfile: () => apiClient.get("/companies/me"),
-  updateCompanyProfile: (data: any) => apiClient.put("/companies/me", data),
 
   // Marketplace catalog
   listServices: (params?: { categoryId?: string; categorySlug?: string }) =>
@@ -1006,6 +1036,7 @@ export const api = {
     apiClient.get<{
       canReview: boolean;
       alreadyReviewed: boolean;
+      existingReviewId: string | null;
       existingRating: number | null;
       existingComment: string | null;
     }>(`/reviews/can-review/${appointmentId}`),
@@ -1120,6 +1151,87 @@ export const api = {
     subject: string;
     message: string;
   }) => apiClient.post("/support/messages", payload),
+
+  chatbotChat: (payload: {
+    message: string;
+    sessionId: string;
+    locale?: string;
+  }) =>
+    apiClient.post<ChatbotChatResponse>("/chatbot/chat", payload, {
+      timeout: 120000,
+    }),
+
+  createChatbotSession: (payload?: { locale?: string }) =>
+    apiClient.post<ChatbotSessionMeta>("/chatbot/sessions", payload ?? {}),
+
+  listChatbotSessions: () =>
+    apiClient.get<ChatbotSessionSummary[]>("/chatbot/sessions"),
+
+  getChatbotSession: (sessionId: string) =>
+    apiClient.get<ChatbotSessionDetail>(`/chatbot/sessions/${sessionId}`),
+
+  deleteChatbotSession: (sessionId: string) =>
+    apiClient.delete<{ deleted: boolean }>(`/chatbot/sessions/${sessionId}`),
+};
+
+export type ChatbotSearchResult = {
+  given_service_id: string;
+  service_id: string;
+  owner_id: string;
+  owner_type: "PROVIDER" | "COMPANY";
+  service_name: string;
+  category_name: string;
+  provider_name: string;
+  city: string;
+  price: number;
+  pricing_type: string;
+  average_rating: number;
+  total_reviews: number;
+  is_top_provider: boolean;
+  similarity?: number | null;
+  photo_url?: string | null;
+  tagline?: string | null;
+};
+
+export type ChatbotChatResponse = {
+  session_id: string;
+  message: string;
+  providers: ChatbotSearchResult[];
+  intent_detected?: boolean;
+  fallback?: boolean;
+  suggestions?: string[];
+};
+
+export type ChatbotSessionMeta = {
+  sessionId: string;
+  clientId: string;
+  title: string;
+  locale: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ChatbotSessionSummary = {
+  sessionId: string;
+  title: string;
+  locale: string;
+  updatedAt: string;
+  messageCount: number;
+};
+
+export type ChatbotStoredMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  createdAt: string;
+  providers?: ChatbotSearchResult[];
+  suggestions?: string[];
+  fallback?: boolean;
+};
+
+export type ChatbotSessionDetail = {
+  session: ChatbotSessionMeta;
+  messages: ChatbotStoredMessage[];
 };
 
 export default apiClient;

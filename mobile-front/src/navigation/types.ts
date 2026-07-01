@@ -115,6 +115,7 @@ export type ClientStackParamList = {
   ClientPrivacy: undefined;
   ClientFaq: undefined;
   ClientContactUs: undefined;
+  ClientChatbot: { sessionId?: string } | undefined;
 };
 
 /** Client stack screens that do not require params (e.g. drawer / root shortcuts). */
@@ -136,6 +137,7 @@ export type ClientStackRouteWithoutParams = Exclude<
   | "ClientFavoritesList"
   | "NotificationDetail"
   | "ChatScreen"
+  | "ClientChatbot"
 >;
 
 export type ProviderStackParamList = {

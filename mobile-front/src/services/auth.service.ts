@@ -6,6 +6,7 @@ import * as SecureStore from "expo-secure-store";
 import { api } from "./api";
 import { UserRole, UserWithProfile } from "../types";
 import type { EmailSignUpResult } from "../types/auth.types";
+import { clearPendingLegalAcceptance } from "./legal-acceptance";
 
 // Storage keys
 const ACCESS_TOKEN_KEY = "accessToken";
@@ -18,6 +19,9 @@ function mapCompleteRegistrationBody(profileData: {
   firstName: string;
   lastName: string;
   role: UserRole | string;
+  legalAcceptances: {
+    documentVersionIds: string[];
+  };
   client?: {
     city: string;
     address?: string;
@@ -52,11 +56,21 @@ function mapCompleteRegistrationBody(profileData: {
     };
   };
 }) {
+  if (
+    !profileData.legalAcceptances?.documentVersionIds ||
+    profileData.legalAcceptances.documentVersionIds.length < 2
+  ) {
+    throw new Error(
+      "You must accept the Terms and Privacy Policy to complete registration",
+    );
+  }
+
   const base = {
     phoneNumber: profileData.phoneNumber,
     firstName: profileData.firstName,
     lastName: profileData.lastName,
     role: profileData.role,
+    legalAcceptances: profileData.legalAcceptances,
   };
 
   const role = String(profileData.role);
@@ -449,6 +463,8 @@ export const authService = {
     try {
       const body = mapCompleteRegistrationBody(profileData);
       const response = await api.completeRegistration(body);
+
+      await clearPendingLegalAcceptance();
 
       await SecureStore.setItemAsync(
         USER_KEY,

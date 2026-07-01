@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../services/supabase";
+import type { MessageStatus } from "../services/api";
 
 export type IncomingMessage = {
   id: string;
@@ -9,15 +10,35 @@ export type IncomingMessage = {
   text: string | null;
   mediaUrls: string[];
   createdAt: string;
-  status?: "SENT" | "DELIVERED" | "READ";
+  status?: MessageStatus;
+  editedAt?: string | null;
+  deletedAt?: string | null;
+};
+
+export type MessagesStatusPayload = {
+  messageIds: string[];
+  status: MessageStatus;
+};
+
+export type MessageWithdrawnPayload = {
+  id: string;
+  conversationId: string;
+  deletedAt: string | null;
+};
+
+export type ConversationRealtimeHandlers = {
+  onNewMessage: (msg: IncomingMessage) => void;
+  onMessagesStatus?: (payload: MessagesStatusPayload) => void;
+  onMessageUpdated?: (msg: IncomingMessage) => void;
+  onMessageWithdrawn?: (payload: MessageWithdrawnPayload) => void;
 };
 
 export function useConversationRealtime(
   conversationId: string | null,
-  onNewMessage: (msg: IncomingMessage) => void,
+  handlers: ConversationRealtimeHandlers,
 ) {
-  const callbackRef = useRef(onNewMessage);
-  callbackRef.current = onNewMessage;
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
 
   useEffect(() => {
     if (!conversationId) return;
@@ -25,7 +46,20 @@ export function useConversationRealtime(
     const channel = supabase
       .channel(`conversation:${conversationId}`)
       .on("broadcast", { event: "new_message" }, ({ payload }) => {
-        callbackRef.current(payload as IncomingMessage);
+        handlersRef.current.onNewMessage(payload as IncomingMessage);
+      })
+      .on("broadcast", { event: "messages_status" }, ({ payload }) => {
+        handlersRef.current.onMessagesStatus?.(
+          payload as MessagesStatusPayload,
+        );
+      })
+      .on("broadcast", { event: "message_updated" }, ({ payload }) => {
+        handlersRef.current.onMessageUpdated?.(payload as IncomingMessage);
+      })
+      .on("broadcast", { event: "message_withdrawn" }, ({ payload }) => {
+        handlersRef.current.onMessageWithdrawn?.(
+          payload as MessageWithdrawnPayload,
+        );
       })
       .subscribe();
 

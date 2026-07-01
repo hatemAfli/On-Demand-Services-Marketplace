@@ -17,6 +17,11 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { api } from "../../../services/api";
+import {
+  getCachedData,
+  invalidateCache,
+  peekCachedData,
+} from "../../../services/client-data-cache";
 
 type Props = NativeStackScreenProps<
   ClientStackParamList,
@@ -73,10 +78,23 @@ export const ClientFavoritesListScreen: React.FC<Props> = ({
   }, [navigation]);
 
   const load = useCallback(async () => {
+    const cacheKey = `favorites:${type}`;
     try {
       if (!refreshing) setLoading(true);
-      const res = await api.getClientFavorites({ type });
-      setItems((res.data?.items ?? []) as FavoriteItem[]);
+      if (!refreshing) {
+        const cached = peekCachedData<{ items: FavoriteItem[] }>(cacheKey);
+        if (cached?.items) setItems(cached.items);
+      }
+      const data = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await api.getClientFavorites({ type });
+          return { items: (res.data?.items ?? []) as FavoriteItem[] };
+        },
+        5 * 60 * 1000,
+        { forceRefresh: refreshing },
+      );
+      setItems(data.items);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -111,6 +129,8 @@ export const ClientFavoritesListScreen: React.FC<Props> = ({
     try {
       setBusyId(pendingRemove.id);
       await api.deleteClientFavorite(pendingRemove.type, pendingRemove.targetId);
+      await invalidateCache(`favorites:${pendingRemove.type}`);
+      await invalidateCache("favorites:");
       setItems((prev) => prev.filter((x) => x.id !== pendingRemove.id));
       setPendingRemove(null);
     } finally {
@@ -122,6 +142,8 @@ export const ClientFavoritesListScreen: React.FC<Props> = ({
     try {
       setClearing(true);
       await api.clearClientFavorites(type);
+      await invalidateCache(`favorites:${type}`);
+      await invalidateCache("favorites:");
       setItems([]);
       setClearModalVisible(false);
     } finally {

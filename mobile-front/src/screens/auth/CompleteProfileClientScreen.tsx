@@ -26,6 +26,9 @@ import {
   requestPhotoLibraryPermission,
   uploadClientProfileAvatar,
 } from "../../services/clientAvatarUpload";
+import { LegalAcceptanceField } from "../../components/auth/LegalAcceptanceField";
+import { useRegistrationLegalAcceptance } from "../../hooks/useRegistrationLegalAcceptance";
+import type { AuthStackParamList } from "../../navigation/types";
 
 const ACCENT = "#EA580C";
 const ACCENT_LIGHT = "#FFF7ED";
@@ -33,7 +36,7 @@ const ACCENT_BORDER = "#FDBA74";
 const SCREEN_BG = "#F1F5F9";
 
 interface CompleteProfileClientScreenProps {
-  navigation: NativeStackNavigationProp<any>;
+  navigation: NativeStackNavigationProp<AuthStackParamList>;
 }
 
 export const CompleteProfileClientScreen: React.FC<
@@ -42,6 +45,8 @@ export const CompleteProfileClientScreen: React.FC<
   const { completeRegistration } = useAuth();
   const { t, isRTL } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const legal = useRegistrationLegalAcceptance();
+  const [legalError, setLegalError] = useState<string | undefined>();
 
   const [formData, setFormData] = useState({
     phoneNumber: "",
@@ -138,6 +143,19 @@ export const CompleteProfileClientScreen: React.FC<
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
+    let legalAcceptances;
+    try {
+      legalAcceptances = legal.requireForSubmit();
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("auth.legalAcceptanceRequired");
+      setLegalError(message);
+      Alert.alert(t("common.error"), message);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const {
@@ -169,6 +187,7 @@ export const CompleteProfileClientScreen: React.FC<
         firstName: formData.firstName,
         lastName: formData.lastName,
         role: "CLIENT" as const,
+        legalAcceptances,
         client: {
           city: formData.city,
           address: formData.address || undefined,
@@ -311,6 +330,19 @@ export const CompleteProfileClientScreen: React.FC<
             { paddingBottom: Math.max(insets.bottom - 40, 4), paddingTop: 12 },
           ]}
         >
+          {legal.needsUi ? (
+            <LegalAcceptanceField
+              navigation={navigation}
+              accepted={legal.accepted}
+              onAcceptedChange={(value) => {
+                legal.setAccepted(value);
+                setLegalError(undefined);
+              }}
+              onVersionIdsReady={legal.setVersionIds}
+              error={legalError}
+            />
+          ) : null}
+
           <TouchableOpacity
             style={[
               styles.submitButton,

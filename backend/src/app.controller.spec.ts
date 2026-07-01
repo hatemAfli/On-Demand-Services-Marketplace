@@ -14,9 +14,10 @@ describe('AppController', () => {
     appController = app.get<AppController>(AppController);
   });
 
-  describe('root', () => {
-    it('should return hello message', () => {
-      expect(appController.getHello()).toEqual({ message: 'Hello' });
+  it('returns health status', () => {
+    expect(appController.getHealth()).toEqual({
+      status: 'ok',
+      service: 'serveme-api',
     });
   });
 });

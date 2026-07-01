@@ -23,12 +23,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { FontAwesome5 as Icon, Ionicons } from "@expo/vector-icons";
+import { COLORS } from "../../../constants";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
 import { useNotificationsRealtime } from "../../../context/NotificationsRealtimeContext";
 import { useAppTranslation } from "../../../hooks/useAppTranslation";
 import i18n from "../../../i18n";
-import { api, type AppointmentStatus } from "../../../services/api";
+import { api, type AppointmentStatus, type PopularNearbyItem } from "../../../services/api";
+import {
+  getCachedData,
+  peekCachedData,
+} from "../../../services/client-data-cache";
 import {
   ServiceDiscoveryCard,
   type ServiceCardDisplay,
@@ -300,38 +305,6 @@ type CategoryApi = {
   sortOrder: number;
 };
 
-type SearchProviderResultItem = {
-  givenServiceId: string;
-  serviceName: string;
-  averageRating: number;
-  owner: {
-    id: string;
-    type: "PROVIDER" | "COMPANY";
-    displayName: string;
-    photoUrl: string | null;
-    city: string;
-    latitude: number | null;
-    longitude: number | null;
-    isTopProvider: boolean;
-  };
-  isAvailableImmediately: boolean | null;
-};
-
-type PopularNearbyItem = {
-  ownerId: string;
-  ownerType: "PROVIDER" | "COMPANY";
-  givenServiceId: string;
-  serviceId: string;
-  serviceName: string;
-  displayName: string;
-  imageUrl: string | null;
-  city: string;
-  rating: number;
-  distanceKm: number | null;
-  isTopProvider: boolean;
-  isAvailableImmediately: boolean;
-};
-
 const FALLBACK_COLORS = [
   ACCENT,
   "#F59E0B",
@@ -389,23 +362,6 @@ function appointmentWeight(status: AppointmentStatus): number {
     default:
       return 1;
   }
-}
-
-function haversineKm(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const r = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return r * c;
 }
 
 const POPULAR_CAROUSEL_GAP = 14;
@@ -888,7 +844,7 @@ const popularCarouselStyles = StyleSheet.create({
 });
 
 export const ClientHomeScreen: React.FC = () => {
-  const { t, isRTL } = useAppTranslation();
+  const { t, isRTL, language } = useAppTranslation();
   const { user, session } = useAuth();
   const navigation =
     useNavigation<NativeStackNavigationProp<ClientStackParamList>>();
@@ -946,7 +902,13 @@ export const ClientHomeScreen: React.FC = () => {
 
   const loadRecommendations = useCallback(async () => {
     setRecommendedLoading(true);
+    const cacheKey = `home:recommendations:${session?.user?.id ?? "guest"}`;
+    const cached = peekCachedData<MarketplaceServiceItem[]>(cacheKey);
+    if (cached) setRecommendedItems(cached);
     try {
+      const selected = await getCachedData(
+        cacheKey,
+        async () => {
       const [servicesRes, historyRes, appointmentsRes] = await Promise.all([
         api.listServices(),
         api.getClientSearchHistory(),
@@ -1003,11 +965,14 @@ export const ClientHomeScreen: React.FC = () => {
         };
       });
 
-      const selected = scored
+      return scored
         .sort((a, b) => b.score - a.score)
         .slice(0, 3)
         .map((entry) => services.find((s) => s.id === entry.serviceId))
         .filter((x): x is MarketplaceServiceItem => Boolean(x));
+        },
+        5 * 60 * 1000,
+      );
 
       setRecommendedItems(selected);
     } catch {
@@ -1015,123 +980,47 @@ export const ClientHomeScreen: React.FC = () => {
     } finally {
       setRecommendedLoading(false);
     }
-  }, []);
+  }, [session?.user?.id]);
 
-  const loadPopularNearby = useCallback(async () => {
-    setPopularNearbyLoading(true);
+  const loadPopularNearby = useCallback(async (forceRefresh = false) => {
+    const userId = session?.user?.id ?? "guest";
+    let clientLat: number | undefined;
+    let clientLng: number | undefined;
+    if (session?.user?.id) {
+      const coords = await getStoredClientCoords(session.user.id);
+      if (coords) {
+        clientLat = coords.latitude;
+        clientLng = coords.longitude;
+      }
+    }
+
+    const cityKey =
+      (user?.client?.city ?? "unknown").trim().toLowerCase() || "unknown";
+    const latKey = clientLat != null ? clientLat.toFixed(2) : "na";
+    const lngKey = clientLng != null ? clientLng.toFixed(2) : "na";
+    const cacheKey = `home:popular:${userId}:${cityKey}:${latKey}:${lngKey}`;
+
+    const cached = peekCachedData<PopularNearbyItem[]>(cacheKey);
+    if (cached) {
+      setPopularNearbyItems(cached);
+      setPopularNearbyLoading(false);
+    } else {
+      setPopularNearbyLoading(true);
+    }
+
     try {
-      const [historyRes, appointmentsRes, servicesRes] = await Promise.all([
-        api.getClientSearchHistory(),
-        api.getMyAppointmentsAsClient(),
-        api.listServices(),
-      ]);
-      const history = Array.isArray(historyRes.data)
-        ? (historyRes.data as SearchHistoryItem[])
-        : [];
-      const appointments = Array.isArray(appointmentsRes.data)
-        ? appointmentsRes.data
-        : [];
-      const services = Array.isArray(servicesRes.data)
-        ? (servicesRes.data as MarketplaceServiceItem[])
-        : [];
-
-      const serviceSignals: string[] = [];
-      for (const item of history.slice(0, 8)) {
-        if (item.service?.id) serviceSignals.push(item.service.id);
-      }
-      for (const row of appointments) {
-        const a = normalizeClientHomeAppointment(row);
-        if (a?.givenServiceId) serviceSignals.push(a.givenServiceId);
-      }
-      if (serviceSignals.length === 0) {
-        serviceSignals.push(...services.slice(0, 3).map((s) => s.id));
-      }
-      const uniqServiceIds = [...new Set(serviceSignals)].slice(0, 4);
-
-      let clientLat: number | undefined;
-      let clientLng: number | undefined;
-      if (session?.user?.id) {
-        const coords = await getStoredClientCoords(session.user.id);
-        if (coords) {
-          clientLat = coords.latitude;
-          clientLng = coords.longitude;
-        }
-      }
-
-      const searchResponses = await Promise.all(
-        uniqServiceIds.map((serviceId) =>
-          api.searchProviders({
-            serviceId,
-            clientLat,
-            clientLng,
-            city: user?.client?.city ?? undefined,
-            sort: "RECOMMENDED",
-            page: 1,
-            limit: 6,
-          }),
-        ),
+      const items = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await api.getPopularNearby({ clientLat, clientLng });
+          return Array.isArray(res.data) ? res.data : [];
+        },
+        10 * 60 * 1000,
+        { forceRefresh },
       );
-
-      const byOwner = new Map<string, PopularNearbyItem>();
-      for (let i = 0; i < searchResponses.length; i += 1) {
-        const serviceId = uniqServiceIds[i];
-        const serviceName =
-          services.find((s) => s.id === serviceId)?.name ?? "Service";
-        const rows = Array.isArray((searchResponses[i].data as { items?: unknown[] })?.items)
-          ? ((searchResponses[i].data as { items?: unknown[] }).items as SearchProviderResultItem[])
-          : [];
-        for (const row of rows) {
-          const key = `${row.owner.type}:${row.owner.id}`;
-          const distanceKm =
-            clientLat != null &&
-            clientLng != null &&
-            row.owner.latitude != null &&
-            row.owner.longitude != null
-              ? haversineKm(
-                  clientLat,
-                  clientLng,
-                  row.owner.latitude,
-                  row.owner.longitude,
-                )
-              : null;
-          const mapped: PopularNearbyItem = {
-            ownerId: row.owner.id,
-            ownerType: row.owner.type,
-            givenServiceId: row.givenServiceId,
-            serviceId,
-            serviceName: row.serviceName || serviceName,
-            displayName: row.owner.displayName,
-            imageUrl: row.owner.photoUrl,
-            city: row.owner.city,
-            rating: Number(row.averageRating || 0),
-            distanceKm,
-            isTopProvider: Boolean(row.owner.isTopProvider),
-            isAvailableImmediately: Boolean(row.isAvailableImmediately),
-          };
-          const existing = byOwner.get(key);
-          if (!existing) {
-            byOwner.set(key, mapped);
-            continue;
-          }
-          const existingScore =
-            existing.rating * 10 - (existing.distanceKm ?? 5) + (existing.isTopProvider ? 1 : 0);
-          const nextScore =
-            mapped.rating * 10 - (mapped.distanceKm ?? 5) + (mapped.isTopProvider ? 1 : 0);
-          if (nextScore > existingScore) byOwner.set(key, mapped);
-        }
-      }
-
-      const picked = [...byOwner.values()]
-        .sort((a, b) => {
-          const dA = a.distanceKm ?? 999;
-          const dB = b.distanceKm ?? 999;
-          if (dA !== dB) return dA - dB;
-          return b.rating - a.rating;
-        })
-        .slice(0, 5);
-      setPopularNearbyItems(picked);
+      setPopularNearbyItems(items);
     } catch {
-      setPopularNearbyItems([]);
+      if (!cached) setPopularNearbyItems([]);
     } finally {
       setPopularNearbyLoading(false);
     }
@@ -1139,15 +1028,25 @@ export const ClientHomeScreen: React.FC = () => {
 
   const loadCategories = useCallback(async () => {
     setCategoriesError(null);
+    const cacheKey = `home:categories:${language.startsWith("ar") ? "ar" : "en"}`;
+    const cached = peekCachedData<CategoryApi[]>(cacheKey);
+    if (cached) setCategories(cached);
     try {
-      const res = await api.listServiceCategories();
-      setCategories(res.data as CategoryApi[]);
+      const data = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await api.listServiceCategories();
+          return res.data as CategoryApi[];
+        },
+        10 * 60 * 1000,
+      );
+      setCategories(data);
     } catch {
       setCategoriesError(t("client.home.categoriesLoadError"));
     } finally {
       setCategoriesLoading(false);
     }
-  }, [t]);
+  }, [language, t]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -1202,7 +1101,7 @@ export const ClientHomeScreen: React.FC = () => {
   }, [categoriesRefreshSignal, loadRecommendations]);
 
   useEffect(() => {
-    if (categoriesRefreshSignal > 0) void loadPopularNearby();
+    if (categoriesRefreshSignal > 0) void loadPopularNearby(true);
   }, [categoriesRefreshSignal, loadPopularNearby]);
 
   useEffect(() => {
@@ -1622,6 +1521,15 @@ export const ClientHomeScreen: React.FC = () => {
           {renderPopularSection()}
           <View style={{ height: 24 }} />
         </ScrollView>
+
+        <Pressable
+          style={styles.chatFab}
+          onPress={() => navigation.navigate("ClientChatbot")}
+          accessibilityRole="button"
+          accessibilityLabel={t("client.chatbot.fabLabel")}
+        >
+          <Ionicons name="sparkles" size={26} color="#FFFFFF" />
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -1716,6 +1624,24 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
   searchMicWrap: { flexShrink: 0 },
+
+  chatFab: {
+    position: "absolute",
+    right: 20,
+    bottom: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
 
   mainContent: { flex: 1 },
 

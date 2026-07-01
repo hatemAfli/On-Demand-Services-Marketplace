@@ -6,4 +6,3 @@ export { ClientChangePasswordScreen } from "./ClientChangePasswordScreen";
 export { ClientSavedAddressesScreen } from "./ClientSavedAddressesScreen";
 export { ClientDeleteAccountScreen } from "./ClientDeleteAccountScreen";
 export { SettingsRow } from "./SettingsRow";
-export { styles as clientSettingsStyles } from "./styles";

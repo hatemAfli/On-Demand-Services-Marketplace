@@ -101,19 +101,3 @@ export const handleAuthDeepLink = async (url: string): Promise<boolean> => {
     return false;
   }
 };
-
-// Helper function to test connection
-export const testSupabaseConnection = async () => {
-  try {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) {
-      console.error("❌ Supabase connection failed:", error.message);
-      return false;
-    }
-    console.log("✅ Supabase connected successfully");
-    return true;
-  } catch (error) {
-    console.error("❌ Supabase connection error:", error);
-    return false;
-  }
-};

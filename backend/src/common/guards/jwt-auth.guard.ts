@@ -24,29 +24,13 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     if (isPublic) {
       return true;
     }
-
-    console.log('\n🛡️  JwtAuthGuard - canActivate() called');
-    const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers.authorization;
-    console.log(
-      '   Authorization header:',
-      authHeader ? authHeader.substring(0, 30) + '...' : 'MISSING ❌',
-    );
     return super.canActivate(context);
   }
 
-  handleRequest(err: any, user: any, info: any) {
-    console.log('\n🛡️  JwtAuthGuard - handleRequest() called');
-    console.log('   Error:', err);
-    console.log('   User:', user);
-    console.log('   Info:', info);
-
+  handleRequest<TUser>(err: Error | null, user: TUser) {
     if (err || !user) {
-      console.log('   ❌ Authentication failed');
       throw err || new UnauthorizedException('Authentication failed');
     }
-
-    console.log('   ✅ Authentication successful');
     return user;
   }
 }

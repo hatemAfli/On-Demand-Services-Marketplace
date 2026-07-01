@@ -277,6 +277,7 @@ export class ReviewsService {
   ): Promise<{
     canReview: boolean;
     alreadyReviewed: boolean;
+    existingReviewId: string | null;
     existingRating: number | null;
     existingComment: string | null;
   }> {
@@ -295,6 +296,7 @@ export class ReviewsService {
       return {
         canReview: false,
         alreadyReviewed: false,
+        existingReviewId: null,
         existingRating: null,
         existingComment: null,
       };
@@ -305,12 +307,13 @@ export class ReviewsService {
 
     const existing = await this.prisma.review.findUnique({
       where: { appointmentId },
-      select: { rating: true, comment: true },
+      select: { id: true, rating: true, comment: true },
     });
 
     return {
       canReview: isOwner && isCompleted && !existing,
       alreadyReviewed: !!existing,
+      existingReviewId: existing?.id ?? null,
       existingRating: existing?.rating ?? null,
       existingComment: existing?.comment?.trim() || null,
     };

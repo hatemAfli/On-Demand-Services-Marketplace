@@ -55,7 +55,7 @@ export const AdminChangePhoneScreen: React.FC<Props> = ({ navigation }) => {
     setError(undefined);
     setSaving(true);
     try {
-      await api.updateMyIdentity({ phoneNumber: normalized });
+      await api.updateAdminMe({ phoneNumber: normalized });
       await refreshUser();
       setNotice({
         visible: true,

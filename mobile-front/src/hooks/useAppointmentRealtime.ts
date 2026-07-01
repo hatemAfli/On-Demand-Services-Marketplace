@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../services/supabase";
 
 /** Subscribe to live appointment updates on `appointment:{appointmentId}`. */
 export function useAppointmentRealtime(

@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Patch,
   Post,
   Query,
@@ -16,9 +18,11 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { GetMessagesDto } from './dto/get-messages.dto';
+import { MarkMessagesDeliveredDto } from './dto/mark-delivered.dto';
 import { MarkConversationReadDto } from './dto/mark-read.dto';
 import { OpenOrCreateConversationDto } from './dto/open-or-create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { UpdateMessageDto } from './dto/update-message.dto';
 import {
   MessagingRole,
   MessagingService,
@@ -83,6 +87,16 @@ export class MessagingController {
     );
   }
 
+  @Patch('messages/delivered')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles(UserRole.CLIENT, UserRole.PROVIDER)
+  async markDelivered(
+    @Req() req: Request & { user: RequestUser },
+    @Body() dto: MarkMessagesDeliveredDto,
+  ): Promise<void> {
+    await this.messagingService.markDelivered(req.user.id, dto);
+  }
+
   @Patch('messages/read')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles(UserRole.CLIENT, UserRole.PROVIDER)
@@ -96,5 +110,28 @@ export class MessagingController {
       this.messagingRole(user.role),
       dto,
     );
+  }
+
+  @Patch('messages/:id')
+  @Roles(UserRole.CLIENT, UserRole.PROVIDER)
+  updateMessage(
+    @Req() req: Request & { user: RequestUser },
+    @Param('id') messageId: string,
+    @Body() dto: UpdateMessageDto,
+  ) {
+    return this.messagingService.updateMessage(
+      req.user.id,
+      messageId,
+      dto.text,
+    );
+  }
+
+  @Delete('messages/:id')
+  @Roles(UserRole.CLIENT, UserRole.PROVIDER)
+  withdrawMessage(
+    @Req() req: Request & { user: RequestUser },
+    @Param('id') messageId: string,
+  ) {
+    return this.messagingService.withdrawMessage(req.user.id, messageId);
   }
 }

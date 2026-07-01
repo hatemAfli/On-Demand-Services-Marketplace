@@ -16,9 +16,10 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { resolveLocale } from '../../common/i18n/locale';
 import { AddClientSearchHistoryDto } from './dto/add-client-search-history.dto';
-import { CreateClientDto } from './dto/create-client.dto';
 import { SoftDeleteClientDto } from './dto/soft-delete-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
+import { ClientHomeService } from './client-home.service';
+import { PopularNearbyQueryDto } from './dto/popular-nearby-query.dto';
 import { ClientsService } from './clients.service';
 
 type AuthUser = { id: string };
@@ -27,21 +28,29 @@ type AuthUser = { id: string };
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.CLIENT)
 export class ClientsController {
-  constructor(private readonly clientsService: ClientsService) {}
-
-  @Get('me')
-  getMe(@CurrentUser() user: AuthUser) {
-    return this.clientsService.getMe(user.id);
-  }
-
-  @Post('me')
-  createMe(@CurrentUser() user: AuthUser, @Body() dto: CreateClientDto) {
-    return this.clientsService.createMe(user.id, dto);
-  }
+  constructor(
+    private readonly clientsService: ClientsService,
+    private readonly clientHomeService: ClientHomeService,
+  ) {}
 
   @Patch('me')
   updateMe(@CurrentUser() user: AuthUser, @Body() dto: UpdateClientDto) {
     return this.clientsService.updateMe(user.id, dto);
+  }
+
+  @Get('me/home/popular-nearby')
+  getPopularNearby(
+    @CurrentUser() user: AuthUser,
+    @Query() query: PopularNearbyQueryDto,
+    @Headers('accept-language') acceptLanguage?: string,
+  ) {
+    const locale = resolveLocale(query.lang, acceptLanguage);
+    return this.clientHomeService.getPopularNearby(
+      user.id,
+      locale,
+      query.clientLat,
+      query.clientLng,
+    );
   }
 
   @Get('me/search-history')

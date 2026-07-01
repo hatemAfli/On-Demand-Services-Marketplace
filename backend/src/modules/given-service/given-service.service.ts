@@ -16,6 +16,7 @@ import { SupabaseService } from '../../config/supabase.config';
 import { RemoveProviderGalleryImageDto } from './dto/remove-provider-gallery-image.dto';
 import { UpdateProviderGivenServiceDto } from './dto/update-provider-given-service.dto';
 import { UpdateProviderServiceGalleryDto } from './dto/update-provider-service-gallery.dto';
+import { EmbeddingsService } from '../embeddings/embeddings.service';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -26,6 +27,7 @@ export class GivenServiceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
+    private readonly embeddingsService: EmbeddingsService,
   ) {}
 
   async createPendingForOwner(
@@ -476,9 +478,11 @@ export class GivenServiceService {
       throw new BadRequestException('No data to update');
     }
 
-    return this.prisma.givenService.update({
+    const updated = await this.prisma.givenService.update({
       where: { id: existing.id },
       data,
     });
+    this.embeddingsService.scheduleSync(updated.id);
+    return updated;
   }
 }

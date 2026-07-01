@@ -59,7 +59,7 @@ export const AdminEditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
     setSaving(true);
     try {
-      await api.updateMyIdentity({
+      await api.updateAdminMe({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
       });

@@ -2,9 +2,7 @@ import {
   Body,
   Controller,
   DefaultValuePipe,
-  Delete,
   Get,
-  Param,
   ParseIntPipe,
   Patch,
   Post,
@@ -27,15 +25,6 @@ export class NotificationsController {
   @Post('push-token')
   async registerPushToken(@CurrentUser() user: AuthUser, @Body() dto: RegisterPushTokenDto) {
     await this.notificationsService.registerPushToken(user.id, dto);
-    return { ok: true };
-  }
-
-  @Delete('push-token/:token')
-  async unregisterPushToken(@CurrentUser() user: AuthUser, @Param('token') token: string) {
-    await this.notificationsService.unregisterPushToken(
-      user.id,
-      decodeURIComponent(token),
-    );
     return { ok: true };
   }
 

@@ -138,6 +138,9 @@ export const LegalMarkdownRenderer: React.FC<LegalMarkdownRendererProps> = ({
   );
 };
 
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+
 const styles = StyleSheet.create({
   wrapper: {
     gap: 10,
@@ -146,7 +149,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     lineHeight: 30,
     fontWeight: "800",
-    color: "#111827",
+    color: "#0F172A",
     marginTop: 6,
     marginBottom: 4,
   },
@@ -154,7 +157,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 27,
     fontWeight: "700",
-    color: "#111827",
+    color: ACCENT_DARK,
     marginTop: 8,
     marginBottom: 2,
   },
@@ -162,7 +165,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 24,
     fontWeight: "700",
-    color: "#1F2937",
+    color: "#9A3412",
     marginTop: 6,
   },
   paragraph: {
@@ -182,8 +185,9 @@ const styles = StyleSheet.create({
   bullet: {
     fontSize: 17,
     lineHeight: 24,
-    color: "#111827",
+    color: ACCENT,
     marginTop: -1,
+    fontWeight: "700",
   },
   listItemText: {
     flex: 1,

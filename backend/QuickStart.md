@@ -1,226 +1,170 @@
-# Quick Start Guide - Service Platform Backend
+# Backend — Quick Start
 
-## 📋 Prerequisites
-
-Before starting, ensure you have:
-
-```bash
-# Check Node.js version (should be 18+)
-node --version
-
-# Check npm
-npm --version
-
-# Check git
-git --version
-```
-
-If missing, install:
-
-- Node.js: https://nodejs.org/ (LTS version)
-- Git: https://git-scm.com/
+Get the API running in a few minutes.
 
 ---
 
-## 🚀 Quick Setup (5 Minutes)
-
-### Step 1: Clone Repository
+## 1. Prerequisites
 
 ```bash
-git clone [repository-url]
-cd service-platform-backend
+node --version   # 18+
+npm --version
 ```
 
-### Step 2: Install Dependencies
+Install [Node.js LTS](https://nodejs.org/) if missing.
+
+Start **Redis** (required):
 
 ```bash
+docker run -d --name serveme-redis -p 6379:6379 redis:7-alpine
+```
+
+---
+
+## 2. Install
+
+From the monorepo root:
+
+```bash
+cd backend
 npm install
 ```
 
-This installs all required packages including NestJS, Prisma, and authentication libraries.
+---
 
-### Step 3: Configure Environment
-
-Create `.env` file in the project root:
+## 3. Configure environment
 
 ```bash
 cp .env.example .env
 ```
 
-The file should contain:
+Edit `.env` with your Supabase credentials:
 
 ```env
-# Database
-DATABASE_URL="postgresql://..."
-DIRECT_URL="postgresql://..."
+DATABASE_URL="postgresql://postgres.[REF]:[PASSWORD]@[HOST]:6543/postgres?pgbouncer=true&connection_limit=1"
+DIRECT_URL="postgresql://postgres.[REF]:[PASSWORD]@[HOST]:5432/postgres"
 
-# Supabase
-SUPABASE_URL="https://..."
-SUPABASE_ANON_KEY="eyJ..."
-SUPABASE_SERVICE_ROLE_KEY="eyJ..."
-SUPABASE_JWT_SECRET="..."
+SUPABASE_URL=https://[PROJECT].supabase.co
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_JWT_SECRET=
 
-# Application
 PORT=3000
 NODE_ENV=development
 
-# JWT
-JWT_SECRET="The_same_as_SUPABASE_JWT_SECRET"
+JWT_SECRET=          # same value as SUPABASE_JWT_SECRET
 JWT_EXPIRATION=7d
+
+REDIS_URL=redis://localhost:6379
 ```
 
-### Step 4: Setup Database
+Ask the project owner for these values if you do not have a Supabase project yet.
+
+---
+
+## 4. Database setup
 
 ```bash
-# Generate Prisma Client
 npx prisma generate
-
-# Create database tables
-npx prisma db push
+npx prisma migrate deploy
 ```
 
-### Step 5: Start Application
+Optional seeds:
+
+```bash
+npm run db:seed:faq
+npm run db:seed:providers
+```
+
+---
+
+## 5. Start the server
 
 ```bash
 npm run start:dev
 ```
 
-**Expected output:**
+Expected output:
 
 ```
-✅ Database connected successfully
-🚀 Server is running on: http://localhost:3000/api
+Server is running on: http://localhost:3000/api
+LAN access: use your machine IP on port 3000 (mobile / Expo Go)
 ```
+
+Verify in a browser: `http://localhost:3000/api`
 
 ---
 
-## ✅ Verify Installation
+## 6. Verify
 
-### Test 1: Check Server
+| Check | How |
+|-------|-----|
+| API is up | Open `http://localhost:3000/api` |
+| Database | `npx prisma studio` → `http://localhost:5555` |
+| Mobile can connect | Start `mobile-front` on same Wi‑Fi; backend listens on `0.0.0.0` |
 
-Open browser: `http://localhost:3000`
+---
 
-### Test 2: View Database
+## Common commands
 
 ```bash
-npx prisma studio
-```
-
-Opens browser at `http://localhost:5555` - you can browse database tables.
-
----
-
----
-
-## 🔧 Common Commands
-
-```bash
-# Start development server
-npm run start:dev
-
-# Build for production
-npm run build
-
-# Run production build
-npm run start:prod
-
-# View database (Prisma Studio)
-npx prisma studio
-
-# Generate Prisma client (after schema changes)
-npx prisma generate
-
-# Apply schema changes to database
-npx prisma db push
-
-# View logs
-# (just check terminal where npm run start:dev is running)
+npm run start:dev      # Development (watch mode)
+npm run build          # Production build
+npm run start:prod     # Run production build
+npx prisma studio      # Database browser
+npx prisma generate    # After schema.prisma changes
+npx prisma migrate deploy
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### Issue: "Cannot connect to database"
+### Cannot connect to database
 
-**Solution:**
+- Check `DATABASE_URL` and `DIRECT_URL` in `.env`
+- Ensure the Supabase project is not paused
+- Test network access to the Supabase host
 
-1. Check `.env` has correct `DATABASE_URL`
-2. Check internet connection
-3. Verify Supabase project is not paused
+### `EPERM` on `npx prisma generate`
 
----
+Stop the running dev server (`Ctrl+C`), then run `npx prisma generate` again.
 
-### Issue: "Unauthorized" when calling API
+### Port 3000 already in use
 
-**Solution:**
+**Windows:**
 
-1. Token may be expired (expires after 1 hour)
-2. Get fresh token by logging in again
-3. Check token format: `Bearer [token]` not just `[token]`
+```powershell
+netstat -ano | findstr :3000
+```
 
----
+Kill the process or set `PORT=3001` in `.env`.
 
-### Issue: "Module not found"
+### 401 Unauthorized on API calls
 
-**Solution:**
+- Token expired — log in again in the client app
+- Header must be `Authorization: Bearer <token>`
+- `SUPABASE_JWT_SECRET` must match the Supabase project
+
+### Redis connection errors
+
+- Start Redis: `docker run -d -p 6379:6379 redis:7-alpine`
+- Set `REDIS_URL=redis://localhost:6379` in `.env`
+- Restart the backend
+
+### Module not found
 
 ```bash
-# Delete and reinstall
 rm -rf node_modules package-lock.json
 npm install
 ```
 
----
-
-### Issue: Server won't start
-
-**Solution:**
-
-1. Check if port 3000 is already in use
-2. Kill existing process:
-   - Windows: `netstat -ano | findstr :3000`
-   - Mac/Linux: `lsof -ti:3000 | xargs kill`
-3. Or change PORT in `.env` to 3001
+On Windows PowerShell, delete `node_modules` manually then run `npm install`.
 
 ---
 
-### External Resources
+## Next steps
 
-- [NestJS Docs](https://docs.nestjs.com/)
-- [Prisma Docs](https://www.prisma.io/docs)
-- [Supabase Docs](https://supabase.com/docs)
-
----
-
-## 📈 Next Development Phases
-
-### Immediate Next
-
-- User profile update endpoints
-- Provider/company validation by admin
-
-### Supabase Storage buckets (mobile uploads)
-
-| Bucket | Purpose | Policies SQL |
-|--------|---------|----------------|
-| `avatars` | Client profile photos | `mobile-front/supabase/storage-policies-avatars.sql` |
-| `provider-documents` | Provider verification files | (dashboard / project docs) |
-| `service_photos` | Service catalog images | `backend/supabase/storage-service-photos-policies.sql` |
-| `gallery` | Provider service catalog gallery only | (configure in dashboard) |
-| **`chat-attachments`** | **Client ↔ provider chat message images** | **`backend/supabase/storage-chat-attachments-policies.sql`** |
-| **`appointment-request-photos`** | **Client photos on booking requests** | **`backend/supabase/storage-appointment-request-photos-policies.sql`** |
-| **`appointment-intervention-photos`** | **Provider before/after intervention photos** | **`backend/supabase/storage-appointment-intervention-photos-policies.sql`** |
-| **`complaints_photos`** | **Client complaint evidence photos** | **`backend/supabase/storage-complaints-photos-policies.sql`** |
-
-**Booking request photos:** create public bucket `appointment-request-photos`, run the policies SQL, then clients upload to  
-`clients/<userId>/batches/<batchId>/…` before `POST /appointments`. URLs are stored on `appointments.photo_urls` and shown to the provider on the appointment detail screen.
-
-**Intervention photos (before/after):** create public bucket `appointment-intervention-photos`, run the policies SQL. Providers upload to  
-`providers/<providerUserId>/appointments/<appointmentId>/before|after/…` on START/END execution. URLs are stored on `appointments.before_photo_urls` and `appointments.after_photo_urls` for the client, **platform admin**, and **company admin** (employee providers) via the API.
-
-**Chat attachments:** create public bucket `chat-attachments`, run the policies SQL. Mobile uploads to  
-`conversations/<conversationId>/<senderUserId>/…` before `POST` messaging send. URLs are stored on `messages.media_urls`.
-
-**Complaint evidence photos:** create public bucket `complaints_photos`, run the policies SQL. Clients upload to  
-`appointments/<appointmentId>/clients/<userId>/evidence/<batchId>/…` before `POST /complaints`. URLs are stored on `complaints.evidence_urls` and shown to the **client**, **targeted provider**, and **platform/company admins**.
+1. Start the **mobile app**: `../mobile-front/QuickStart.md`
+2. Start the **web admin**: `../web-front/QuickStart.md`
+3. Optional **chatbot**: `../chatbot/README.md`

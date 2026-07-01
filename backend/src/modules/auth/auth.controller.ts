@@ -1,9 +1,10 @@
-import { Controller, Post, Get, Patch, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole, ProviderType, DocumentType } from '@prisma/client';
-import { UpdateUserIdentityDto } from '../accounts/dto/update-user-identity.dto';
+import { clientIp } from '../../common/utils/client-ip';
+import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -13,81 +14,31 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async completeRegistration(
     @CurrentUser() user: any,
-    @Body()
-    body: {
-      phoneNumber?: string;
-      firstName: string;
-      lastName: string;
-      role: UserRole;
-      client?: {
-        city: string;
-        address?: string;
-        imageUrl?: string;
-      };
-      provider?: {
-        type?: ProviderType;
-        city: string;
-        address?: string;
-        latitude?: number;
-        longitude?: number;
-        photoUrl?: string;
-        companyId?: string;
-        verification?: {
-          serviceId: string;
-          documents: Array<{
-            type: DocumentType;
-            fichierUrl: string;
-          }>;
-        };
-      };
-      companyAdmin?: {
-        company: {
-          companyName: string;
-          taxId: string;
-          city: string;
-          address?: string;
-          latitude?: number;
-          longitude?: number;
-          serviceZones?: string[];
-          logo?: string;
-        };
-        verification: {
-          documents: Array<{
-            type: DocumentType;
-            fichierUrl: string;
-          }>;
-        };
-      };
-    },
+    @Body() body: CompleteRegistrationDto,
+    @Req() req: Request,
   ) {
-    console.log('\n✅ Controller - completeRegistration() reached');
-    console.log('   User from token:', user);
-    console.log('   Body:', body);
-    return this.authService.completeRegistration(user.id, {
-      email: user.tokenEmail ?? user.email,
-      isEmailVerified: user?.isEmailVerified === true,
-      ...body,
-    });
+    const userAgent = req.headers['user-agent'];
+    return this.authService.completeRegistration(
+      user.id,
+      {
+        email: user.tokenEmail ?? user.email,
+        isEmailVerified: user?.isEmailVerified === true,
+        ...body,
+      },
+      {
+        ipAddress: clientIp(req),
+        userAgent: typeof userAgent === 'string' ? userAgent : undefined,
+      },
+    );
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async getCurrentUser(@CurrentUser() user: any) {
-    console.log('\n✅ Controller - getCurrentUser() reached');
-    console.log('   User:', user);
     return this.authService.getCurrentUser({
       id: user.id,
       email: user.tokenEmail ?? user.email,
     });
-  }
-
-  @Patch('me/identity')
-  @UseGuards(JwtAuthGuard)
-  async updateIdentity(
-    @CurrentUser() user: { id: string },
-    @Body() dto: UpdateUserIdentityDto,
-  ) {
-    return this.authService.updateIdentity(user.id, dto);
   }
 
   @Post('magic-login/lookup')
@@ -102,15 +53,5 @@ export class AuthController {
     @Body() body: { email: string },
   ) {
     return this.authService.checkEmailChangeAvailability(user.id, body);
-  }
-
-  @Post('verify-token')
-  async verifyToken(@Body() body: { token: string }) {
-    try {
-      const user = await this.authService.verifySupabaseToken(body.token);
-      return { valid: true, user };
-    } catch (error) {
-      return { valid: false, error: error.message };
-    }
   }
 }

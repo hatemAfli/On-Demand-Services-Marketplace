@@ -2,15 +2,23 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
-  StyleSheet,
+  StatusBar,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { api } from "../../services/api";
 import { LegalMarkdownRenderer } from "../../components/common/LegalMarkdownRenderer";
+import {
+  LEGAL_ACCENT,
+  legalScreenStyles as styles,
+} from "./legalScreenUi";
 
 interface TermsScreenProps {
   navigation: { goBack: () => void };
@@ -18,6 +26,7 @@ interface TermsScreenProps {
 
 export const TermsScreen: React.FC<TermsScreenProps> = ({ navigation }) => {
   const { isRTL, t, language } = useAppTranslation();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState<string | null>(null);
   const [title, setTitle] = useState<string | null>(null);
@@ -50,35 +59,58 @@ export const TermsScreen: React.FC<TermsScreenProps> = ({ navigation }) => {
     };
   }, [language, t]);
 
+  const displayTitle =
+    title ?? t("legal.termsTitle", { defaultValue: "Terms & Conditions" });
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <StatusBar barStyle="dark-content" />
+
+      <View style={[styles.topBackContainer, { top: insets.top + 6 }]}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
+          activeOpacity={0.8}
         >
-          <Text style={styles.back}>← {t("common.back")}</Text>
+          <Text style={styles.back}>
+            {isRTL ? "→" : "←"} {t("common.back")}
+          </Text>
         </TouchableOpacity>
-        <Text style={[styles.title, isRTL && styles.rtl]}>
-          {title ??
-            t("legal.termsTitle", { defaultValue: "Terms & Conditions" })}
-        </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.card}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.content}>
+          <View style={styles.headerRow}>
+            <View style={styles.iconWrap}>
+              <Ionicons name="document-text-outline" size={22} color={LEGAL_ACCENT} />
+            </View>
+            <View style={styles.titleWrap}>
+              <Text style={[styles.title, isRTL && styles.rtl]}>{displayTitle}</Text>
+              <Text style={[styles.subtitle, isRTL && styles.rtl]}>
+                {t("legal.termsSubtitle", {
+                  defaultValue: "Please read our terms before using the app.",
+                })}
+              </Text>
+            </View>
+          </View>
+
           {loading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator color="#111827" />
-              <Text style={styles.loadingText}>Loading latest terms...</Text>
+              <ActivityIndicator color={LEGAL_ACCENT} size="large" />
+              <Text style={styles.loadingText}>
+                {t("legal.loadingTerms", {
+                  defaultValue: "Loading latest terms...",
+                })}
+              </Text>
             </View>
           ) : (
             <>
               {error ? (
                 <View style={styles.errorBox}>
-                  <Text style={[styles.error, isRTL && styles.rtl]}>
-                    {error}
-                  </Text>
+                  <Text style={[styles.error, isRTL && styles.rtl]}>{error}</Text>
                 </View>
               ) : null}
               <LegalMarkdownRenderer
@@ -92,44 +124,3 @@ export const TermsScreen: React.FC<TermsScreenProps> = ({ navigation }) => {
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#FFFFFF" },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  backButton: {
-    alignSelf: "flex-start",
-    paddingVertical: 4,
-    paddingRight: 8,
-  },
-  back: { color: "#111827", fontSize: 15, fontWeight: "600" },
-  title: {
-    color: "#111827",
-    fontSize: 26,
-    fontWeight: "800",
-    marginTop: 20,
-  },
-  content: { padding: 20, paddingTop: 4 },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 16,
-  },
-  loadingWrap: { alignItems: "center", paddingVertical: 24, gap: 10 },
-  loadingText: { color: "#6B7280", fontSize: 13 },
-  errorBox: {
-    borderRadius: 10,
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    padding: 10,
-    marginBottom: 12,
-  },
-  error: { color: "#B91C1C", lineHeight: 20, fontSize: 13 },
-  rtl: { textAlign: "right", writingDirection: "rtl" },
-});

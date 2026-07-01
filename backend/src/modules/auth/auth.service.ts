@@ -12,10 +12,10 @@ import {
   OwnerType,
   ReviewStatus,
   DocumentType,
+  LegalDocumentStatus,
+  LegalDocumentType,
 } from '@prisma/client';
 import { GivenServiceService } from '../given-service/given-service.service';
-import { UserAccountService } from '../accounts/user-account.service';
-import { UpdateUserIdentityDto } from '../accounts/dto/update-user-identity.dto';
 
 @Injectable()
 export class AuthService {
@@ -23,7 +23,6 @@ export class AuthService {
     private prisma: PrismaService,
     private supabase: SupabaseService,
     private readonly givenServiceService: GivenServiceService,
-    private readonly userAccountService: UserAccountService,
   ) {}
 
   async completeRegistration(
@@ -35,6 +34,9 @@ export class AuthService {
       firstName: string;
       lastName: string;
       role: UserRole;
+      legalAcceptances: {
+        documentVersionIds: string[];
+      };
 
       client?: {
         city: string;
@@ -79,11 +81,19 @@ export class AuthService {
         };
       };
     },
+    audit?: {
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ) {
     // SECURITY: prevent self-registering as platform admin
     if (data.role === UserRole.PLATFORM_ADMIN) {
       throw new BadRequestException('Invalid role selection');
     }
+
+    const acceptedVersionIds = await this.validateRegistrationLegalAcceptances(
+      data.legalAcceptances?.documentVersionIds,
+    );
 
     // Check if user already exists in users table
     const existingUser = await this.prisma.user.findUnique({
@@ -280,6 +290,17 @@ export class AuthService {
         }
       }
 
+      for (const documentVersionId of acceptedVersionIds) {
+        await tx.userLegalAcceptance.create({
+          data: {
+            userId: created.id,
+            documentVersionId,
+            ipAddress: audit?.ipAddress ?? null,
+            userAgent: audit?.userAgent ?? null,
+          },
+        });
+      }
+
       return created;
     });
 
@@ -361,8 +382,49 @@ export class AuthService {
     return user;
   }
 
-  async verifySupabaseToken(token: string) {
-    return await this.supabase.verifyToken(token);
+  private async validateRegistrationLegalAcceptances(
+    documentVersionIds: string[] | undefined,
+  ): Promise<string[]> {
+    if (!Array.isArray(documentVersionIds) || documentVersionIds.length < 2) {
+      throw new BadRequestException(
+        'Terms and Privacy Policy acceptance is required',
+      );
+    }
+
+    const uniqueIds = [...new Set(documentVersionIds.map((id) => id.trim()))];
+    if (uniqueIds.length !== 2) {
+      throw new BadRequestException(
+        'You must accept both the Terms and Privacy Policy',
+      );
+    }
+
+    const versions = await this.prisma.legalDocumentVersion.findMany({
+      where: {
+        id: { in: uniqueIds },
+        status: LegalDocumentStatus.PUBLISHED,
+      },
+      include: {
+        document: { select: { type: true } },
+      },
+    });
+
+    if (versions.length !== 2) {
+      throw new BadRequestException(
+        'One or more legal documents are invalid or no longer published',
+      );
+    }
+
+    const acceptedTypes = new Set(versions.map((v) => v.document.type));
+    if (
+      !acceptedTypes.has(LegalDocumentType.TERMS) ||
+      !acceptedTypes.has(LegalDocumentType.PRIVACY)
+    ) {
+      throw new BadRequestException(
+        'You must accept the latest Terms and Privacy Policy',
+      );
+    }
+
+    return versions.map((v) => v.id);
   }
 
   async lookupMagicLoginAccount(data: { email: string }) {
@@ -408,8 +470,4 @@ export class AuthService {
     return { available: true };
   }
 
-  async updateIdentity(userId: string, dto: UpdateUserIdentityDto) {
-    await this.userAccountService.updateUserIdentity(userId, dto);
-    return this.getCurrentUser({ id: userId });
-  }
 }

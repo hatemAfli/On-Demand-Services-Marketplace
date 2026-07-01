@@ -1,12 +1,9 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
-  Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -29,7 +26,6 @@ import { CompanySettingsService } from './company-settings.service';
 import { ListAuditLogsDto } from './dto/list-audit-logs.dto';
 import { UpdateCompanyBrandingDto } from './dto/update-company-branding.dto';
 import { UpdateCompanyProfileDto } from './dto/update-company-profile.dto';
-import { UpsertBranchDto } from './dto/upsert-branch.dto';
 import { clientIp } from '../../../common/utils/client-ip';
 
 type AuthUser = { id: string; role: UserRole };
@@ -88,39 +84,6 @@ export class CompanySettingsController {
       );
     }
     return this.service.uploadLogo(user.id, file, clientIp(req));
-  }
-
-  @Get('branches')
-  listBranches(@CurrentUser() user: AuthUser) {
-    return this.service.listBranches(user.id);
-  }
-
-  @Post('branches')
-  createBranch(
-    @CurrentUser() user: AuthUser,
-    @Body() dto: UpsertBranchDto,
-    @Req() req: Request,
-  ) {
-    return this.service.createBranch(user.id, dto, clientIp(req));
-  }
-
-  @Patch('branches/:id')
-  updateBranch(
-    @CurrentUser() user: AuthUser,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpsertBranchDto,
-    @Req() req: Request,
-  ) {
-    return this.service.updateBranch(user.id, id, dto, clientIp(req));
-  }
-
-  @Delete('branches/:id')
-  deleteBranch(
-    @CurrentUser() user: AuthUser,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: Request,
-  ) {
-    return this.service.deleteBranch(user.id, id, clientIp(req));
   }
 
   @Get('audit-logs')

@@ -33,11 +33,19 @@ export class SupabaseRealtimeService {
     conversationId: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    await this.broadcast(
-      `conversation:${conversationId}`,
+    await this.broadcastConversationEvent(
+      conversationId,
       'new_message',
       payload,
     );
+  }
+
+  async broadcastConversationEvent(
+    conversationId: string,
+    event: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    await this.broadcast(`conversation:${conversationId}`, event, payload);
   }
 
   /**

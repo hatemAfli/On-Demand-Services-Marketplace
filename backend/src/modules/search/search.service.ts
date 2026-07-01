@@ -429,6 +429,143 @@ export class SearchService {
     );
   }
 
+  private static readonly SERVICE_ALIASES: Record<string, string[]> = {
+    electrician: ['electric', 'electrical', 'electricity'],
+    plumber: ['plumbing', 'plomb', 'plombier'],
+    cleaner: ['cleaning', 'clean', 'housekeeping'],
+    cleaning: ['clean', 'cleaner'],
+    carpenter: ['carpentry', 'wood', 'menuisier'],
+    painter: ['painting', 'paint', 'peinture'],
+    gardener: ['gardening', 'garden', 'landscape'],
+    mechanic: ['auto', 'garage', 'car repair'],
+    locksmith: ['lock', 'serrurier'],
+    mover: ['moving', 'relocation', 'demenagement'],
+    ac: ['air conditioning', 'hvac', 'cooling', 'climatisation'],
+  };
+
+  /** Resolve a catalog service id from free-text (chatbot fallback search). */
+  async resolveServiceId(
+    query: string,
+    locale = 'en',
+  ): Promise<{ serviceId: string | null }> {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      return { serviceId: null };
+    }
+
+    const primaryLocale: Locale =
+      locale.toLowerCase().startsWith('ar') ? Locale.AR : Locale.EN;
+
+    for (const candidate of this.serviceQueryCandidates(trimmed)) {
+      const id = await this.findServiceIdByText(candidate, primaryLocale);
+      if (id) {
+        return { serviceId: id };
+      }
+    }
+
+    return { serviceId: null };
+  }
+
+  private serviceQueryCandidates(query: string): string[] {
+    const lower = query.toLowerCase().trim();
+    const stop = new Set([
+      'i',
+      'need',
+      'want',
+      'find',
+      'looking',
+      'for',
+      'a',
+      'an',
+      'the',
+      'me',
+      'please',
+      'service',
+      'provider',
+      'company',
+      'near',
+      'my',
+      'area',
+      'local',
+    ]);
+    const seen = new Set<string>();
+    const out: string[] = [];
+    const add = (value: string) => {
+      const v = value.trim();
+      if (v.length < 2) return;
+      const key = v.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(v);
+    };
+
+    add(lower);
+    for (const [key, aliases] of Object.entries(SearchService.SERVICE_ALIASES)) {
+      if (lower.includes(key) || aliases.some((a) => lower.includes(a))) {
+        add(key);
+        for (const alias of aliases) {
+          add(alias);
+        }
+      }
+    }
+
+    for (const token of lower.split(/\s+/)) {
+      if (token.length < 3 || stop.has(token)) continue;
+      add(token);
+    }
+
+    return out;
+  }
+
+  private async findServiceIdByText(
+    query: string,
+    primaryLocale: Locale,
+  ): Promise<string | null> {
+    const trimmed = query.trim();
+    if (!trimmed) return null;
+
+    const byName = await this.prisma.serviceTranslation.findFirst({
+      where: {
+        locale: primaryLocale,
+        name: { contains: trimmed, mode: 'insensitive' },
+      },
+      select: { serviceId: true },
+    });
+    if (byName) {
+      return byName.serviceId;
+    }
+
+    const byNameEn = await this.prisma.serviceTranslation.findFirst({
+      where: {
+        locale: Locale.EN,
+        name: { contains: trimmed, mode: 'insensitive' },
+      },
+      select: { serviceId: true },
+    });
+    if (byNameEn) {
+      return byNameEn.serviceId;
+    }
+
+    const category = await this.prisma.serviceCategoryTranslation.findFirst({
+      where: {
+        locale: primaryLocale,
+        name: { contains: trimmed, mode: 'insensitive' },
+      },
+      select: { categoryId: true },
+    });
+    if (category) {
+      const service = await this.prisma.service.findFirst({
+        where: { categoryId: category.categoryId },
+        select: { id: true },
+      });
+      if (service) {
+        return service.id;
+      }
+    }
+
+    return null;
+  }
+
   private haversineKm(
     lat1: number,
     lon1: number,

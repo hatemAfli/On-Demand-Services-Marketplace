@@ -54,6 +54,7 @@ import { TermsScreen } from "../screens/auth/TermsScreen";
 import { PrivacyScreen } from "../screens/auth/PrivacyScreen";
 import { FaqScreen } from "../screens/shared/FaqScreen";
 import { ContactUsScreen } from "../screens/shared/ContactUsScreen";
+import { ChatbotScreen } from "../screens/client/chatbot/ChatbotScreen";
 
 const Stack = createNativeStackNavigator<ClientStackParamList>();
 
@@ -117,7 +118,8 @@ export const ClientOverlayNavigator: React.FC = () => {
             route.name !== "NotificationDetail" &&
             route.name !== "ConversationList" &&
             route.name !== "ClientMessages" &&
-            route.name !== "ChatScreen",
+            route.name !== "ChatScreen" &&
+            route.name !== "ClientChatbot",
           headerTitleStyle: { fontWeight: "800", color: COLORS.text.primary },
           headerStyle: {
             backgroundColor: COLORS.background,
@@ -276,6 +278,11 @@ export const ClientOverlayNavigator: React.FC = () => {
         <Stack.Screen name="ClientPrivacy" component={PrivacyScreen} />
         <Stack.Screen name="ClientFaq" component={FaqScreen} />
         <Stack.Screen name="ClientContactUs" component={ContactUsScreen} />
+        <Stack.Screen
+          name="ClientChatbot"
+          component={ChatbotScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
 
       {/** Backdrop */}

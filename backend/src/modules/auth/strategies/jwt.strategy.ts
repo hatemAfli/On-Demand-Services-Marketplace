@@ -4,19 +4,13 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../config/prisma.config';
 import * as jwksClient from 'jwks-rsa';
-import { SupabaseService } from 'src/config/supabase.config';
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
-    private configService: ConfigService,
-    private prisma: PrismaService,
-    // kept injectable for now (may be used later), but not needed for JWT validation
-    private supabase: SupabaseService,
+    configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {
-    // NOTE:
-    // Supabase access tokens may be signed with an asymmetric algorithm (e.g. ES256).
-    // Using a placeholder secret causes jsonwebtoken to reject the token with:
-    // "JsonWebTokenError: invalid algorithm".
     const rawSupabaseUrl = configService.getOrThrow<string>('SUPABASE_URL');
     const supabaseUrl = rawSupabaseUrl.replace(/\/$/, '');
 
@@ -31,14 +25,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       }),
       algorithms: ['ES256'],
     });
-
-    console.log('\n🔧 JwtStrategy Initialized (Supabase JWKS verification)');
   }
 
   async validate(payload: unknown) {
-    // Payload comes from the already-verified Supabase JWT.
-    // Common fields: sub (user id), email, user_metadata, app_metadata, aud, exp...
-    console.log('\n🔍 JWT Strategy - validate() called');
     const p = payload as Record<string, unknown> | null;
     const userId = typeof p?.sub === 'string' ? p.sub : undefined;
     const email = typeof p?.email === 'string' ? p.email : undefined;
@@ -46,7 +35,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       typeof p?.email_confirmed_at === 'string' ? p.email_confirmed_at : null;
 
     if (!userId) {
-      console.error('   ❌ No user ID (sub) in token payload');
       throw new UnauthorizedException('Invalid token');
     }
 
@@ -62,7 +50,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       include,
     });
 
-    // Same email as Supabase but different UUID in DB (e.g. re-seeded Postgres)
     if (!user && email) {
       user = await this.prisma.user.findUnique({
         where: { email },
@@ -71,11 +58,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     if (!user) {
-      console.log(
-        '   ⚠️  User not found in database (first-time registration)',
-      );
-      console.log('   → Returning token payload data for registration');
-
       const userMetadata =
         (p?.user_metadata as Record<string, unknown> | undefined) ?? undefined;
       const selectedRole =
@@ -86,7 +68,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         userMetadata?.email_verified === true ||
         userMetadata?.is_email_verified === true;
 
-      // User doesn't exist yet - this is OK for first registration
       return {
         id: userId,
         email,
@@ -95,15 +76,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       };
     }
 
-    // Do not reject SUSPENDED / DELETED here: returning 401 breaks the mobile app
-    // (axios retries refresh + signOut races → "Auth session missing"). The client
-    // loads `user.status` from GET /auth/me and shows account-state screens instead.
-    // Protect sensitive write routes with explicit status checks in services/guards.
-
-    console.log('   ✅ User authenticated:', user.email, '| Role:', user.role);
     return {
       ...user,
-      // Keep the latest email from Supabase JWT so backend can sync DB email after confirmation.
       tokenEmail: email,
     };
   }

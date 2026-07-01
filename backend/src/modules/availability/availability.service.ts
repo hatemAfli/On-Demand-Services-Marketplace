@@ -134,14 +134,6 @@ export class AvailabilityService {
     });
   }
 
-  async getProviderAvailability(providerId: string) {
-    await this.assertProviderExists(providerId);
-    const rows = await this.prisma.providerAvailability.findMany({
-      where: { providerId },
-    });
-    return this.withTemplateFallback(rows, providerId);
-  }
-
   async createDayOff(providerId: string, dto: CreateDayOffDto) {
     await this.assertIndependentProvider(providerId);
     return this.createDayOffInternal(providerId, dto);

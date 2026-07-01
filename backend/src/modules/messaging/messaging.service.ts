@@ -8,6 +8,7 @@ import { MessageStatus, Prisma, type Conversation, type Message } from '@prisma/
 import { PrismaService } from '../../config/prisma.config';
 import { SupabaseRealtimeService } from '../supabase/supabase-realtime.service';
 import type { GetMessagesDto } from './dto/get-messages.dto';
+import type { MarkMessagesDeliveredDto } from './dto/mark-delivered.dto';
 import type { MarkConversationReadDto } from './dto/mark-read.dto';
 import type { SendMessageDto } from './dto/send-message.dto';
 
@@ -67,6 +68,55 @@ export class MessagingService {
       throw new ForbiddenException('Access denied');
     }
     return conversation;
+  }
+
+  private messageToBroadcastPayload(message: Message): Record<string, unknown> {
+    return {
+      id: message.id,
+      conversationId: message.conversationId,
+      senderUserId: message.senderUserId,
+      senderRole: message.senderRole,
+      text: message.text,
+      mediaUrls: message.mediaUrls,
+      status: message.status,
+      createdAt: message.createdAt.toISOString(),
+      editedAt: message.editedAt?.toISOString() ?? null,
+      deletedAt: message.deletedAt?.toISOString() ?? null,
+    };
+  }
+
+  private async broadcastMessageStatus(
+    conversationId: string,
+    messageIds: string[],
+    status: MessageStatus,
+  ): Promise<void> {
+    if (messageIds.length === 0) return;
+    void this.supabaseRealtimeService.broadcastConversationEvent(
+      conversationId,
+      'messages_status',
+      { messageIds, status },
+    );
+  }
+
+  private async refreshConversationPreview(conversationId: string): Promise<void> {
+    const latest = await this.prisma.message.findFirst({
+      where: { conversationId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!latest) return;
+
+    const previewText =
+      latest.text?.trim() ||
+      (latest.mediaUrls.length > 0 ? '📷 Photo' : 'Message withdrawn');
+
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        lastMessageText: previewText,
+        lastMessageAt: latest.createdAt,
+        lastMessageSender: latest.senderRole,
+      },
+    });
   }
 
   async openOrCreateConversation(
@@ -179,19 +229,45 @@ export class MessagingService {
       }),
     ]);
 
-    void this.supabaseRealtimeService.broadcastMessage(dto.conversationId, {
-      id: message.id,
-      conversationId: dto.conversationId,
-      senderUserId,
-      senderRole,
-      text: dto.text ?? null,
-      mediaUrls: urls,
-      createdAt: message.createdAt.toISOString(),
-    });
+    void this.supabaseRealtimeService.broadcastMessage(
+      dto.conversationId,
+      this.messageToBroadcastPayload(message),
+    );
 
     // Unread count on conversation powers the Messages sidebar badge only — no in-app / push notification.
 
     return message;
+  }
+
+  async markDelivered(
+    userId: string,
+    dto: MarkMessagesDeliveredDto,
+  ): Promise<void> {
+    await this.assertConversationParticipant(dto.conversationId, userId);
+
+    const toDeliver = await this.prisma.message.findMany({
+      where: {
+        id: { in: dto.messageIds },
+        conversationId: dto.conversationId,
+        senderUserId: { not: userId },
+        status: MessageStatus.SENT,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    const ids = toDeliver.map((m) => m.id);
+    if (ids.length === 0) return;
+
+    await this.prisma.message.updateMany({
+      where: { id: { in: ids } },
+      data: { status: MessageStatus.DELIVERED },
+    });
+
+    void this.broadcastMessageStatus(
+      dto.conversationId,
+      ids,
+      MessageStatus.DELIVERED,
+    );
   }
 
   async markAsRead(
@@ -205,13 +281,27 @@ export class MessagingService {
     const counterpartRole: MessagingRole =
       role === 'CLIENT' ? 'PROVIDER' : 'CLIENT';
 
+    const toRead = await this.prisma.message.findMany({
+      where: {
+        conversationId: dto.conversationId,
+        senderRole: counterpartRole,
+        status: { not: MessageStatus.READ },
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    const ids = toRead.map((m) => m.id);
+    if (ids.length === 0) {
+      await this.prisma.conversation.update({
+        where: { id: dto.conversationId },
+        data: role === 'CLIENT' ? { unreadClient: 0 } : { unreadProvider: 0 },
+      });
+      return;
+    }
+
     await this.prisma.$transaction([
       this.prisma.message.updateMany({
-        where: {
-          conversationId: dto.conversationId,
-          senderRole: counterpartRole,
-          status: { not: MessageStatus.READ },
-        },
+        where: { id: { in: ids } },
         data: {
           status: MessageStatus.READ,
           readAt: now,
@@ -222,6 +312,123 @@ export class MessagingService {
         data: role === 'CLIENT' ? { unreadClient: 0 } : { unreadProvider: 0 },
       }),
     ]);
+
+    void this.broadcastMessageStatus(
+      dto.conversationId,
+      ids,
+      MessageStatus.READ,
+    );
+  }
+
+  async updateMessage(
+    userId: string,
+    messageId: string,
+    text: string,
+  ): Promise<Message> {
+    const trimmed = text.trim();
+    if (trimmed.length === 0) {
+      throw new BadRequestException('Message text cannot be empty');
+    }
+
+    const existing = await this.prisma.message.findUnique({
+      where: { id: messageId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Message not found');
+    }
+    await this.assertConversationParticipant(
+      existing.conversationId,
+      userId,
+    );
+    if (existing.senderUserId !== userId) {
+      throw new ForbiddenException('Only the sender can edit this message');
+    }
+    if (existing.deletedAt != null) {
+      throw new BadRequestException('Cannot edit a withdrawn message');
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.message.update({
+      where: { id: messageId },
+      data: {
+        text: trimmed,
+        editedAt: now,
+      },
+    });
+
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: existing.conversationId },
+      select: { lastMessageAt: true },
+    });
+    if (
+      conversation?.lastMessageAt &&
+      existing.createdAt.getTime() >= conversation.lastMessageAt.getTime()
+    ) {
+      await this.prisma.conversation.update({
+        where: { id: existing.conversationId },
+        data: { lastMessageText: trimmed },
+      });
+    }
+
+    void this.supabaseRealtimeService.broadcastConversationEvent(
+      existing.conversationId,
+      'message_updated',
+      this.messageToBroadcastPayload(updated),
+    );
+
+    return updated;
+  }
+
+  async withdrawMessage(userId: string, messageId: string): Promise<Message> {
+    const existing = await this.prisma.message.findUnique({
+      where: { id: messageId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Message not found');
+    }
+    await this.assertConversationParticipant(
+      existing.conversationId,
+      userId,
+    );
+    if (existing.senderUserId !== userId) {
+      throw new ForbiddenException('Only the sender can withdraw this message');
+    }
+    if (existing.deletedAt != null) {
+      throw new BadRequestException('Message already withdrawn');
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.message.update({
+      where: { id: messageId },
+      data: {
+        deletedAt: now,
+        text: null,
+        mediaUrls: [],
+      },
+    });
+
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: existing.conversationId },
+      select: { lastMessageAt: true },
+    });
+    if (
+      conversation?.lastMessageAt &&
+      existing.createdAt.getTime() >= conversation.lastMessageAt.getTime()
+    ) {
+      await this.refreshConversationPreview(existing.conversationId);
+    }
+
+    void this.supabaseRealtimeService.broadcastConversationEvent(
+      existing.conversationId,
+      'message_withdrawn',
+      {
+        id: updated.id,
+        conversationId: updated.conversationId,
+        deletedAt: updated.deletedAt?.toISOString() ?? null,
+      },
+    );
+
+    return updated;
   }
 
   /** Chat images must be in `chat-attachments`. */

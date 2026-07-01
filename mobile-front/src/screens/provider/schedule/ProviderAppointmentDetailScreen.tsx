@@ -22,11 +22,8 @@ import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  AuthNoticeModal,
-  ConfirmModal,
-  PhotoCarousel,
-} from "../../../components/common";
+import { AuthNoticeModal, ConfirmModal } from "../../../components/common";
+import { ProviderAppointmentDetailView } from "./ProviderAppointmentDetailView";
 import type { ProviderStackParamList } from "../../../navigation/types";
 import { useAuth } from "../../../context/AuthContext";
 import {
@@ -862,7 +859,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
   const [noticeModal, setNoticeModal] =
     useState<ProviderAppointmentNoticeModal>(null);
   const [confirmCancelVisible, setConfirmCancelVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<"status" | "details">("status");
+  const [showCompletion, setShowCompletion] = useState(false);
   const [pendingClockTick, setPendingClockTick] = useState(0);
 
   const loadAppointment = useCallback(
@@ -1155,6 +1152,7 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
         setRefusalReason("");
         setRefusalError("");
         setRescheduleSheetVisible(false);
+        setShowCompletion(false);
         setBeforeLocalUris([]);
         setAfterLocalUris([]);
         opts?.onSuccess?.();
@@ -1333,683 +1331,73 @@ export const ProviderAppointmentDetailScreen: React.FC<Props> = ({
   const clientName =
     `${appointment.client.firstName} ${appointment.client.lastName}`.trim() ||
     "Client";
-  const initials = clientInitials(
-    appointment.client.firstName,
-    appointment.client.lastName,
-  );
 
   const priceLabel =
     appointment.givenService.pricingType === "HOURLY"
       ? `$${appointment.givenService.price} / hr`
       : `$${appointment.givenService.price}`;
 
-  const appointmentRef = `#${appointment.id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
-
-  const showTimeline = ![
-    "REFUSED",
-    "CANCELLED_CLIENT",
-    "CANCELLED_PROVIDER",
-  ].includes(appointment.status);
-
-  const hasInterventionPhotos =
-    appointment.beforePhotoUrls.length > 0 ||
-    appointment.afterPhotoUrls.length > 0;
-
-  const interventionPhotosSection = hasInterventionPhotos ? (
-    <View style={[styles.card, styles.interventionPhotosCard]}>
-      <SectionHeader icon="images-outline" title="Service Photos" />
-      {appointment.beforePhotoUrls.length > 0 ? (
-        <PhotoCarousel
-          photos={appointment.beforePhotoUrls}
-          groupLabel="Before"
-          accessibilityLabelPrefix="Before service photo"
-        />
-      ) : null}
-      {appointment.afterPhotoUrls.length > 0 ? (
-        <PhotoCarousel
-          photos={appointment.afterPhotoUrls}
-          groupLabel="After"
-          accessibilityLabelPrefix="After service photo"
-          style={
-            appointment.beforePhotoUrls.length > 0
-              ? styles.interventionPhotoGroupSpaced
-              : undefined
-          }
-        />
-      ) : null}
-    </View>
-  ) : null;
+  const appointmentRef = `Job #${appointment.id.replace(/-/g, "").slice(0, 5).toUpperCase()}`;
 
   return (
     <View style={styles.root}>
-      <View style={[styles.screenHeader, { paddingTop: insets.top + 8 }]}>
-        <View style={styles.screenHeaderRow}>
-          <TouchableOpacity
-            style={styles.headerIconBtn}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="chevron-back" size={22} color="#0F172A" />
-          </TouchableOpacity>
-          <View style={styles.screenHeaderCenter}>
-            <Text style={styles.screenHeaderEyebrow}>APPOINTMENT</Text>
-            <Text style={styles.screenHeaderId} numberOfLines={1}>
-              {appointmentRef}
-            </Text>
-          </View>
-          <View style={styles.headerSideSpacer} />
-        </View>
-        <View
-          style={[
-            styles.headerStatusPill,
-            { backgroundColor: banner.bg, borderColor: banner.border },
-          ]}
-        >
-          <Ionicons name={banner.icon} size={16} color={banner.text} />
-          <Text style={[styles.headerStatusText, { color: banner.text }]}>
-            {statusDisplayLabel(appointment.status)}
-          </Text>
-          {appointment.status === "EN_ROUTE" ? (
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>Live</Text>
-            </View>
-          ) : null}
-        </View>
-      </View>
-
-      <View style={styles.tabBar}>
-        {(["status", "details"] as const).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
-            onPress={() => setActiveTab(tab)}
-            activeOpacity={0.85}
-          >
-            <Text
-              style={[
-                styles.tabBtnText,
-                activeTab === tab && styles.tabBtnTextActive,
-              ]}
-            >
-              {tab === "status" ? "Order Status" : "Details"}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: insets.bottom + 32 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {activeTab === "status" ? (
-          <>
-            {showTimeline ? (
-              <View style={styles.card}>
-                <SectionHeader icon="list-outline" title="Order Status" />
-                {statusRefreshing ? (
-                  <View style={styles.timelineLoading}>
-                    <ActivityIndicator
-                      size="small"
-                      color={ACCENT}
-                    />
-                    <Text style={styles.timelineLoadingText}>
-                      Updating status…
-                    </Text>
-                  </View>
-                ) : (
-                  <StatusTimeline
-                    status={appointment.status}
-                    timestamps={{
-                      createdAt: appointment.createdAt,
-                      confirmedAt: appointment.confirmedAt,
-                      enRouteAt: appointment.enRouteAt,
-                      startedAt: appointment.startedAt,
-                      completedAt: appointment.completedAt,
-                    }}
-                  />
-                )}
-              </View>
-            ) : null}
-
-            {!isEmployee && appointment.status === "PENDING" ? (
-              <View style={styles.actionBlock}>
-                {pendingSlotPassed ? (
-                  <>
-                    <View style={styles.infoCard}>
-                      <Ionicons
-                        name="alert-circle-outline"
-                        size={20}
-                        color="#D97706"
-                      />
-                      <Text style={styles.infoCardText}>
-                        The requested time (
-                        {formatBookingDateTime(
-                          appointment.scheduledDate,
-                          appointment.scheduledTime,
-                        )}
-                        ) has passed. You can only propose a new time for the
-                        client.
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[
-                        styles.btnPrimary,
-                        actionLoading && styles.btnDisabled,
-                      ]}
-                      disabled={actionLoading}
-                      onPress={openRescheduleSheet}
-                      activeOpacity={0.88}
-                    >
-                      {actionLoading ? (
-                        <ActivityIndicator color="#FFFFFF" />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="calendar-outline"
-                            size={16}
-                            color="#FFFFFF"
-                          />
-                          <Text style={styles.btnPrimaryText}>
-                            Propose a different time
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      style={[
-                        styles.btnPrimaryGreen,
-                        actionLoading && styles.btnDisabled,
-                      ]}
-                      disabled={actionLoading}
-                      onPress={onAccept}
-                      activeOpacity={0.88}
-                    >
-                      {actionLoading ? (
-                        <ActivityIndicator color="#FFFFFF" />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={16}
-                            color="#FFFFFF"
-                          />
-                          <Text style={styles.btnPrimaryGreenText}>
-                            Accept Appointment
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-
-                    {!refuseMode ? (
-                      <TouchableOpacity
-                        style={[
-                          styles.btnOutlineRed,
-                          actionLoading && styles.btnDisabled,
-                        ]}
-                        disabled={actionLoading}
-                        onPress={() => setRefuseMode(true)}
-                        activeOpacity={0.88}
-                      >
-                        <Ionicons
-                          name="close-circle-outline"
-                          size={16}
-                          color="#DC2626"
-                        />
-                        <Text style={styles.btnOutlineRedText}>Refuse</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <View style={styles.refuseBox}>
-                        <TextInput
-                          style={styles.refuseInput}
-                          placeholder="Reason for refusal…"
-                          placeholderTextColor="#94A3B8"
-                          value={refusalReason}
-                          onChangeText={(text) => {
-                            setRefusalReason(text);
-                            if (refusalError) setRefusalError("");
-                          }}
-                          multiline
-                        />
-                        {refusalError ? (
-                          <Text style={styles.refuseError}>{refusalError}</Text>
-                        ) : null}
-                        <TouchableOpacity
-                          style={[
-                            styles.btnOutlineRed,
-                            actionLoading && styles.btnDisabled,
-                          ]}
-                          disabled={actionLoading}
-                          onPress={onRefuseSubmit}
-                          activeOpacity={0.88}
-                        >
-                          {actionLoading ? (
-                            <ActivityIndicator color="#DC2626" />
-                          ) : (
-                            <Text style={styles.btnOutlineRedText}>
-                              Confirm refusal
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.cancelLinkWrap}
-                          onPress={() => {
-                            setRefuseMode(false);
-                            setRefusalReason("");
-                            setRefusalError("");
-                          }}
-                          disabled={actionLoading}
-                        >
-                          <Text style={styles.linkMuted}>Cancel</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-
-                    <TouchableOpacity
-                      style={styles.proposeLink}
-                      onPress={openRescheduleSheet}
-                      disabled={actionLoading}
-                    >
-                      <Ionicons name="time-outline" size={15} color={ACCENT} />
-                      <Text style={styles.proposeLinkText}>
-                        Propose a different time
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-            ) : null}
-
-            {appointment.status === "CONFIRMED" ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.successCard}>
-                  <Ionicons name="checkmark-circle" size={18} color="#059669" />
-                  <Text style={styles.successCardText}>
-                    Confirmed for {formatLongDate(appointment.scheduledDate)}.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[
-                    styles.btnPrimary,
-                    actionLoading && styles.btnDisabled,
-                  ]}
-                  disabled={actionLoading}
-                  onPress={onMarkEnRoute}
-                  activeOpacity={0.88}
-                >
-                  {actionLoading ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Ionicons name="car" size={16} color="#FFFFFF" />
-                      <Text style={styles.btnPrimaryText}>Mark as En Route</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-                {!isEmployee ? (
-                  <TouchableOpacity
-                    disabled={actionLoading}
-                    onPress={onCancelConfirmed}
-                    style={styles.cancelLinkWrap}
-                  >
-                    <Text style={styles.linkDanger}>Cancel appointment</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ) : null}
-
-            {appointment.status === "RESCHEDULED" ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.rescheduleCard}>
-                  <View style={styles.rescheduleHeader}>
-                    <View style={styles.rescheduleIconWrap}>
-                      <Ionicons name="calendar" size={20} color="#EA580C" />
-                    </View>
-                    <Text style={styles.rescheduleTitle}>
-                      Awaiting client response
-                    </Text>
-                  </View>
-                  <Text style={styles.rescheduleTime}>
-                    {formatRescheduleDetail(
-                      appointment.rescheduleDate,
-                      appointment.rescheduleTime,
-                    )}
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-
-            {appointment.status === "EN_ROUTE" ? (
-              <View style={styles.actionBlock}>
-                
-
-                {appointment.latitude != null && appointment.longitude != null && (
-                  <TouchableOpacity
-                    style={styles.itineraryBtn}
-                    activeOpacity={0.85}
-                    onPress={() =>
-                      navigation.navigate("ProviderItinerary", {
-                        clientLat: appointment.latitude!,
-                        clientLng: appointment.longitude!,
-                        clientName: `${appointment.client.firstName} ${appointment.client.lastName}`.trim(),
-                      })
-                    }
-                  >
-                    <Ionicons name="navigate" size={16} color="#FFFFFF" />
-                    <Text style={styles.itineraryBtnText}>View Itinerary</Text>
-                  </TouchableOpacity>
-                )}
-
-                <PhotoRow
-                  uris={beforeLocalUris}
-                  label="Before photos (optional)"
-                  onAdd={() => void pickPhoto("before")}
-                  disabled={
-                    actionLoading ||
-                    beforeLocalUris.length >= MAX_INTERVENTION_PHOTOS
-                  }
-                />
-
-                <TouchableOpacity
-                  style={[
-                    styles.btnPrimary,
-                    actionLoading && styles.btnDisabled,
-                  ]}
-                  disabled={actionLoading}
-                  onPress={onStartService}
-                  activeOpacity={0.88}
-                >
-                  {actionLoading ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Ionicons name="play" size={16} color="#FFFFFF" />
-                      <Text style={styles.btnPrimaryText}>Start Service</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {appointment.status === "IN_PROGRESS" && waitingClientStart ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.awaitingCard}>
-                  <View style={styles.awaitingIconWrap}>
-                    <Ionicons name="location" size={22} color={ACCENT_DARK} />
-                  </View>
-                  <Text style={styles.awaitingText}>
-                    Waiting for client to confirm the service has started. The
-                    timer begins after they confirm.
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-
-            {showTimerPhase ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.timerCard}>
-                  <Text style={styles.timerLabel}>IN PROGRESS</Text>
-                  <Text style={styles.timerLarge}>
-                    {formatElapsed(elapsedSeconds)}
-                  </Text>
-                  <View style={styles.timerDivider} />
-                  <Text style={styles.timerSub}>
-                    Started{" "}
-                    {appointment.startedAt
-                      ? formatDateTime(appointment.startedAt)
-                      : "—"}
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-
-            {appointment.status === "IN_PROGRESS" && waitingClientEnd ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.awaitingCard}>
-                  <View style={styles.awaitingIconWrap}>
-                    <Ionicons name="hourglass" size={22} color={ACCENT_DARK} />
-                  </View>
-                  <Text style={styles.awaitingText}>
-                    Waiting for client to confirm service completion.
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-
-            {appointment.status === "IN_PROGRESS" &&
-            !waitingClientStart &&
-            !waitingClientEnd ? (
-              <View style={styles.actionBlock}>
-                <PhotoRow
-                  uris={afterLocalUris}
-                  label="After photos (optional)"
-                  onAdd={() => void pickPhoto("after")}
-                  disabled={
-                    actionLoading ||
-                    afterLocalUris.length >= MAX_INTERVENTION_PHOTOS
-                  }
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.btnPrimaryGreen,
-                    actionLoading && styles.btnDisabled,
-                  ]}
-                  disabled={actionLoading}
-                  onPress={onEndService}
-                  activeOpacity={0.88}
-                >
-                  {actionLoading ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Ionicons
-                        name="checkmark-done"
-                        size={16}
-                        color="#FFFFFF"
-                      />
-                      <Text style={styles.btnPrimaryGreenText}>End Service</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {appointment.status === "COMPLETED" ? (
-              <View style={styles.completedBlock}>
-                <View style={styles.completedCard}>
-                  <View style={styles.completedIconWrap}>
-                    <Ionicons
-                      name="checkmark-sharp"
-                      size={32}
-                      color="#059669"
-                    />
-                  </View>
-                  <Text style={styles.completedTitle}>Service Completed</Text>
-                </View>
-
-                <View style={styles.card}>
-                  <SectionHeader icon="list-outline" title="Summary" />
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Started</Text>
-                    <Text style={styles.summaryValue}>
-                      {formatDateTime(appointment.startedAt)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Ended</Text>
-                    <Text style={styles.summaryValue}>
-                      {formatDateTime(appointment.completedAt)}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.summaryRow,
-                      {
-                        borderBottomWidth: 0,
-                        paddingBottom: 0,
-                        marginBottom: 0,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.summaryLabel}>Duration</Text>
-                    <Text style={styles.summaryValue}>
-                      {appointment.durationMinutes != null
-                        ? `${appointment.durationMinutes} min`
-                        : "—"}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            ) : null}
-
-            {appointment.status === "REFUSED" ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.errorCard}>
-                  <View style={styles.errorIconWrap}>
-                    <Ionicons name="close" size={32} color="#DC2626" />
-                  </View>
-                  <Text style={styles.errorTitle}>Request Refused</Text>
-                  {appointment.refusalReason ? (
-                    <Text style={styles.errorMessage}>
-                      {appointment.refusalReason}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-            ) : null}
-
-            {(appointment.status === "CANCELLED_CLIENT" ||
-              appointment.status === "CANCELLED_PROVIDER") && (
-              <View style={styles.actionBlock}>
-                <View style={styles.cancelledCard}>
-                  <View style={styles.cancelledIconWrap}>
-                    <Ionicons name="ban" size={28} color="#4B5563" />
-                  </View>
-                  <Text style={styles.cancelledTitle}>
-                    Appointment Cancelled
-                  </Text>
-                  <Text style={styles.cancelledSubtitle}>
-                    {appointment.status === "CANCELLED_CLIENT"
-                      ? "Cancelled by client"
-                      : "Cancelled by you"}
-                  </Text>
-                  {appointment.cancellationReason ? (
-                    <View style={styles.cancelledReasonBox}>
-                      <Text style={styles.cancelledReason}>
-                        "{appointment.cancellationReason}"
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            )}
-          </>
-        ) : null}
-
-        {activeTab === "details" ? (
-          <>
-            <View style={styles.card}>
-              <View style={styles.clientRow}>
-                {appointment.client.imageUrl ? (
-                  <Image
-                    source={{ uri: appointment.client.imageUrl }}
-                    style={styles.avatar}
-                  />
-                ) : (
-                  <View style={styles.avatarFallback}>
-                    <Text style={styles.avatarInitials}>{initials}</Text>
-                  </View>
-                )}
-                <View style={styles.clientText}>
-                  <Text style={styles.clientNameText}>{clientName}</Text>
-                  <Text style={styles.clientSub} numberOfLines={1}>
-                    Client
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.card}>
-              <SectionHeader icon="briefcase-outline" title="Booking Details" />
-              <View style={styles.serviceHeader}>
-                <View style={styles.serviceInfo}>
-                  <Text style={styles.serviceTitle}>
-                    {appointment.givenService.serviceName}
-                  </Text>
-                  <View style={styles.categoryChip}>
-                    <Text style={styles.categoryChipText}>
-                      {appointment.givenService.categoryName}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.priceWrap}>
-                  <Text style={styles.priceTag}>{priceLabel}</Text>
-                </View>
-              </View>
-              <DetailRow
-                icon="calendar-outline"
-                label="Date"
-                value={formatBookingDateTime(
-                  appointment.scheduledDate,
-                  appointment.scheduledTime,
-                )}
-              />
-              {appointment.givenService.estimatedDurationMinutes != null ? (
-                <DetailRow
-                  icon="time-outline"
-                  label="Duration"
-                  value={`Est. ${appointment.givenService.estimatedDurationMinutes} mins`}
-                />
-              ) : null}
-            </View>
-
-            {appointment.notes ? (
-              <View style={styles.notesAmberCard}>
-                <Text style={styles.notesAmberLabel}>Client notes</Text>
-                <Text style={styles.notesAmberText}>{appointment.notes}</Text>
-              </View>
-            ) : null}
-
-            {appointment.photoUrls.length > 0 ? (
-              <View style={styles.card}>
-                <SectionHeader icon="images-outline" title="Reference Photos" />
-                <PhotoCarousel
-                  photos={appointment.photoUrls}
-                  accessibilityLabelPrefix="Reference photo"
-                />
-              </View>
-            ) : null}
-
-            {interventionPhotosSection}
-
-            <View style={styles.card}>
-              <SectionHeader icon="receipt-outline" title="Order Summary" />
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  {appointment.givenService.serviceName}
-                </Text>
-                <Text style={styles.summaryValue}>{priceLabel}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Platform Fee</Text>
-                <Text style={styles.summaryValue}>$0</Text>
-              </View>
-              <View style={[styles.summaryRow, styles.summaryRowTotal]}>
-                <Text style={styles.summaryTotalLabel}>Total</Text>
-                <Text style={styles.summaryTotalValue}>{priceLabel}</Text>
-              </View>
-            </View>
-          </>
-        ) : null}
-      </ScrollView>
+      <ProviderAppointmentDetailView
+        navigation={navigation}
+        insetsTop={insets.top}
+        insetsBottom={insets.bottom}
+        appointment={appointment}
+        appointmentRef={appointmentRef}
+        statusLabel={statusDisplayLabel(appointment.status)}
+        statusPillColor={banner.text}
+        clientName={clientName}
+        priceLabel={priceLabel}
+        isEmployee={isEmployee}
+        actionLoading={actionLoading}
+        statusRefreshing={statusRefreshing}
+        refuseMode={refuseMode}
+        refusalReason={refusalReason}
+        refusalError={refusalError}
+        pendingSlotPassed={pendingSlotPassed}
+        waitingClientStart={waitingClientStart}
+        waitingClientEnd={waitingClientEnd}
+        showTimerPhase={showTimerPhase}
+        elapsedSeconds={elapsedSeconds}
+        beforeLocalUris={beforeLocalUris}
+        afterLocalUris={afterLocalUris}
+        maxInterventionPhotos={MAX_INTERVENTION_PHOTOS}
+        showCompletion={showCompletion}
+        formatBookingDateTime={formatBookingDateTime}
+        formatLongDate={formatLongDate}
+        formatRescheduleDetail={formatRescheduleDetail}
+        onBack={() => navigation.goBack()}
+        onAccept={onAccept}
+        onRefuseMode={() => setRefuseMode(true)}
+        onRefuseCancel={() => {
+          setRefuseMode(false);
+          setRefusalReason("");
+          setRefusalError("");
+        }}
+        onRefusalReasonChange={(text) => {
+          setRefusalReason(text);
+          if (refusalError) setRefusalError("");
+        }}
+        onRefuseSubmit={onRefuseSubmit}
+        onOpenReschedule={openRescheduleSheet}
+        onMarkEnRoute={onMarkEnRoute}
+        onCancelConfirmed={onCancelConfirmed}
+        onStartService={onStartService}
+        onOpenCompletion={() => setShowCompletion(true)}
+        onCloseCompletion={() => !actionLoading && setShowCompletion(false)}
+        onEndService={onEndService}
+        onPickBeforePhoto={() => void pickPhoto("before")}
+        onPickAfterPhoto={() => void pickPhoto("after")}
+        onRemoveBeforePhoto={(uri) =>
+          setBeforeLocalUris((prev) => prev.filter((u) => u !== uri))
+        }
+        onRemoveAfterPhoto={(uri) =>
+          setAfterLocalUris((prev) => prev.filter((u) => u !== uri))
+        }
+      />
 
       <Modal
         visible={rescheduleSheetVisible}

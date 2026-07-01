@@ -25,6 +25,8 @@ import { UserRole } from "../../types";
 import { useAppTranslation } from "../../hooks/useAppTranslation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { AuthStackParamList } from "../../navigation/types";
+import { LegalAcceptanceField } from "../../components/auth/LegalAcceptanceField";
+import { storePendingLegalAcceptance } from "../../services/legal-acceptance";
 
 const ACCENT = "#EA580C";
 const ACCENT_SOFT = "#FFEDD5";
@@ -60,7 +62,11 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
     password?: string;
     confirmPassword?: string;
     role?: string;
+    legal?: string;
   }>({});
+
+  const [legalAccepted, setLegalAccepted] = useState(false);
+  const [legalVersionIds, setLegalVersionIds] = useState<string[]>([]);
 
   const [duplicateModal, setDuplicateModal] = useState<{
     visible: boolean;
@@ -108,6 +114,10 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
       newErrors.role = t("validation.roleRequired");
     }
 
+    if (!legalAccepted || legalVersionIds.length < 2) {
+      newErrors.legal = t("auth.legalAcceptanceRequired");
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -120,6 +130,9 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         const result = await signUpWithEmail(email, password, selectedRole!);
 
         if (result.outcome === "resumeProfile") {
+          await storePendingLegalAcceptance({
+            documentVersionIds: legalVersionIds,
+          });
           navigation.reset({
             index: 0,
             routes: [
@@ -138,6 +151,9 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         }
 
         if (result.outcome === "new") {
+          await storePendingLegalAcceptance({
+            documentVersionIds: legalVersionIds,
+          });
           if (result.needsEmailConfirmation) {
             navigation.navigate("EmailVerification", {
               email,
@@ -153,6 +169,9 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
       } else {
         // Phone signup - sends OTP
         await signUpWithPhone(phone, password, selectedRole!);
+        await storePendingLegalAcceptance({
+          documentVersionIds: legalVersionIds,
+        });
 
         // Navigate to OTP verification screen
         navigation.navigate("OTPVerification", {
@@ -359,6 +378,19 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                 ))}
               </View>
             </View>
+
+            <LegalAcceptanceField
+              navigation={navigation}
+              accepted={legalAccepted}
+              onAcceptedChange={(value) => {
+                setLegalAccepted(value);
+                if (errors.legal) {
+                  setErrors((prev) => ({ ...prev, legal: undefined }));
+                }
+              }}
+              onVersionIdsReady={setLegalVersionIds}
+              error={errors.legal}
+            />
 
             <TouchableOpacity
               style={styles.nextButton}

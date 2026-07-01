@@ -44,6 +44,9 @@ import {
   isImageMimeOrPath,
 } from "../../services/providerDocumentUpload";
 import { api } from "../../services/api";
+import { LegalAcceptanceField } from "../../components/auth/LegalAcceptanceField";
+import { useRegistrationLegalAcceptance } from "../../hooks/useRegistrationLegalAcceptance";
+import type { AuthStackParamList } from "../../navigation/types";
 import {
   PROVIDER_DOCUMENT_TYPES,
   type ProviderDocumentType,
@@ -110,7 +113,7 @@ const DEFAULT_MAP_REGION: Region = {
 };
 
 interface CompleteProfileProviderScreenProps {
-  navigation: NativeStackNavigationProp<any>;
+  navigation: NativeStackNavigationProp<AuthStackParamList>;
 }
 
 export const CompleteProfileProviderScreen: React.FC<
@@ -119,6 +122,8 @@ export const CompleteProfileProviderScreen: React.FC<
   const { completeRegistration } = useAuth();
   const { t, isRTL } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const legal = useRegistrationLegalAcceptance();
+  const [legalError, setLegalError] = useState<string | undefined>();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const mapHeight = Math.min(
     Math.max(screenHeight * 0.38, MAP_MIN_HEIGHT),
@@ -576,6 +581,23 @@ export const CompleteProfileProviderScreen: React.FC<
   const handleSubmit = async () => {
     if (!validateStep1() || !validateStep2() || !validateStep3()) return;
 
+    let legalAcceptances;
+    try {
+      legalAcceptances = legal.requireForSubmit();
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("auth.legalAcceptanceRequired");
+      setLegalError(message);
+      setNotice({
+        visible: true,
+        title: t("common.error"),
+        message,
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const {
@@ -615,6 +637,7 @@ export const CompleteProfileProviderScreen: React.FC<
         firstName: formData.firstName,
         lastName: formData.lastName,
         role: "PROVIDER" as const,
+        legalAcceptances,
         provider: {
           city: formData.city,
           address: formData.address || undefined,
@@ -1174,6 +1197,19 @@ export const CompleteProfileProviderScreen: React.FC<
             { paddingBottom: Math.max(insets.bottom - 40, 4), paddingTop: 8 },
           ]}
         >
+          {legal.needsUi && currentStep === TOTAL_STEPS ? (
+            <LegalAcceptanceField
+              navigation={navigation}
+              accepted={legal.accepted}
+              onAcceptedChange={(value) => {
+                legal.setAccepted(value);
+                setLegalError(undefined);
+              }}
+              onVersionIdsReady={legal.setVersionIds}
+              error={legalError}
+            />
+          ) : null}
+
           {currentStep > 1 && (
             <TouchableOpacity
               style={styles.stepBackButton}

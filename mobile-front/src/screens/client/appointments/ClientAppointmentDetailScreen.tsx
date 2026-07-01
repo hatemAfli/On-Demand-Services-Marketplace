@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientStackParamList } from "../../../navigation/types";
 import { COLORS } from "../../../constants";
 import { ConfirmModal } from "../../../components/common";
+import { ClientAppointmentDetailView } from "./ClientAppointmentDetailView";
 
 const ACCENT = "#EA580C";
 const ACCENT_LIGHT = "#FFF7ED";
@@ -1179,8 +1180,16 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [canReview, setCanReview] = useState(false);
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
+  const [existingReviewId, setExistingReviewId] = useState<string | null>(null);
+  const [existingReviewRating, setExistingReviewRating] = useState<number | null>(
+    null,
+  );
+  const [existingReviewComment, setExistingReviewComment] = useState<
+    string | null
+  >(null);
   const [checkingReview, setCheckingReview] = useState(false);
-  const [activeTab, setActiveTab] = useState<"status" | "details">("status");
+  const [deleteReviewVisible, setDeleteReviewVisible] = useState(false);
+  const [deletingReview, setDeletingReview] = useState(false);
 
   const loadAppointment = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -1263,37 +1272,44 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
     return () => clearInterval(id);
   }, [runElapsedTimer, appointment?.startedAt]);
 
-  useEffect(() => {
+  const loadReviewEligibility = useCallback(async () => {
     if (appointment?.status !== "COMPLETED") {
       setCanReview(false);
       setAlreadyReviewed(false);
+      setExistingReviewId(null);
+      setExistingReviewRating(null);
+      setExistingReviewComment(null);
       setCheckingReview(false);
       return;
     }
-    let cancelled = false;
     setCheckingReview(true);
-    setCanReview(false);
-    setAlreadyReviewed(false);
-    void api
-      .checkCanReview(appointmentId)
-      .then((res) => {
-        if (cancelled) return;
-        setCanReview(res.data.canReview);
-        setAlreadyReviewed(res.data.alreadyReviewed);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCanReview(false);
-          setAlreadyReviewed(false);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setCheckingReview(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const res = await api.checkCanReview(appointmentId);
+      setCanReview(res.data.canReview);
+      setAlreadyReviewed(res.data.alreadyReviewed);
+      setExistingReviewId(res.data.existingReviewId ?? null);
+      setExistingReviewRating(res.data.existingRating);
+      setExistingReviewComment(res.data.existingComment);
+    } catch {
+      setCanReview(false);
+      setAlreadyReviewed(false);
+      setExistingReviewId(null);
+      setExistingReviewRating(null);
+      setExistingReviewComment(null);
+    } finally {
+      setCheckingReview(false);
+    }
   }, [appointmentId, appointment?.status]);
+
+  useEffect(() => {
+    void loadReviewEligibility();
+  }, [loadReviewEligibility]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadReviewEligibility();
+    }, [loadReviewEligibility]),
+  );
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -1331,9 +1347,6 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
   }
 
   const banner = statusBannerMeta(appointment.status);
-  const initials =
-    `${appointment.provider.firstName?.[0] ?? ""}${appointment.provider.lastName?.[0] ?? ""}`.toUpperCase() ||
-    "?";
 
   const priceLabel =
     appointment.givenService.pricingType === "HOURLY"
@@ -1398,27 +1411,6 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
     appointment.status === "EN_ROUTE" ||
     appointment.status === "DISPUTED";
 
-  const reportProblemLink = (opts?: { marginTop?: number }) =>
-    showReportProblemLink ? (
-      <TouchableOpacity
-        style={[
-          styles.reportProblemLinkRow,
-          opts?.marginTop != null ? { marginTop: opts.marginTop } : null,
-        ]}
-        onPress={() =>
-          navigation.navigate("ClientFileComplaint", fileComplaintParams)
-        }
-        hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-      >
-        <Ionicons
-          name="flag-outline"
-          size={16}
-          color={COLORS.error || "#EF4444"}
-        />
-        <Text style={styles.reportProblemLinkText}>Report a problem</Text>
-      </TouchableOpacity>
-    ) : null;
-
   const showAwaitingClientStart =
     appointment.status === "IN_PROGRESS" && !hasClientStart;
 
@@ -1432,9 +1424,21 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
     appointment.beforePhotoUrls.length > 0 ||
     appointment.afterPhotoUrls.length > 0;
 
-  const interventionPhotosSection = hasInterventionPhotos ? (
-    <View style={[styles.card, styles.interventionPhotosCard]}>
-      <SectionHeader icon="images-outline" title="Service Photos" />
+  const appointmentRef = `Job #${appointment.id.replace(/-/g, "").slice(0, 5).toUpperCase()}`;
+
+  const timelineFlags = getTimelineConfirmationFlags(appointment.confirmations);
+  const timelineProgress = getTimelineProgress(appointment.status, timelineFlags);
+
+  const clientPhotosSection =
+    appointment.photoUrls.length > 0 ? (
+      <AppointmentPhotoCarousel
+        photos={appointment.photoUrls}
+        accessibilityLabelPrefix="Reference photo"
+      />
+    ) : null;
+
+  const servicePhotosSection = hasInterventionPhotos ? (
+    <>
       {appointment.beforePhotoUrls.length > 0 ? (
         <AppointmentPhotoCarousel
           photos={appointment.beforePhotoUrls}
@@ -1454,649 +1458,85 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
           }
         />
       ) : null}
-    </View>
+    </>
   ) : null;
-
-  const appointmentRef = `#${appointment.id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
-  const showTimeline = ![
-    "REFUSED",
-    "CANCELLED_CLIENT",
-    "CANCELLED_PROVIDER",
-    "DISPUTED",
-  ].includes(appointment.status);
 
   return (
     <View style={styles.root}>
-      <View style={[styles.screenHeader, { paddingTop: insets.top + 8 }]}>
-        <View style={styles.screenHeaderRow}>
-          <TouchableOpacity
-            style={styles.headerIconBtn}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="chevron-back" size={20} color="#0F172A" />
-          </TouchableOpacity>
-          <View style={styles.screenHeaderCenter}>
-            <Text style={styles.screenHeaderEyebrow}>APPOINTMENT</Text>
-            <Text style={styles.screenHeaderId} numberOfLines={1}>
-              {appointmentRef}
-            </Text>
-          </View>
-          <View style={styles.headerSideSpacer} />
-        </View>
-        <View
-          style={[
-            styles.headerStatusPill,
-            { backgroundColor: banner.bg, borderColor: banner.border },
-          ]}
-        >
-          <Ionicons name={banner.icon} size={16} color={banner.text} />
-          <Text style={[styles.headerStatusText, { color: banner.text }]}>
-            {statusLabel(appointment.status)}
-          </Text>
-          {appointment.status === "EN_ROUTE" ? (
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>Live</Text>
-            </View>
-          ) : null}
-        </View>
-      </View>
-
-      <View style={styles.tabBar}>
-        {(["status", "details"] as const).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
-            onPress={() => setActiveTab(tab)}
-            activeOpacity={0.85}
-          >
-            <Text
-              style={[
-                styles.tabBtnText,
-                activeTab === tab && styles.tabBtnTextActive,
-              ]}
-            >
-              {tab === "status" ? "Order Status" : "Details"}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: insets.bottom + 32 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {activeTab === "status" ? (
-          <>
-            {showTimeline ? (
-              <View style={styles.card}>
-                <SectionHeader icon="list-outline" title="Order Status" />
-                <StatusTimeline
-                  status={appointment.status}
-                  confirmations={appointment.confirmations}
-                  timestamps={{
-                    createdAt: appointment.createdAt,
-                    confirmedAt: appointment.confirmedAt,
-                    enRouteAt: appointment.enRouteAt,
-                    startedAt: appointment.startedAt,
-                    completedAt: appointment.completedAt,
-                  }}
-                />
-              </View>
-            ) : null}
-
-            {appointment.status === "DISPUTED" ? (
-              <View style={styles.disputedStatusBanner}>
-                <View style={styles.disputedStatusIconWrap}>
-                  <Ionicons
-                    name="flag"
-                    size={22}
-                    color={COLORS.error || "#EF4444"}
-                  />
-                </View>
-                <View style={styles.disputedTextWrap}>
-                  <Text style={styles.disputedStatusTitle}>
-                    Complaint in progress
-                  </Text>
-                  <Text style={styles.disputedStatusSubtitle}>
-                    A complaint has been filed for this appointment. Our team is
-                    reviewing it.
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => void openComplaintDetail()}
-                    hitSlop={{ top: 8, bottom: 8 }}
-                    style={styles.disputedViewComplaintBtn}
-                  >
-                    <Text style={styles.disputedViewComplaintLink}>
-                      View details
-                    </Text>
-                    <Ionicons
-                      name="arrow-forward"
-                      size={14}
-                      color={COLORS.error || "#EF4444"}
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : null}
-
-            {appointment.status === "PENDING" ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.infoCard}>
-                  <Ionicons name="hourglass" size={22} color="#D97706" />
-                  <Text style={styles.infoCardText}>
-                    Waiting for {providerFullName} to confirm your request.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[
-                    styles.btnOutlineRed,
-                    actionLoading && styles.btnDisabled,
-                  ]}
-                  disabled={actionLoading}
-                  onPress={() => setConfirmModal({ kind: "cancel_request" })}
-                >
-                  <Text style={styles.btnOutlineRedText}>Cancel Request</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {appointment.status === "CONFIRMED" ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.successCard}>
-                  <Ionicons name="checkmark-circle" size={22} color="#059669" />
-                  <Text style={styles.successCardText}>
-                    Confirmed for {formatLongDate(appointment.scheduledDate)}.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  disabled={actionLoading}
-                  onPress={() => setConfirmModal({ kind: "cancel_confirmed" })}
-                  style={styles.cancelLinkWrap}
-                >
-                  <Text style={styles.linkDanger}>Cancel appointment</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {appointment.status === "RESCHEDULED" ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.rescheduleCard}>
-                  <View style={styles.rescheduleHeader}>
-                    <View style={styles.rescheduleIconWrap}>
-                      <Ionicons name="calendar" size={20} color="#EA580C" />
-                    </View>
-                    <Text style={styles.rescheduleTitle}>
-                      New time proposed
-                    </Text>
-                  </View>
-                  <Text style={styles.rescheduleTime}>
-                    {formatRescheduleDetail(
-                      appointment.rescheduleDate,
-                      appointment.rescheduleTime,
-                    )}
-                  </Text>
-                  <View style={styles.rescheduleButtonRow}>
-                    <TouchableOpacity
-                      style={[
-                        styles.btnOutlineRed,
-                        styles.flex1,
-                        actionLoading && styles.btnDisabled,
-                      ]}
-                      disabled={actionLoading}
-                      onPress={() =>
-                        setConfirmModal({ kind: "decline_reschedule" })
-                      }
-                    >
-                      <Text style={styles.btnOutlineRedText}>Decline</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.btnPrimaryGreen,
-                        styles.flex1,
-                        actionLoading && styles.btnDisabled,
-                      ]}
-                      disabled={actionLoading}
-                      onPress={() =>
-                        setConfirmModal({ kind: "accept_reschedule" })
-                      }
-                    >
-                      <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                      <Text style={styles.btnPrimaryGreenText}>Accept</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            ) : null}
-
-            {appointment.status === "EN_ROUTE" ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.enRouteCard}>
-                  <View style={styles.enRouteIconWrap}>
-                    <Ionicons name="car" size={28} color="#0284C7" />
-                  </View>
-                  <Text style={styles.enRouteText}>
-                    Provider is on the way!
-                  </Text>
-                  {appointment.enRouteAt ? (
-                    <Text style={styles.enRouteSub}>
-                      Departed at {formatTimeOnly(appointment.enRouteAt)}
-                    </Text>
-                  ) : null}
-                </View>
-                {reportProblemLink({ marginTop: 12 })}
-              </View>
-            ) : null}
-
-            {showAwaitingClientStart ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.awaitingCard}>
-                  <View style={styles.awaitingIconWrap}>
-                    <Ionicons name="location" size={22} color={ACCENT} />
-                  </View>
-                  <Text style={styles.awaitingText}>
-                    Provider has arrived. Please confirm to start the service.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[
-                    styles.btnPrimary,
-                    actionLoading && styles.btnDisabled,
-                  ]}
-                  disabled={actionLoading}
-                  onPress={() =>
-                    void runAction(() =>
-                      api.clientConfirm(appointmentId, { type: "START" }),
-                    )
-                  }
-                >
-                  <Ionicons name="play" size={18} color="#FFFFFF" />
-                  <Text style={styles.btnPrimaryText}>Start Service</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {showTimerPhase ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.timerCard}>
-                  <Text style={styles.timerLabel}>IN PROGRESS</Text>
-                  <Text style={styles.timerLarge}>
-                    {formatElapsed(elapsedSeconds)}
-                  </Text>
-                  <View style={styles.timerDivider} />
-                  <Text style={styles.timerSub}>
-                    Started{" "}
-                    {appointment.startedAt
-                      ? formatDateTime(appointment.startedAt)
-                      : "—"}
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-
-            {showConfirmComplete ? (
-              <View style={styles.actionBlock}>
-                <TouchableOpacity
-                  style={[
-                    styles.btnPrimaryGreen,
-                    actionLoading && styles.btnDisabled,
-                  ]}
-                  disabled={actionLoading}
-                  onPress={() =>
-                    void runAction(() =>
-                      api.clientConfirm(appointmentId, { type: "END" }),
-                    )
-                  }
-                >
-                  <Ionicons name="checkmark-done" size={20} color="#FFFFFF" />
-                  <Text style={styles.btnPrimaryGreenText}>
-                    Confirm Service Complete
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {appointment.status === "IN_PROGRESS"
-              ? reportProblemLink({ marginTop: 12 })
-              : null}
-
-            {appointment.status === "COMPLETED" ? (
-              <View style={styles.completedBlock}>
-                <View style={styles.completedCard}>
-                  <View style={styles.completedIconWrap}>
-                    <Ionicons
-                      name="checkmark-sharp"
-                      size={32}
-                      color="#059669"
-                    />
-                  </View>
-                  <Text style={styles.completedTitle}>Service Completed</Text>
-                </View>
-
-                <View style={styles.card}>
-                  <SectionHeader icon="list-outline" title="Summary" />
-
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Started</Text>
-                    <Text style={styles.summaryValue}>
-                      {formatDateTime(appointment.startedAt)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Ended</Text>
-                    <Text style={styles.summaryValue}>
-                      {formatDateTime(appointment.completedAt)}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.summaryRow,
-                      {
-                        borderBottomWidth: 0,
-                        paddingBottom: 0,
-                        marginBottom: 0,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.summaryLabel}>Duration</Text>
-                    <Text style={styles.summaryValue}>
-                      {appointment.durationMinutes != null
-                        ? `${appointment.durationMinutes} min`
-                        : "—"}
-                    </Text>
-                  </View>
-                </View>
-
-                {checkingReview ? (
-                  <View style={styles.reviewCheckRow}>
-                    <ActivityIndicator size="small" color="#D97706" />
-                  </View>
-                ) : canReview && !alreadyReviewed ? (
-                  <View style={styles.reviewPromoCard}>
-                    <View style={styles.reviewPromoHeader}>
-                      <View style={styles.reviewPromoIconWrap}>
-                        <Ionicons name="star" size={24} color="#D97706" />
-                      </View>
-                      <View style={styles.reviewPromoHeaderText}>
-                        <Text style={styles.reviewPromoTitle}>
-                          How was your experience?
-                        </Text>
-                        <Text style={styles.reviewPromoSub}>
-                          Help others by sharing your feedback.
-                        </Text>
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.reviewPromoBtn}
-                      activeOpacity={0.88}
-                      onPress={() =>
-                        navigation.navigate("ClientLeaveReview", {
-                          appointmentId: appointment.id,
-                          providerName:
-                            `${appointment.provider.firstName} ${appointment.provider.lastName}`.trim(),
-                          serviceName: appointment.givenService.serviceName,
-                          providerPhoto: appointment.provider.photoUrl ?? null,
-                        })
-                      }
-                    >
-                      <Text style={styles.reviewPromoBtnText}>
-                        Leave a review
-                      </Text>
-                      <Ionicons
-                        name="arrow-forward"
-                        size={16}
-                        color="#FFFFFF"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                ) : alreadyReviewed ? (
-                  <View style={styles.reviewedChip}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={16}
-                      color="#047857"
-                    />
-                    <Text style={styles.reviewedChipText}>
-                      You reviewed this appointment
-                    </Text>
-                  </View>
-                ) : null}
-
-                {reportProblemLink({ marginTop: 14 })}
-              </View>
-            ) : null}
-
-            {appointment.status === "REFUSED" ? (
-              <View style={styles.actionBlock}>
-                <View style={styles.errorCard}>
-                  <View style={styles.errorIconWrap}>
-                    <Ionicons name="close" size={32} color="#DC2626" />
-                  </View>
-                  <Text style={styles.errorTitle}>Request Refused</Text>
-                  {appointment.refusalReason ? (
-                    <Text style={styles.errorMessage}>
-                      {appointment.refusalReason}
-                    </Text>
-                  ) : null}
-                </View>
-                <TouchableOpacity
-                  style={styles.btnPrimary}
-                  onPress={() => {
-                    navigation.popToTop();
-                    navigation.navigate("ClientSearchProvider", undefined);
-                  }}
-                >
-                  <Ionicons name="search" size={18} color="#FFFFFF" />
-                  <Text style={styles.btnPrimaryText}>
-                    Find Another Provider
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {(appointment.status === "CANCELLED_CLIENT" ||
-              appointment.status === "CANCELLED_PROVIDER") && (
-              <View style={styles.actionBlock}>
-                <View style={styles.cancelledCard}>
-                  <View style={styles.cancelledIconWrap}>
-                    <Ionicons name="ban" size={28} color="#4B5563" />
-                  </View>
-                  <Text style={styles.cancelledTitle}>
-                    Appointment Cancelled
-                  </Text>
-                  <Text style={styles.cancelledSubtitle}>
-                    {appointment.status === "CANCELLED_CLIENT"
-                      ? "Cancelled by you"
-                      : "Cancelled by provider"}
-                  </Text>
-                  {appointment.cancellationReason ? (
-                    <View style={styles.cancelledReasonBox}>
-                      <Text style={styles.cancelledReason}>
-                        "{appointment.cancellationReason}"
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-                <TouchableOpacity
-                  style={styles.btnPrimary}
-                  onPress={() => {
-                    navigation.popToTop();
-                    navigation.navigate("ClientHome");
-                  }}
-                >
-                  <Ionicons
-                    name="add-circle-outline"
-                    size={20}
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.btnPrimaryText}>Book Again</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </>
-        ) : null}
-
-        {activeTab === "details" ? (
-          <>
-            <Pressable
-              style={({ pressed }) => [
-                styles.card,
-                styles.providerCardPressable,
-                pressed && appointment.givenServiceId && styles.cardPressed,
-              ]}
-              onPress={openProviderProfile}
-              disabled={!appointment.givenServiceId}
-              accessibilityRole="button"
-              accessibilityLabel={`View ${providerFullName} profile`}
-            >
-              <View style={styles.providerRow}>
-                {appointment.provider.photoUrl ? (
-                  <Image
-                    source={{ uri: appointment.provider.photoUrl }}
-                    style={styles.avatar}
-                  />
-                ) : (
-                  <View style={styles.avatarFallback}>
-                    <Text style={styles.avatarInitials}>{initials}</Text>
-                  </View>
-                )}
-                <View style={styles.providerText}>
-                  <Text style={styles.providerName}>{providerFullName}</Text>
-                  {appointment.provider.tagline ? (
-                    <Text style={styles.tagline} numberOfLines={1}>
-                      {appointment.provider.tagline}
-                    </Text>
-                  ) : null}
-                  {appointment.provider.city ? (
-                    <View style={styles.cityRow}>
-                      <Ionicons
-                        name="location-outline"
-                        size={14}
-                        color="#94A3B8"
-                      />
-                      <Text style={styles.city}>
-                        {appointment.provider.city}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-                {appointment.givenServiceId ? (
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color="#94A3B8"
-                  />
-                ) : null}
-              </View>
-            </Pressable>
-
-            <View style={styles.card}>
-              <SectionHeader icon="briefcase-outline" title="Booking Details" />
-              <View style={styles.serviceHeader}>
-                <View style={styles.serviceInfo}>
-                  <Text style={styles.serviceTitle}>
-                    {appointment.givenService.serviceName || "Service"}
-                  </Text>
-                  <View style={styles.categoryChip}>
-                    <Text style={styles.categoryChipText}>
-                      {appointment.givenService.categoryName || "Uncategorized"}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.priceWrap}>
-                  <Text style={styles.priceTag}>{priceLabel}</Text>
-                </View>
-              </View>
-              <DetailRow
-                icon="calendar-outline"
-                label="Date"
-                value={formatBookingDateTime(
-                  appointment.scheduledDate,
-                  appointment.scheduledTime,
-                )}
-              />
-              {appointment.givenService.estimatedDurationMinutes != null ? (
-                <DetailRow
-                  icon="time-outline"
-                  label="Duration"
-                  value={`Est. ${appointment.givenService.estimatedDurationMinutes} mins`}
-                />
-              ) : null}
-              {appointment.provider.city ? (
-                <DetailRow
-                  icon="location-outline"
-                  label="City"
-                  value={appointment.provider.city}
-                />
-              ) : null}
-            </View>
-
-            {appointment.notes ? (
-              <View style={styles.notesAmberCard}>
-                <Text style={styles.notesAmberLabel}>Notes for provider</Text>
-                <Text style={styles.notesAmberText}>{appointment.notes}</Text>
-              </View>
-            ) : null}
-
-            {appointment.photoUrls.length > 0 ? (
-              <View style={styles.card}>
-                <SectionHeader icon="images-outline" title="Reference Photos" />
-                <AppointmentPhotoCarousel
-                  photos={appointment.photoUrls}
-                  accessibilityLabelPrefix="Reference photo"
-                />
-              </View>
-            ) : null}
-
-            {interventionPhotosSection}
-
-            <View style={styles.card}>
-              <SectionHeader icon="receipt-outline" title="Order Summary" />
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>
-                  {appointment.givenService.serviceName}
-                </Text>
-                <Text style={styles.summaryValue}>{priceLabel}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Platform Fee</Text>
-                <Text style={styles.summaryValue}>$0</Text>
-              </View>
-              <View style={[styles.summaryRow, styles.summaryRowTotal]}>
-                <Text style={styles.summaryTotalLabel}>Total</Text>
-                <Text style={styles.summaryTotalValue}>{priceLabel}</Text>
-              </View>
-            </View>
-
-            {appointment.status === "PENDING" ||
-            appointment.status === "CONFIRMED" ? (
-              <TouchableOpacity
-                style={[
-                  styles.btnCancelFull,
-                  actionLoading && styles.btnDisabled,
-                ]}
-                disabled={actionLoading}
-                onPress={() =>
-                  setConfirmModal(
-                    appointment.status === "PENDING"
-                      ? { kind: "cancel_request" }
-                      : { kind: "cancel_confirmed" },
-                  )
-                }
-              >
-                <Text style={styles.btnCancelFullText}>Cancel Appointment</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {reportProblemLink()}
-          </>
-        ) : null}
-      </ScrollView>
+      <ClientAppointmentDetailView
+        navigation={navigation}
+        insetsTop={insets.top}
+        insetsBottom={insets.bottom}
+        appointment={appointment}
+        appointmentRef={appointmentRef}
+        statusLabel={statusLabel(appointment.status)}
+        statusPillColor={banner.text}
+        providerFullName={providerFullName}
+        priceLabel={priceLabel}
+        actionLoading={actionLoading}
+        timelineProgress={timelineProgress}
+        showAwaitingClientStart={showAwaitingClientStart}
+        showTimerPhase={showTimerPhase}
+        showConfirmComplete={showConfirmComplete}
+        elapsedSeconds={elapsedSeconds}
+        checkingReview={checkingReview}
+        canReview={canReview}
+        alreadyReviewed={alreadyReviewed}
+        existingReviewRating={existingReviewRating}
+        existingReviewComment={existingReviewComment}
+        canManageReview={!!existingReviewId}
+        showReportProblemLink={showReportProblemLink}
+        canOpenProviderProfile={!!appointment.givenServiceId}
+        clientPhotosSection={clientPhotosSection}
+        servicePhotosSection={servicePhotosSection}
+        formatBookingDateTime={formatBookingDateTime}
+        formatLongDate={formatLongDate}
+        formatRescheduleDetail={formatRescheduleDetail}
+        onBack={() => navigation.goBack()}
+        onCancelRequest={() => setConfirmModal({ kind: "cancel_request" })}
+        onCancelConfirmed={() => setConfirmModal({ kind: "cancel_confirmed" })}
+        onDeclineReschedule={() => setConfirmModal({ kind: "decline_reschedule" })}
+        onAcceptReschedule={() => setConfirmModal({ kind: "accept_reschedule" })}
+        onConfirmStart={() =>
+          void runAction(() =>
+            api.clientConfirm(appointmentId, { type: "START" }),
+          )
+        }
+        onConfirmComplete={() =>
+          void runAction(() =>
+            api.clientConfirm(appointmentId, { type: "END" }),
+          )
+        }
+        onOpenProviderProfile={openProviderProfile}
+        onOpenComplaintDetail={() => void openComplaintDetail()}
+        onReportProblem={() =>
+          navigation.navigate("ClientFileComplaint", fileComplaintParams)
+        }
+        onLeaveReview={() =>
+          navigation.navigate("ClientLeaveReview", {
+            appointmentId: appointment.id,
+            providerName: providerFullName,
+            serviceName: appointment.givenService.serviceName,
+            providerPhoto: appointment.provider.photoUrl ?? null,
+          })
+        }
+        onEditReview={() => {
+          if (existingReviewId) {
+            navigation.navigate("ClientReviewDetail", {
+              reviewId: existingReviewId,
+            });
+          }
+        }}
+        onRemoveReview={() => setDeleteReviewVisible(true)}
+        onFindAnotherProvider={() => {
+          navigation.popToTop();
+          navigation.navigate("ClientSearchProvider", undefined);
+        }}
+        onBookAgain={() => {
+          navigation.popToTop();
+          navigation.navigate("ClientHome");
+        }}
+      />
 
       {confirmModal ? (
         <ConfirmModal
@@ -2138,6 +1578,34 @@ export const ClientAppointmentDetailScreen: React.FC<Props> = ({
         />
       ) : null}
 
+      <ConfirmModal
+        visible={deleteReviewVisible}
+        onDismiss={() => !deletingReview && setDeleteReviewVisible(false)}
+        loading={deletingReview}
+        title="Remove your review?"
+        message="This will delete your rating and feedback for this appointment. You can leave a new review afterward."
+        cancelLabel="Keep review"
+        confirmLabel="Remove review"
+        confirmVariant="destructive"
+        onConfirm={() => {
+          if (!existingReviewId) {
+            setDeleteReviewVisible(false);
+            return;
+          }
+          setDeletingReview(true);
+          void api
+            .deleteMyClientReview(existingReviewId)
+            .then(() => loadReviewEligibility())
+            .then(() => setDeleteReviewVisible(false))
+            .catch(() => {
+              Alert.alert(
+                "Something went wrong",
+                "Could not remove your review. Please try again.",
+              );
+            })
+            .finally(() => setDeletingReview(false));
+        }}
+      />
     </View>
   );
 };

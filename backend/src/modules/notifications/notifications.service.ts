@@ -33,15 +33,6 @@ export class NotificationsService {
     });
   }
 
-  async unregisterPushToken(userId: string, token: string): Promise<void> {
-    await this.prisma.pushToken.deleteMany({
-      where: {
-        userId,
-        token,
-      },
-    });
-  }
-
   async getUserTokens(userId: string): Promise<string[]> {
     const rows = await this.prisma.pushToken.findMany({
       where: { userId },

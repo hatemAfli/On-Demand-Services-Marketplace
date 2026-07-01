@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import {
   CompanyAuditAction,
-  CompanyBranchStatus,
   Prisma,
   ProviderType,
 } from '@prisma/client';
@@ -15,14 +14,7 @@ import type { GalleryUploadFile } from '../services/gallery-upload-file.type';
 import { ListAuditLogsDto } from './dto/list-audit-logs.dto';
 import { UpdateCompanyBrandingDto } from './dto/update-company-branding.dto';
 import { UpdateCompanyProfileDto } from './dto/update-company-profile.dto';
-import { UpsertBranchDto } from './dto/upsert-branch.dto';
 import { CompanyAuditService } from '../audit/company-audit.service';
-
-const BRANCH_STATUS_LABEL: Record<CompanyBranchStatus, string> = {
-  OPERATIONAL: 'Operational',
-  COMING_SOON: 'Coming Soon',
-  INACTIVE: 'Inactive',
-};
 
 const LOGO_BUCKET = 'avatars';
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;
@@ -60,28 +52,30 @@ export class CompanySettingsService {
     };
   }
 
-  private async ensureDefaultBranch(companyId: string) {
-    const count = await this.prisma.companyBranch.count({
-      where: { companyId },
-    });
-    if (count > 0) return;
+  async getSettings(userId: string) {
+    const admin = await this.resolveCompanyAdmin(userId);
+    const [company, auditPreview] = await Promise.all([
+      this.prisma.company.findUniqueOrThrow({
+        where: { id: admin.companyId },
+      }),
+      this.prisma.companyAuditLog.findMany({
+        where: { companyId: admin.companyId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: {
+          actorAdmin: {
+            include: {
+              user: { select: { firstName: true, lastName: true } },
+            },
+          },
+        },
+      }),
+    ]);
 
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { companyName: true, city: true, address: true },
-    });
-    if (!company) return;
-
-    await this.prisma.companyBranch.create({
-      data: {
-        companyId,
-        name: `${company.companyName} HQ`,
-        subtitle: 'Main Office',
-        city: company.city,
-        address: company.address,
-        status: CompanyBranchStatus.OPERATIONAL,
-      },
-    });
+    return {
+      profile: this.mapProfile(company),
+      auditPreview: auditPreview.map((log) => this.mapAuditLog(log)),
+    };
   }
 
   private async logAudit(
@@ -123,35 +117,6 @@ export class CompanySettingsService {
       about: company.about ?? '',
       serviceZones: company.serviceZones ?? [],
       logo: company.logo,
-    };
-  }
-
-  async getSettings(userId: string) {
-    const admin = await this.resolveCompanyAdmin(userId);
-    await this.ensureDefaultBranch(admin.companyId);
-    const [company, branches, auditPreview] = await Promise.all([
-        this.prisma.company.findUniqueOrThrow({
-          where: { id: admin.companyId },
-        }),
-        this.listBranchesInternal(admin.companyId),
-        this.prisma.companyAuditLog.findMany({
-          where: { companyId: admin.companyId },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-          include: {
-            actorAdmin: {
-              include: {
-                user: { select: { firstName: true, lastName: true } },
-              },
-            },
-          },
-        }),
-      ]);
-
-    return {
-      profile: this.mapProfile(company),
-      branches,
-      auditPreview: auditPreview.map((log) => this.mapAuditLog(log)),
     };
   }
 
@@ -316,142 +281,6 @@ export class CompanySettingsService {
     return {
       logo: updated.logo,
     };
-  }
-
-  private async listBranchesInternal(companyId: string) {
-    const [branches, employees] = await Promise.all([
-      this.prisma.companyBranch.findMany({
-        where: { companyId },
-        orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.provider.findMany({
-        where: { companyId, type: ProviderType.EMPLOYEE },
-        select: { city: true },
-      }),
-    ]);
-
-    return branches.map((b) => {
-      const cityKey = b.city.trim().toLowerCase();
-      const activeProviders = employees.filter(
-        (e) => e.city.trim().toLowerCase() === cityKey,
-      ).length;
-      return {
-        id: b.id,
-        name: b.name,
-        subtitle: b.subtitle,
-        city: b.city,
-        address: b.address,
-        status: b.status,
-        statusLabel: BRANCH_STATUS_LABEL[b.status],
-        activeProviders,
-        createdAt: b.createdAt,
-        updatedAt: b.updatedAt,
-      };
-    });
-  }
-
-  async listBranches(userId: string) {
-    const admin = await this.resolveCompanyAdmin(userId);
-    await this.ensureDefaultBranch(admin.companyId);
-    return this.listBranchesInternal(admin.companyId);
-  }
-
-  async createBranch(
-    userId: string,
-    dto: UpsertBranchDto,
-    ipAddress?: string,
-  ) {
-    const admin = await this.resolveCompanyAdmin(userId);
-    const branch = await this.prisma.companyBranch.create({
-      data: {
-        companyId: admin.companyId,
-        name: dto.name.trim(),
-        subtitle: dto.subtitle?.trim() || null,
-        city: dto.city.trim(),
-        address: dto.address?.trim() || null,
-        status: dto.status ?? CompanyBranchStatus.OPERATIONAL,
-      },
-    });
-
-    await this.logAudit(
-      admin.companyId,
-      admin.id,
-      CompanyAuditAction.BRANCH_CREATED,
-      `${admin.user.firstName ?? 'Admin'} created branch "${branch.name}".`,
-      { branchId: branch.id },
-      ipAddress,
-    );
-
-    const mapped = (await this.listBranchesInternal(admin.companyId)).find(
-      (b) => b.id === branch.id,
-    );
-    return mapped!;
-  }
-
-  async updateBranch(
-    userId: string,
-    branchId: string,
-    dto: UpsertBranchDto,
-    ipAddress?: string,
-  ) {
-    const admin = await this.resolveCompanyAdmin(userId);
-    const existing = await this.prisma.companyBranch.findFirst({
-      where: { id: branchId, companyId: admin.companyId },
-    });
-    if (!existing) throw new NotFoundException('Branch not found');
-
-    await this.prisma.companyBranch.update({
-      where: { id: branchId },
-      data: {
-        name: dto.name.trim(),
-        subtitle: dto.subtitle?.trim() || null,
-        city: dto.city.trim(),
-        address: dto.address?.trim() || null,
-        status: dto.status ?? existing.status,
-      },
-    });
-
-    await this.logAudit(
-      admin.companyId,
-      admin.id,
-      CompanyAuditAction.BRANCH_UPDATED,
-      `${admin.user.firstName ?? 'Admin'} updated branch "${dto.name.trim()}".`,
-      { branchId },
-      ipAddress,
-    );
-
-    const mapped = (await this.listBranchesInternal(admin.companyId)).find(
-      (b) => b.id === branchId,
-    );
-    return mapped!;
-  }
-
-  async deleteBranch(userId: string, branchId: string, ipAddress?: string) {
-    const admin = await this.resolveCompanyAdmin(userId);
-    const existing = await this.prisma.companyBranch.findFirst({
-      where: { id: branchId, companyId: admin.companyId },
-    });
-    if (!existing) throw new NotFoundException('Branch not found');
-
-    const branchCount = await this.prisma.companyBranch.count({
-      where: { companyId: admin.companyId },
-    });
-    if (branchCount <= 1) {
-      throw new BadRequestException('At least one branch must remain.');
-    }
-
-    await this.prisma.companyBranch.delete({ where: { id: branchId } });
-
-    await this.logAudit(
-      admin.companyId,
-      admin.id,
-      CompanyAuditAction.BRANCH_DELETED,
-      `${admin.user.firstName ?? 'Admin'} deleted branch "${existing.name}".`,
-      { branchId },
-      ipAddress,
-    );
-
-    return { deleted: true };
   }
 
   async listAuditLogs(userId: string, dto: ListAuditLogsDto) {

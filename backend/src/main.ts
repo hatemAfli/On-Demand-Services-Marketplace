@@ -31,8 +31,9 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') || 3000;
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`\n Server is running on: http://localhost:${port}/api`);
+  console.log(` LAN access: use your machine IP on port ${port} (mobile / Expo Go)`);
   console.log(` API Documentation: http://localhost:${port}/api\n`);
 }
 bootstrap();

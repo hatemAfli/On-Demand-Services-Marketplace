@@ -15,8 +15,8 @@ import { localeFallbackChain } from '../../common/i18n/locale';
 import { PrismaService } from '../../config/prisma.config';
 import { SupabaseService } from '../../config/supabase.config';
 import { UserAccountService } from '../accounts/user-account.service';
+import { ClientHomeService } from './client-home.service';
 import { AddClientSearchHistoryDto } from './dto/add-client-search-history.dto';
-import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 @Injectable()
@@ -25,72 +25,8 @@ export class ClientsService {
     private prisma: PrismaService,
     private userAccount: UserAccountService,
     private supabase: SupabaseService,
+    private clientHome: ClientHomeService,
   ) {}
-
-  async getMe(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { client: true },
-    });
-
-    if (!user || !user.client) {
-      throw new NotFoundException(
-        'Client profile not found. Complete registration first.',
-      );
-    }
-
-    // Extra safety (role guard should already enforce this)
-    if (user.role !== UserRole.CLIENT) {
-      throw new BadRequestException('Not a client account');
-    }
-
-    return user;
-  }
-
-  async createMe(userId: string, dto: CreateClientDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { client: true },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    if (user.role !== UserRole.CLIENT) {
-      throw new BadRequestException('Not a client account');
-    }
-
-    if (user.client) {
-      throw new ConflictException(
-        'Client profile already exists. Use PATCH to update.',
-      );
-    }
-
-    const userUpdateData = this.userAccount.buildUserUpdateData(dto);
-
-    return this.prisma.$transaction(async (tx) => {
-      if (Object.keys(userUpdateData).length > 0) {
-        await tx.user.update({
-          where: { id: userId },
-          data: userUpdateData,
-        });
-      }
-
-      await tx.client.create({
-        data: {
-          id: userId,
-          city: dto.city,
-          address: dto.address,
-          imageUrl: dto.imageUrl,
-        },
-      });
-
-      return tx.user.findUnique({
-        where: { id: userId },
-        include: { client: true },
-      });
-    });
-  }
 
   async updateMe(userId: string, dto: UpdateClientDto) {
     const user = await this.prisma.user.findUnique({
@@ -106,7 +42,7 @@ export class ClientsService {
     }
     if (!user.client) {
       throw new NotFoundException(
-        'Client profile not found. Use POST /api/clients/me first.',
+        'Client profile not found. Complete registration first.',
       );
     }
 
@@ -164,7 +100,7 @@ export class ClientsService {
     }
     if (!user.client) {
       throw new NotFoundException(
-        'Client profile not found. Use POST /clients/me first.',
+        'Client profile not found. Complete registration first.',
       );
     }
     if (user.status === AccountStatus.DELETED) {
@@ -288,6 +224,8 @@ export class ClientsService {
       },
     });
 
+    await this.clientHome.invalidatePopularNearbyCache(userId);
+
     return this.getSearchHistory(userId, locale);
   }
 
@@ -296,6 +234,7 @@ export class ClientsService {
     const deleted = await this.prisma.clientSearchHistory.deleteMany({
       where: { clientId: userId },
     });
+    await this.clientHome.invalidatePopularNearbyCache(userId);
     return { deletedCount: deleted.count };
   }
 

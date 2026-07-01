@@ -39,6 +39,8 @@ import {
   useConversationRealtime,
   type IncomingMessage,
 } from "../../hooks/useConversationRealtime";
+import { ChatMessageActionSheet } from "../../components/chat/ChatMessageActionSheet";
+import { ConfirmModal } from "../../components/common/ConfirmModal";
 
 type Props =
   | NativeStackScreenProps<ClientStackParamList, "ChatScreen">
@@ -67,6 +69,18 @@ function keyboardInsetFromEvent(e: KeyboardEvent): number {
 function normalizeMessage(raw: unknown): ChatMessage {
   const m = raw as Record<string, unknown>;
   const status = (m.status as MessageStatus) ?? "SENT";
+  const editedAt =
+    typeof m.editedAt === "string"
+      ? m.editedAt
+      : m.editedAt != null
+        ? new Date(String(m.editedAt)).toISOString()
+        : null;
+  const deletedAt =
+    typeof m.deletedAt === "string"
+      ? m.deletedAt
+      : m.deletedAt != null
+        ? new Date(String(m.deletedAt)).toISOString()
+        : null;
   return {
     id: String(m.id),
     conversationId: String(m.conversationId),
@@ -81,6 +95,8 @@ function normalizeMessage(raw: unknown): ChatMessage {
       typeof m.createdAt === "string"
         ? m.createdAt
         : new Date(String(m.createdAt)).toISOString(),
+    editedAt,
+    deletedAt,
   };
 }
 
@@ -136,7 +152,19 @@ function incomingToChatMessage(msg: IncomingMessage): UiMessage {
     mediaUrls: Array.isArray(msg.mediaUrls) ? msg.mediaUrls : [],
     status: msg.status ?? "DELIVERED",
     createdAt: msg.createdAt,
+    editedAt: msg.editedAt ?? null,
+    deletedAt: msg.deletedAt ?? null,
   };
+}
+
+function isWithdrawn(m: UiMessage): boolean {
+  return m.deletedAt != null;
+}
+
+function statusLabel(status: MessageStatus): string {
+  if (status === "READ") return "Read";
+  if (status === "DELIVERED") return "Delivered";
+  return "Sent";
 }
 
 function buildRows(messages: UiMessage[]): ChatRow[] {
@@ -162,26 +190,33 @@ function buildRows(messages: UiMessage[]): ChatRow[] {
   return rows;
 }
 
-function ReadReceipt({ status }: { status: MessageStatus }) {
-  const gray = COLORS.gray[400];
-  const blue = COLORS.primary;
-  if (status === "READ") {
-    return (
-      <View style={styles.readRow}>
-        <Ionicons name="checkmark-done" size={14} color={blue} />
-      </View>
-    );
-  }
-  if (status === "DELIVERED") {
-    return (
-      <View style={styles.readRow}>
-        <Ionicons name="checkmark-done" size={14} color={gray} />
-      </View>
-    );
-  }
+function MessageMeta({
+  createdAt,
+  editedAt,
+  status,
+  isMine,
+  showStatus = isMine,
+}: {
+  createdAt: string;
+  editedAt?: string | null;
+  status: MessageStatus;
+  isMine: boolean;
+  showStatus?: boolean;
+}) {
   return (
-    <View style={styles.readRow}>
-      <Ionicons name="checkmark" size={14} color={gray} />
+    <View style={[styles.metaRow, !isMine && styles.metaRowOther]}>
+      <Text
+        style={[
+          styles.timeInBubble,
+          isMine ? styles.timeInBubbleMine : styles.timeInBubbleOther,
+        ]}
+      >
+        {formatTime(createdAt)}
+        {editedAt ? " · Edited" : ""}
+      </Text>
+      {showStatus ? (
+        <Text style={styles.statusLabel}>{statusLabel(status)}</Text>
+      ) : null}
     </View>
   );
 }
@@ -202,15 +237,20 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [composerHeight, setComposerHeight] = useState(72);
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const [editingMessage, setEditingMessage] = useState<UiMessage | null>(null);
+  const [editText, setEditText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [actionMenuMessage, setActionMenuMessage] = useState<UiMessage | null>(
+    null,
+  );
+  const [withdrawTarget, setWithdrawTarget] = useState<UiMessage | null>(null);
+  const [withdrawing, setWithdrawing] = useState(false);
 
   const userIdRef = useRef(user?.id);
   userIdRef.current = user?.id;
 
-  const latestOutgoingIndex = useMemo(() => {
-    const uid = user?.id;
-    if (!uid) return -1;
-    return messages.findIndex((m) => m.senderUserId === uid);
-  }, [messages, user?.id]);
+  const conversationIdRef = useRef(conversationId);
+  conversationIdRef.current = conversationId;
 
   const rows = useMemo(() => buildRows(messages), [messages]);
 
@@ -226,6 +266,17 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
       setOldestCursor(
         list.length > 0 ? list[list.length - 1].createdAt : null,
       );
+      const uid = userIdRef.current;
+      if (uid) {
+        const toDeliver = list
+          .filter((m) => m.senderUserId !== uid && m.status === "SENT")
+          .map((m) => m.id);
+        if (toDeliver.length > 0) {
+          void api
+            .markMessagesDelivered(conversationId, toDeliver)
+            .catch(() => {});
+        }
+      }
     } catch {
       setMessages([]);
       setHasMore(false);
@@ -280,9 +331,55 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
       if (prev.some((m) => m.id === next.id)) return prev;
       return [next, ...prev];
     });
+    const cid = conversationIdRef.current;
+    void api.markMessagesDelivered(cid, [msg.id]).catch(() => {});
+    void api.markConversationRead(cid).catch(() => {});
   }, []);
 
-  useConversationRealtime(conversationId, onNewMessage);
+  const onMessagesStatus = useCallback(
+    (payload: { messageIds: string[]; status: MessageStatus }) => {
+      const ids = new Set(payload.messageIds);
+      setMessages((prev) =>
+        prev.map((m) =>
+          ids.has(m.id) ? { ...m, status: payload.status } : m,
+        ),
+      );
+    },
+    [],
+  );
+
+  const onMessageUpdated = useCallback((msg: IncomingMessage) => {
+    const next = incomingToChatMessage(msg);
+    setMessages((prev) =>
+      prev.map((m) => (m.id === next.id ? { ...m, ...next } : m)),
+    );
+  }, []);
+
+  const onMessageWithdrawn = useCallback(
+    (payload: { id: string; deletedAt: string | null }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === payload.id
+            ? {
+                ...m,
+                deletedAt: payload.deletedAt,
+                text: null,
+                mediaUrls: [],
+                localPreviewUris: undefined,
+              }
+            : m,
+        ),
+      );
+    },
+    [],
+  );
+
+  useConversationRealtime(conversationId, {
+    onNewMessage,
+    onMessagesStatus,
+    onMessageUpdated,
+    onMessageWithdrawn,
+  });
 
   const loadOlder = useCallback(async () => {
     if (!hasMore || loadingMore || !oldestCursor) return;
@@ -423,6 +520,80 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     setPhotoUris((prev) => prev.filter((_, i) => i !== ix));
   }, []);
 
+  const openEditModal = useCallback((m: UiMessage) => {
+    setEditingMessage(m);
+    setEditText(m.text ?? "");
+  }, []);
+
+  const closeEditModal = useCallback(() => {
+    if (savingEdit) return;
+    setEditingMessage(null);
+    setEditText("");
+  }, [savingEdit]);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingMessage) return;
+    const trimmed = editText.trim();
+    if (!trimmed) {
+      Alert.alert("Empty message", "Message text cannot be empty.");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const res = await api.updateChatMessage(editingMessage.id, trimmed);
+      const updated = normalizeMessage(res.data);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)),
+      );
+      closeEditModal();
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Could not update message.";
+      Alert.alert("Update failed", msg);
+    } finally {
+      setSavingEdit(false);
+    }
+  }, [closeEditModal, editText, editingMessage]);
+
+  const confirmWithdraw = useCallback((m: UiMessage) => {
+    setWithdrawTarget(m);
+  }, []);
+
+  const closeActionMenu = useCallback(() => {
+    setActionMenuMessage(null);
+  }, []);
+
+  const handleWithdrawConfirm = useCallback(async () => {
+    if (!withdrawTarget) return;
+    setWithdrawing(true);
+    try {
+      const res = await api.withdrawChatMessage(withdrawTarget.id);
+      const updated = normalizeMessage(res.data);
+      setMessages((prev) =>
+        prev.map((item) =>
+          item.id === updated.id ? { ...item, ...updated } : item,
+        ),
+      );
+      setWithdrawTarget(null);
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Could not withdraw message.";
+      Alert.alert("Withdraw failed", msg);
+    } finally {
+      setWithdrawing(false);
+    }
+  }, [withdrawTarget]);
+
+  const handleMessageLongPress = useCallback(
+    (m: UiMessage) => {
+      const uid = user?.id;
+      if (!uid || m.senderUserId !== uid) return;
+      if (isWithdrawn(m) || m.id.startsWith("local-")) return;
+      setActionMenuMessage(m);
+    },
+    [user?.id],
+  );
+
   const canSend =
     (text.trim().length > 0 || photoUris.length > 0) && !sending;
 
@@ -441,16 +612,17 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
       const m = item.message;
       const uid = user?.id;
       const isMine = !!uid && m.senderUserId === uid;
+      const withdrawn = isWithdrawn(m);
       const showCompact =
         item.index < messages.length - 1 &&
         messages[item.index + 1].senderUserId === m.senderUserId;
-      const showReceipt =
-        isMine && item.index === latestOutgoingIndex;
 
       const thumbs =
-        m.localPreviewUris && m.localPreviewUris.length > 0
+        !withdrawn && m.localPreviewUris && m.localPreviewUris.length > 0
           ? m.localPreviewUris
-          : m.mediaUrls;
+          : !withdrawn
+            ? m.mediaUrls
+            : [];
 
       return (
         <View
@@ -460,10 +632,17 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
             { marginBottom: showCompact ? 4 : 12 },
           ]}
         >
-          <View
+          <Pressable
+            onLongPress={
+              isMine && !withdrawn
+                ? () => handleMessageLongPress(m)
+                : undefined
+            }
+            delayLongPress={350}
             style={[
               styles.bubble,
               isMine ? styles.bubbleMine : styles.bubbleOther,
+              withdrawn ? styles.bubbleWithdrawn : null,
             ]}
           >
             {thumbs.length > 0 ? (
@@ -483,7 +662,17 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 ))}
               </View>
             ) : null}
-            {m.text ? (
+            {withdrawn ? (
+              <Text
+                style={[
+                  styles.bubbleText,
+                  styles.withdrawnText,
+                  isMine ? styles.bubbleTextMine : styles.bubbleTextOther,
+                ]}
+              >
+                This message was withdrawn
+              </Text>
+            ) : m.text ? (
               <Text
                 style={[
                   styles.bubbleText,
@@ -493,20 +682,18 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
                 {m.text}
               </Text>
             ) : null}
-            <Text
-              style={[
-                styles.timeInBubble,
-                isMine ? styles.timeInBubbleMine : styles.timeInBubbleOther,
-              ]}
-            >
-              {formatTime(m.createdAt)}
-            </Text>
-            {showReceipt ? <ReadReceipt status={m.status} /> : null}
-          </View>
+            <MessageMeta
+              createdAt={m.createdAt}
+              editedAt={withdrawn ? null : m.editedAt}
+              status={m.status}
+              isMine={isMine}
+              showStatus={isMine && !withdrawn}
+            />
+          </Pressable>
         </View>
       );
     },
-    [latestOutgoingIndex, messages, user?.id],
+    [handleMessageLongPress, messages, user?.id],
   );
 
   const inputMaxHeight = INPUT_LINE_HEIGHT * INPUT_MAX_LINES + 16;
@@ -685,6 +872,79 @@ export const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
           ) : null}
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={!!editingMessage}
+        transparent
+        animationType="slide"
+        onRequestClose={closeEditModal}
+      >
+        <View style={styles.editModalBackdrop}>
+          <View style={styles.editModalCard}>
+            <Text style={styles.editModalTitle}>Edit message</Text>
+            <TextInput
+              style={styles.editModalInput}
+              value={editText}
+              onChangeText={setEditText}
+              multiline
+              maxLength={2000}
+              autoFocus
+            />
+            <View style={styles.editModalActions}>
+              <TouchableOpacity
+                style={styles.editModalBtnSecondary}
+                onPress={closeEditModal}
+                disabled={savingEdit}
+              >
+                <Text style={styles.editModalBtnSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.editModalBtnPrimary,
+                  savingEdit && styles.sendBtnDisabled,
+                ]}
+                onPress={() => void handleSaveEdit()}
+                disabled={savingEdit}
+              >
+                {savingEdit ? (
+                  <ActivityIndicator color={COLORS.white} size="small" />
+                ) : (
+                  <Text style={styles.editModalBtnPrimaryText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <ChatMessageActionSheet
+        visible={!!actionMenuMessage}
+        message={actionMenuMessage}
+        bottomInset={insets.bottom}
+        onClose={closeActionMenu}
+        onEdit={() => {
+          const target = actionMenuMessage;
+          closeActionMenu();
+          if (target) openEditModal(target);
+        }}
+        onWithdraw={() => {
+          const target = actionMenuMessage;
+          closeActionMenu();
+          if (target) confirmWithdraw(target);
+        }}
+      />
+
+      <ConfirmModal
+        visible={!!withdrawTarget}
+        onDismiss={() => !withdrawing && setWithdrawTarget(null)}
+        title="Withdraw message?"
+        message="This message will be removed for everyone in the chat. This cannot be undone."
+        cancelLabel="Keep message"
+        confirmLabel="Withdraw"
+        confirmVariant="destructive"
+        onConfirm={handleWithdrawConfirm}
+        loading={withdrawing}
+      />
     </View>
   );
 };
@@ -825,11 +1085,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
   },
-  timeInBubbleMine: { color: "rgba(255,255,255,0.75)", alignSelf: "flex-end" },
-  timeInBubbleOther: { color: COLORS.text.tertiary, alignSelf: "flex-start" },
-  readRow: {
-    marginTop: 2,
+  timeInBubbleMine: { color: "rgba(255,255,255,0.75)" },
+  timeInBubbleOther: { color: COLORS.text.tertiary },
+  metaRow: {
+    marginTop: 4,
     alignSelf: "flex-end",
+    alignItems: "flex-end",
+    gap: 2,
+  },
+  metaRowOther: {
+    alignSelf: "flex-start",
+    alignItems: "flex-start",
+  },
+  statusLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.85)",
+  },
+  bubbleWithdrawn: {
+    opacity: 0.85,
+  },
+  withdrawnText: {
+    fontStyle: "italic",
   },
   thumbRow: {
     flexDirection: "row",
@@ -918,5 +1195,66 @@ const styles = StyleSheet.create({
   modalImage: {
     width: "100%",
     height: "80%",
+  },
+  editModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  editModalCard: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  editModalTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: COLORS.text.primary,
+    marginBottom: 12,
+  },
+  editModalInput: {
+    minHeight: 96,
+    maxHeight: 160,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: COLORS.text.primary,
+    textAlignVertical: "top",
+  },
+  editModalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 16,
+  },
+  editModalBtnSecondary: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: COLORS.gray[100],
+  },
+  editModalBtnSecondaryText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.text.secondary,
+  },
+  editModalBtnPrimary: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    minWidth: 72,
+    alignItems: "center",
+  },
+  editModalBtnPrimaryText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.white,
   },
 });

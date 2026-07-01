@@ -3,12 +3,14 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './config/prisma.module';
+import { RedisModule } from './config/redis.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { ServicesModule } from './modules/services/services.module';
 import { ServiceCategoriesModule } from './modules/service-categories/service-categories.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import { LegalDocumentsModule } from './modules/legal-documents/legal-documents.module';
 import { GivenServiceModule } from './modules/given-service/given-service.module';
+import { AdminsModule } from './modules/admins/admins.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { ProvidersModule } from './modules/providers/providers.module';
@@ -27,6 +29,8 @@ import { SupportMessagesModule } from './modules/support-messages/support-messag
 import { FaqModule } from './modules/faq/faq.module';
 import { PlatformAuditModule } from './modules/platform-audit/platform-audit.module';
 import { PlatformActivityLogsModule } from './modules/platform-activity-logs/platform-activity-logs.module';
+import { EmbeddingsModule } from './modules/embeddings/embeddings.module';
+import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -39,6 +43,7 @@ import { AppService } from './app.service';
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    RedisModule,
     AuthModule,
     ClientsModule,
     ServicesModule,
@@ -46,6 +51,7 @@ import { AppService } from './app.service';
     VerificationModule,
     LegalDocumentsModule,
     GivenServiceModule,
+    AdminsModule,
     AdminUsersModule,
     CompaniesModule,
     ProvidersModule,
@@ -64,6 +70,8 @@ import { AppService } from './app.service';
     SupportMessagesModule,
     PlatformAuditModule,
     PlatformActivityLogsModule,
+    EmbeddingsModule,
+    ChatbotModule,
   ],
   controllers: [AppController],
   providers: [AppService],

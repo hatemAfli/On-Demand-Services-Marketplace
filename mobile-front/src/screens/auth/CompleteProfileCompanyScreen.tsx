@@ -48,6 +48,9 @@ import {
   type ProviderDocumentType,
 } from "../../types/documents";
 import { OsmLocationPicker } from "../../components/maps/OsmLocationPicker";
+import { LegalAcceptanceField } from "../../components/auth/LegalAcceptanceField";
+import { useRegistrationLegalAcceptance } from "../../hooks/useRegistrationLegalAcceptance";
+import type { AuthStackParamList } from "../../navigation/types";
 
 const ACCENT = "#EA580C";
 const ACCENT_SOFT = "#FFEDD5";
@@ -81,7 +84,7 @@ type PendingDoc = {
 };
 
 interface CompleteProfileCompanyScreenProps {
-  navigation: NativeStackNavigationProp<any>;
+  navigation: NativeStackNavigationProp<AuthStackParamList>;
 }
 
 export const CompleteProfileCompanyScreen: React.FC<
@@ -90,6 +93,8 @@ export const CompleteProfileCompanyScreen: React.FC<
   const { completeRegistration } = useAuth();
   const { t, isRTL } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const legal = useRegistrationLegalAcceptance();
+  const [legalError, setLegalError] = useState<string | undefined>();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const mapHeight = Math.min(
     Math.max(screenHeight * 0.38, MAP_MIN_HEIGHT),
@@ -430,6 +435,23 @@ export const CompleteProfileCompanyScreen: React.FC<
   const handleSubmit = async () => {
     if (!validateStep1() || !validateStep2() || !validateStep3()) return;
 
+    let legalAcceptances;
+    try {
+      legalAcceptances = legal.requireForSubmit();
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("auth.legalAcceptanceRequired");
+      setLegalError(message);
+      setNotice({
+        visible: true,
+        title: t("common.error"),
+        message,
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const {
@@ -458,6 +480,7 @@ export const CompleteProfileCompanyScreen: React.FC<
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         role: "COMPANY_ADMIN" as const,
+        legalAcceptances,
         companyAdmin: {
           company: {
             companyName: formData.companyName.trim(),
@@ -876,6 +899,19 @@ export const CompleteProfileCompanyScreen: React.FC<
             { paddingBottom: Math.max(insets.bottom - 40, 4), paddingTop: 8 },
           ]}
         >
+          {legal.needsUi && currentStep === TOTAL_STEPS ? (
+            <LegalAcceptanceField
+              navigation={navigation}
+              accepted={legal.accepted}
+              onAcceptedChange={(value) => {
+                legal.setAccepted(value);
+                setLegalError(undefined);
+              }}
+              onVersionIdsReady={legal.setVersionIds}
+              error={legalError}
+            />
+          ) : null}
+
           {currentStep > 1 && (
             <TouchableOpacity
               style={styles.stepBackButton}

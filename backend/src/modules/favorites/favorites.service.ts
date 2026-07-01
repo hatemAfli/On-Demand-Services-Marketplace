@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { FavoriteType, Locale, UserRole } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.config';
+import { RedisService } from '../../config/redis.service';
 import { localeFallbackChain } from '../../common/i18n/locale';
 import { CreateClientFavoriteDto } from './dto/create-client-favorite.dto';
 
@@ -25,10 +26,26 @@ type FavoriteListItem = {
 
 @Injectable()
 export class FavoritesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly cacheTtlSeconds = 300;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async listFavorites(userId: string, type?: FavoriteType, locale: Locale = 'EN') {
     await this.assertClientAccount(userId);
+    const cacheKey = `cache:user:${userId}:favorites:${type ?? 'all'}:${locale}`;
+    return this.redis.getOrSetJson(cacheKey, this.cacheTtlSeconds, () =>
+      this.loadFavorites(userId, type, locale),
+    );
+  }
+
+  private async loadFavorites(
+    userId: string,
+    type?: FavoriteType,
+    locale: Locale = 'EN',
+  ) {
     const requestedLocales = localeFallbackChain(locale);
 
     const rows = await this.prisma.clientFavorite.findMany({
@@ -162,6 +179,7 @@ export class FavoritesService {
             categoryId: dto.targetId,
           },
         });
+        await this.invalidateFavoritesCache(userId);
         return this.toResponse(row);
       }
 
@@ -181,6 +199,7 @@ export class FavoritesService {
             serviceId: dto.targetId,
           },
         });
+        await this.invalidateFavoritesCache(userId);
         return this.toResponse(row);
       }
 
@@ -200,6 +219,7 @@ export class FavoritesService {
             providerId: dto.targetId,
           },
         });
+        await this.invalidateFavoritesCache(userId);
         return this.toResponse(row);
       }
 
@@ -230,6 +250,7 @@ export class FavoritesService {
       throw new NotFoundException('Favorite not found');
     }
 
+    await this.invalidateFavoritesCache(userId);
     return { deleted: true };
   }
 
@@ -241,7 +262,12 @@ export class FavoritesService {
         ...(type ? { type } : {}),
       },
     });
+    await this.invalidateFavoritesCache(userId);
     return { deletedCount: result.count };
+  }
+
+  private async invalidateFavoritesCache(userId: string): Promise<void> {
+    await this.redis.invalidatePattern(`cache:user:${userId}:favorites:`);
   }
 
   private toResponse(row: {

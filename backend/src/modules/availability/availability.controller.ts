@@ -110,10 +110,4 @@ export class AvailabilityController {
       duration,
     );
   }
-
-  @Get(':providerId')
-  @Roles(UserRole.CLIENT)
-  getProviderAvailability(@Param('providerId', ParseUUIDPipe) providerId: string) {
-    return this.availabilityService.getProviderAvailability(providerId);
-  }
 }

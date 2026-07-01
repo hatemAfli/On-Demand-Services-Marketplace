@@ -129,12 +129,6 @@ enum AppointmentConfirmationType {
   END
 }
 
-enum CompanyBranchStatus {
-  OPERATIONAL
-  COMING_SOON
-  INACTIVE
-}
-
 enum CompanyAuditAction {
   PROFILE_UPDATED
   BRANDING_UPDATED
@@ -287,6 +281,12 @@ enum ComplaintForwardTarget {
   BOTH // platform and company administrators
 }
 
+enum ChatbotMessageRole {
+  USER
+  ASSISTANT
+}
+
+
 // User Model (synced with Supabase Auth)
 model User {
   id              String        @id @db.Uuid
@@ -335,6 +335,7 @@ model Client {
   favorites     ClientFavorite[]
   appointments  Appointment[]
   conversations Conversation[]
+  chatbotSessions ChatbotSession[]
   reviews         Review[]
   complaints      Complaint[]
 
@@ -427,6 +428,8 @@ model Message {
   mediaUrls      String[]      @default([]) @map("media_urls") // photo attachments
   status         MessageStatus @default(SENT)
   readAt         DateTime?     @map("read_at")
+  editedAt       DateTime?     @map("edited_at")
+  deletedAt      DateTime?     @map("deleted_at")
   createdAt      DateTime      @default(now()) @map("created_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -484,28 +487,10 @@ model Company {
   admin         CompanyAdmin?  @relation(fields: [adminId], references: [id])
   invitations   EmployeeInvitation[]
   appointments  Appointment[]
-  branches      CompanyBranch[]
   auditLogs     CompanyAuditLog[]
   complaints    Complaint[]
 
   @@map("companies")
-}
-
-model CompanyBranch {
-  id        String              @id @default(uuid()) @db.Uuid
-  companyId String              @map("company_id") @db.Uuid
-  name      String
-  subtitle  String?
-  city      String
-  address   String?
-  status    CompanyBranchStatus @default(OPERATIONAL)
-  createdAt DateTime            @default(now()) @map("created_at")
-  updatedAt DateTime            @updatedAt @map("updated_at")
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@index([companyId])
-  @@map("company_branches")
 }
 
 model CompanyAuditLog {
@@ -1189,4 +1174,44 @@ model SupportMessage {
   @@index([status, createdAt])
   @@index([userId])
   @@map("support_messages")
+}
+
+
+
+/// Persisted client ↔ AI assistant conversations (source of truth for history & admin QA).
+model ChatbotSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  clientId  String    @map("client_id") @db.Uuid
+  title     String    @default("")
+  locale    String    @default("en") @db.VarChar(10)
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  client   Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  messages ChatbotMessage[]
+
+  @@index([clientId, updatedAt(sort: Desc)])
+  @@index([deletedAt])
+  @@map("chatbot_sessions")
+}
+
+model ChatbotMessage {
+  id             String             @id @default(uuid()) @db.Uuid
+  sessionId      String             @map("session_id") @db.Uuid
+  role           ChatbotMessageRole
+  text           String             @db.Text
+  providers      Json               @default("[]")
+  suggestions    Json               @default("[]")
+  fallback       Boolean            @default(false)
+  intentDetected Boolean?           @map("intent_detected")
+  latencyMs      Int?               @map("latency_ms")
+  errorCode      String?            @map("error_code") @db.VarChar(64)
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  session ChatbotSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@index([fallback, createdAt])
+  @@map("chatbot_messages")
 }

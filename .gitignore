@@ -1,1 +1,6 @@
 node_modules
+chatbot/.env
+chatbot/.venv
+chatbot/venv
+backend/.env
+mobile-front/.env
