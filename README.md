@@ -37,7 +37,7 @@ This README is a **high-level app overview**. Detailed setup, environment variab
 
 The demo showcases core workflows of the platform, including **authentication** and **appointment requests**, across the mobile and administration interfaces.
 
-▶️ [Watch the Application Demo](YOUR_VIDEO_LINK_HERE)
+▶️ [![ServeMe Demo](docs/images/thumbnail_image.png)](https://drive.google.com/file/d/1Tfcrcq81h7i59hyDBky5O0sCFbJgyvPK/view?usp=sharing)
 
 ---
 
