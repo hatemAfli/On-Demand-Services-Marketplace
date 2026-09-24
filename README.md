@@ -41,115 +41,51 @@ The demo showcases core workflows of the platform, including **authentication** 
 
 ---
 
-# 📱 Application Preview
-
-Screenshots are stored under `docs/images/` (add your captures to match the paths below).
-
-## Mobile Application
-
-### Authentication
-
-Sign-up, login, and role-based access for clients and providers.
-
-Authentication
-
-### Home & Service Discovery
-
-Browse categories, recommendations, and service discovery from the client home screen.
-
-Home
-
-### Service Search
-
-Search and filter services and providers from the catalog.
-
-Service Search
-
-### Provider Profile
-
-View provider or company details, ratings, and offered services before booking.
-
-Provider Profile
-
-### Appointment Request
-
-Request an appointment with scheduling details and optional supporting photos.
-
-Appointment Request
-
-### Appointment Management
-
-Track appointment status and manage bookings as a client or provider.
-
-Appointments
-
-## 🤖 AI-Powered Service Search
-
-Clients can describe what they need in **natural language** (English or Arabic). The assistant interprets the request, searches the catalog, and returns relevant **provider cards** with refinement suggestions.
-
-AI Search
-
-## 🖥️ Administration Dashboards
-
-### Platform Administration
-
-Platform administrators manage users, companies, provider validations, service catalog, appointments, complaints, reviews, FAQ and legal content, support messages, chatbot sessions, and activity logs.
-
-Platform Admin Dashboard
-
-### Company Administration
-
-Company administrators manage company providers, services, orders, schedule capacity, complaints, ratings, and company settings.
-
-Company Admin Dashboard
-
----
-
 # ✨ Main Features
 
 ### Client
 
 - User registration and authentication (Supabase Auth)
-- Service discovery, search, and provider profiles
-- Ratings and reviews on providers and services
-- Location-aware discovery (e.g. popular services nearby when location is available)
+- Service search
+- Ratings and reviews on providers and companies
+- Location-aware discovery (e.g. popular services nearby)
 - Appointment requests and appointment lifecycle tracking
 - Real-time messaging with providers
 - In-app notifications
 - Reviews and ratings
 - Complaint submission with evidence (photos)
-- **AI-powered natural-language service search** (optional; requires chatbot service)
+- **AI-powered natural-language service search**
 
-### Service Provider
+### Provider
 
-- Provider profile and settings
-- Service (given-service) management
+- Profile and settings management
+- Service management
 - Appointment and job management
-- Schedule and availability (including days off)
+- Schedule and availability management
 - Client messaging
 - Ratings and reviews visibility
 - Dashboard and operational workflows on mobile
 
-### Company
+### Company Admin
 
-- Company profile and settings (web)
-- Employee / provider management under the company
+- Company profile and settings management
+- Employee management under the company
 - Service management for company offerings
 - Order and appointment management
 - Schedule and capacity management
-- Complaints and ratings (company views)
-- Company administration dashboard (web)
+- Complaints and ratings management
+- Company administration dashboard
 
-### Platform Administration
+### Platform Admin
 
 - User management
 - Company management
 - Provider and document validation workflows
-- Service catalog (categories and services)
+- Service management
 - Appointment monitoring
 - Complaint management
 - Review moderation / management
-- FAQ and legal document management
+- FAQs, terms & privacy policies management
 - Support messages
 - Chatbot session monitoring
 - Platform activity logs
@@ -164,7 +100,7 @@ Company Admin Dashboard
                          │    Mobile App       │
                          │                     │
                          │ Client / Provider   │
-                         │ / Mobile Admin      │
+                         │                     │
                          └──────────┬──────────┘
                                     │
                                     │ REST API / JWT
@@ -233,8 +169,6 @@ Company Admin Dashboard
 | API communication    | REST, Axios                                                          |
 | AI                   | Python, FastAPI, OpenRouter, vector embeddings (Supabase / pgvector) |
 | Internationalization | i18next (English / Arabic)                                           |
-| Containerization     | Docker (optional — e.g. local Redis)                                 |
-| Testing              | Jest (backend), API testing                                          |
 
 ---
 
@@ -276,9 +210,6 @@ on-demand-services-marketplace/
 │
 └── docs/
     ├── images/
-    │   ├── mobile/
-    │   ├── web/
-    │   └── ai/
     └── TECHNICAL_DOCUMENTATION.md
 ```
 
@@ -288,18 +219,16 @@ on-demand-services-marketplace/
 
 | Role               | Main responsibilities                                            |
 | ------------------ | ---------------------------------------------------------------- |
-| **CLIENT**         | Discover services, request appointments, chat, review providers  |
+| **CLIENT**         | Search services, request appointments, chat, review providers    |
 | **PROVIDER**       | Manage services, schedule, appointments, and client interactions |
 | **COMPANY_ADMIN**  | Manage company providers, services, orders, and schedules        |
 | **PLATFORM_ADMIN** | Manage and monitor the overall platform                          |
-
-Roles are defined in the Prisma schema (`UserRole` enum) and enforced via guards and role checks in the API and clients.
 
 ---
 
 # 🔌 Backend API
 
-The backend exposes a **REST API** (NestJS) consumed by the mobile app, web dashboards, and the chatbot service (server-to-server).
+The backend exposes a **REST API** (NestJS) consumed by the mobile app, web dashboards, and the chatbot service.
 
 | Module         | Description                                          |
 | -------------- | ---------------------------------------------------- |
@@ -316,9 +245,7 @@ The backend exposes a **REST API** (NestJS) consumed by the mobile app, web dash
 | Chatbot        | AI-assisted service search (proxies Python service)  |
 | Administration | Platform administration endpoints                    |
 
-**[Backend README](backend/README.md)** — scripts, environment variables, storage buckets, and module paths.
-
----
+## For more details, see **[Backend README](backend/README.md)**.
 
 # 🤖 AI Architecture
 
@@ -354,82 +281,34 @@ Implementation details: **[Chatbot README](chatbot/README.md)** and **[Technical
 
 # 🗄️ Database & Infrastructure
 
-- **PostgreSQL** — primary persistent data (users, appointments, messaging, catalog, chatbot sessions, etc.)
+- **PostgreSQL** — primary persistent data
 - **Prisma** — schema, migrations, and type-safe data access (`backend/prisma/`)
-- **Supabase Auth** — identity and JWT for clients
-- **Supabase Storage** — avatars, service photos, chat attachments, appointment and complaint media
-- **Supabase Realtime** — real-time notifications and related broadcasts
-- **Redis** — caching and supporting backend features (see backend `.env.example` and README)
-
-Chatbot **conversation history** is stored in PostgreSQL via NestJS; the Python service is stateless per request with history supplied by the API.
+- **Supabase Auth** — identity and JWT for users
+- **Supabase Storage** — to store images, files, and documents
+- **Supabase Realtime** — to implement a real-time notification and messaging system.
+- **Redis** — for caching
 
 ---
 
 # 🚀 Running the Project
 
-The repository contains **several applications**. Start the **backend** first, then mobile, web, and optionally the chatbot.
+Start the **backend** first, then mobile, web, and the chatbot.
 
 ## 1. Backend
 
-```bash
-cd backend
-npm install
-cp .env.example .env
-
-npx prisma generate
-npx prisma migrate deploy
-npm run start:dev
-```
-
-API base URL: **[http://localhost:3000/api](http://localhost:3000/api)**
-
-**[Backend Quick Start](backend/QuickStart.md)**
+Check **[Backend Quick Start](backend/QuickStart.md)**
 
 ## 2. Mobile
 
-```bash
-cd mobile-front
-npm install
-cp .env.example .env
-npx expo start
-```
-
-**[Mobile Quick Start](mobile-front/QuickStart.md)**
+Check **[Mobile Quick Start](mobile-front/QuickStart.md)**
 
 ## 3. Web administration
 
-```bash
-cd web-front
-npm install
-cp .env.example .env
-npm run dev
-```
+Check **[Web Quick Start](web-front/QuickStart.md)**
 
-Web app: **[http://localhost:5173](http://localhost:5173)**
+## 4. AI chatbot
 
-**[Web Quick Start](web-front/QuickStart.md)**
-
-## 4. AI chatbot (optional)
-
-Required only for the **AI natural-language search** feature. Configure matching secrets and URLs in backend and chatbot `.env` files (see their READMEs).
-
-```bash
-cd chatbot
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# macOS / Linux
-# source .venv/bin/activate
-
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-
-**[Chatbot README](chatbot/README.md)**
-
-> Do not commit real credentials. Use `.env.example` templates and keep secrets out of version control.
+Check **[Chatbot README](chatbot/README.md)**
 
 ---
 
@@ -460,8 +339,6 @@ The per-application READMEs contain detailed setup instructions, environment var
 - AI-assisted service discovery
 - Automated and manual API validation during development
 
-The project is intended as a **portfolio-grade engineering deliverable** for evaluation and professional presentation, not as a claim of large-scale production deployment.
-
 ---
 
 # 👨‍💻 My Contributions
@@ -469,15 +346,14 @@ The project is intended as a **portfolio-grade engineering deliverable** for eva
 Across this PFE, work spanned the **full stack** and integration between applications, including:
 
 - **System design** — multi-app architecture (mobile, web, API, AI microservice) and clear separation of concerns
-- **NestJS REST API** — feature modules (appointments, messaging, search, reviews, complaints, notifications, chatbot proxy, admin)
+- **NestJS REST API** — feature modules (appointments, messaging, search, reviews, complaints, notifications, chatbot, admin)
 - **Database** — PostgreSQL schema design and evolution with **Prisma** migrations
 - **Security** — Supabase Auth, JWT validation, role-based access for client, provider, company, and platform admin flows
-- **Client & provider journeys** — mobile screens for discovery, booking, messaging, and provider operations
+- **Client & provider journeys** — mobile screens for search, booking, messaging, and provider operations
 - **Web administration** — platform and company dashboards (React + Vite + Ant Design)
 - **Real-time & media** — Supabase Realtime and Storage integration for notifications, chat, and evidence uploads
 - **AI service search** — Python chatbot with intent routing, catalog search, and vector-backed semantic matching
-- **Quality** — backend unit tests (Jest), API testing during development, and documented setup paths
-- **Dev environment** — documented local runbooks (including optional Docker for Redis per technical documentation)
+- **Quality** — backend unit tests (PostMan), API testing during development, and documented setup paths
 
 ---
 
