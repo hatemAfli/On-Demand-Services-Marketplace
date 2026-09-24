@@ -96,7 +96,8 @@ function getStepState(
   progress: TimelineProgress,
 ): "done" | "active" | "pending" {
   if (stepIdx <= progress.doneThrough) return "done";
-  if (progress.activeIdx >= 0 && stepIdx === progress.activeIdx) return "active";
+  if (progress.activeIdx >= 0 && stepIdx === progress.activeIdx)
+    return "active";
   return "pending";
 }
 
@@ -355,7 +356,7 @@ export function ProviderAppointmentDetailView({
   const mainAction: MainAction = (() => {
     if (appointment.status === "CONFIRMED") {
       return {
-        title: "Mark as En Route",
+        title: "Mark as On the way",
         icon: "arrow-forward",
         backgroundColor: "#111827",
         onPress: onMarkEnRoute,
@@ -388,7 +389,7 @@ export function ProviderAppointmentDetailView({
     if (appointment.status === "CONFIRMED") {
       return {
         title: "Head to client",
-        description: "Mark yourself en route to notify the customer.",
+        description: "Mark yourself on the way to notify the customer.",
         icon: "car-outline",
       };
     }
@@ -444,10 +445,7 @@ export function ProviderAppointmentDetailView({
     )}`;
   })();
 
-  const allBeforeUris = [
-    ...appointment.beforePhotoUrls,
-    ...beforeLocalUris,
-  ];
+  const allBeforeUris = [...appointment.beforePhotoUrls, ...beforeLocalUris];
   const allAfterUris = [...appointment.afterPhotoUrls, ...afterLocalUris];
   const referencePhotos = appointment.photoUrls;
 
@@ -478,7 +476,11 @@ export function ProviderAppointmentDetailView({
                 </Text>
               </View>
               <View style={styles.currentIconWrap}>
-                <Ionicons name="alert-circle-outline" size={18} color={ACCENT} />
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={18}
+                  color={ACCENT}
+                />
               </View>
             </View>
             <TouchableOpacity
@@ -562,10 +564,15 @@ export function ProviderAppointmentDetailView({
                 {actionLoading ? (
                   <ActivityIndicator color="#DC2626" />
                 ) : (
-                  <Text style={styles.secondaryDangerText}>Confirm refusal</Text>
+                  <Text style={styles.secondaryDangerText}>
+                    Confirm refusal
+                  </Text>
                 )}
               </TouchableOpacity>
-              <TouchableOpacity onPress={onRefuseCancel} disabled={actionLoading}>
+              <TouchableOpacity
+                onPress={onRefuseCancel}
+                disabled={actionLoading}
+              >
                 <Text style={styles.cancelLink}>Cancel</Text>
               </TouchableOpacity>
             </View>
@@ -622,7 +629,9 @@ export function ProviderAppointmentDetailView({
             <View style={styles.alertCopy}>
               <Text style={styles.alertTitle}>Request Refused</Text>
               {appointment.refusalReason ? (
-                <Text style={styles.alertText}>{appointment.refusalReason}</Text>
+                <Text style={styles.alertText}>
+                  {appointment.refusalReason}
+                </Text>
               ) : null}
             </View>
           </View>
@@ -644,7 +653,9 @@ export function ProviderAppointmentDetailView({
               style={styles.alertIcon}
             />
             <View style={styles.alertCopy}>
-              <Text style={styles.alertTitleNeutral}>Appointment Cancelled</Text>
+              <Text style={styles.alertTitleNeutral}>
+                Appointment Cancelled
+              </Text>
               <Text style={styles.alertTextNeutral}>
                 {appointment.status === "CANCELLED_CLIENT"
                   ? "Cancelled by client"
@@ -700,7 +711,11 @@ export function ProviderAppointmentDetailView({
             <Ionicons name="notifications-outline" size={16} color="#6B7280" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={scrollToDetails}>
-            <Ionicons name="information-circle-outline" size={16} color="#6B7280" />
+            <Ionicons
+              name="information-circle-outline"
+              size={16}
+              color="#6B7280"
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -756,7 +771,11 @@ export function ProviderAppointmentDetailView({
                     return (
                       <View key={step.label} style={wrapperStyle}>
                         <View style={circleStyle}>
-                          <Ionicons name={iconName} size={10} color={iconColor} />
+                          <Ionicons
+                            name={iconName}
+                            size={10}
+                            color={iconColor}
+                          />
                         </View>
                         <Text style={textStyle}>{step.label}</Text>
                       </View>
@@ -789,11 +808,7 @@ export function ProviderAppointmentDetailView({
                   ) : null}
                 </View>
                 <View style={styles.currentIconWrap}>
-                  <Ionicons
-                    name={currentCard.icon}
-                    size={18}
-                    color={ACCENT}
-                  />
+                  <Ionicons name={currentCard.icon} size={18} color={ACCENT} />
                 </View>
               </View>
 
@@ -831,7 +846,9 @@ export function ProviderAppointmentDetailView({
                   disabled={actionLoading}
                   style={styles.cancelLinkWrap}
                 >
-                  <Text style={styles.cancelDangerLink}>Cancel appointment</Text>
+                  <Text style={styles.cancelDangerLink}>
+                    Cancel appointment
+                  </Text>
                 </TouchableOpacity>
               ) : null}
 
@@ -858,7 +875,11 @@ export function ProviderAppointmentDetailView({
                         allBeforeUris.length >= maxInterventionPhotos
                       }
                     >
-                      <Ionicons name="camera-outline" size={12} color="#9CA3AF" />
+                      <Ionicons
+                        name="camera-outline"
+                        size={12}
+                        color="#9CA3AF"
+                      />
                       <Text style={styles.addPhotoText}>Add</Text>
                     </TouchableOpacity>
                   </ScrollView>
@@ -928,7 +949,11 @@ export function ProviderAppointmentDetailView({
                     style={styles.mapButton}
                     onPress={openGoogleMaps}
                   >
-                    <Ionicons name="navigate-outline" size={14} color="#111827" />
+                    <Ionicons
+                      name="navigate-outline"
+                      size={14}
+                      color="#111827"
+                    />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.mapButton} onPress={openWaze}>
                     <Ionicons name="car-outline" size={14} color="#111827" />
@@ -1154,9 +1179,7 @@ export function ProviderAppointmentDetailView({
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>
-                    Proof of Work (optional)
-                  </Text>
+                  <Text style={styles.formLabel}>Proof of Work (optional)</Text>
                   <View style={styles.proofGrid}>
                     <TouchableOpacity
                       style={styles.takePhotoCard}
@@ -1166,7 +1189,11 @@ export function ProviderAppointmentDetailView({
                         afterLocalUris.length >= maxInterventionPhotos
                       }
                     >
-                      <Ionicons name="camera-outline" size={20} color="#6B7280" />
+                      <Ionicons
+                        name="camera-outline"
+                        size={20}
+                        color="#6B7280"
+                      />
                       <Text style={styles.takePhotoText}>Take Photo</Text>
                     </TouchableOpacity>
 

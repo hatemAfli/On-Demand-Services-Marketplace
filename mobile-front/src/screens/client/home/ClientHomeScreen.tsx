@@ -1528,7 +1528,7 @@ export const ClientHomeScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel={t("client.chatbot.fabLabel")}
         >
-          <Ionicons name="sparkles" size={26} color="#FFFFFF" />
+          <Ionicons name="sparkles" size={26} color={ACCENT} />
         </Pressable>
       </View>
     </SafeAreaView>
@@ -1632,13 +1632,15 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: COLORS.primary,
+    backgroundColor: ACCENT_LIGHT,
+    borderWidth: 1.5,
+    borderColor: ACCENT_BORDER,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 100,
-    shadowColor: COLORS.primary,
+    shadowColor: ACCENT,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 6,
   },

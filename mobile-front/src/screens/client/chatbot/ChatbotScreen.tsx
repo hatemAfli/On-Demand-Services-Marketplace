@@ -34,6 +34,12 @@ import {
 } from "../../../services/client-data-cache";
 import type { ClientStackParamList } from "../../../navigation/types";
 
+const ACCENT = "#EA580C";
+const ACCENT_DARK = "#C2410C";
+const ACCENT_LIGHT = "#FFF7ED";
+const ACCENT_BORDER = "#FFEDD5";
+const ACCENT_SOFT = "#FED7AA";
+
 type ChatMessage =
   | { id: string; role: "user"; text: string; createdAt: Date }
   | {
@@ -523,7 +529,7 @@ export const ChatbotScreen: React.FC = () => {
     messages.length === 0 && !loading ? (
       <View style={styles.welcome}>
         <View style={styles.welcomeIconWrap}>
-          <Ionicons name="sparkles" size={40} color={COLORS.primary} />
+          <Ionicons name="sparkles" size={40} color={ACCENT} />
         </View>
         <Text style={[styles.welcomeTitle, isRTL && styles.rtlText]}>
           {t("client.chatbot.welcomeTitle")}
@@ -556,7 +562,7 @@ export const ChatbotScreen: React.FC = () => {
   if (initializing) {
     return (
       <View style={[styles.root, styles.centered, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color={ACCENT} />
       </View>
     );
   }
@@ -599,11 +605,11 @@ export const ChatbotScreen: React.FC = () => {
               </Pressable>
             </View>
             <Pressable style={styles.newChatBtn} onPress={() => void handleNewChat()}>
-              <Ionicons name="add-circle-outline" size={20} color={COLORS.primary} />
+              <Ionicons name="add-circle-outline" size={20} color={ACCENT} />
               <Text style={styles.newChatText}>{t("client.chatbot.newChat")}</Text>
             </Pressable>
             {sessionsLoading ? (
-              <ActivityIndicator style={{ marginTop: 24 }} color={COLORS.primary} />
+              <ActivityIndicator style={{ marginTop: 24 }} color={ACCENT} />
             ) : (
               <FlatList
                 data={sessions}
@@ -728,7 +734,7 @@ export const ChatbotScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.background },
+  root: { flex: 1, backgroundColor: ACCENT_LIGHT },
   flex: { flex: 1 },
   header: {
     flexDirection: "row",
@@ -736,7 +742,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: ACCENT_BORDER,
     backgroundColor: COLORS.surface,
   },
   backBtn: {
@@ -749,7 +755,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: "800",
-    color: COLORS.text.primary,
+    color: ACCENT,
   },
   headerSub: { fontSize: 12, color: COLORS.text.secondary, marginTop: 2 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
@@ -790,13 +796,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: COLORS.primary + "12",
+    backgroundColor: ACCENT_LIGHT,
+    borderWidth: 1,
+    borderColor: ACCENT_BORDER,
     marginBottom: 8,
   },
   newChatText: {
     fontSize: 14,
     fontWeight: "700",
-    color: COLORS.primary,
+    color: ACCENT,
   },
   historyEmptyWrap: { flexGrow: 1, justifyContent: "center", paddingVertical: 32 },
   historyEmpty: {
@@ -812,7 +820,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  historyRowActive: { backgroundColor: COLORS.primary + "10" },
+  historyRowActive: { backgroundColor: ACCENT_LIGHT },
   historyRowBody: { flex: 1, marginRight: 8 },
   historyTitle: {
     fontSize: 15,
@@ -828,7 +836,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.primary + "18",
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -838,7 +846,7 @@ const styles = StyleSheet.create({
   userRowRtl: { flexDirection: "row-reverse" },
   userBubble: {
     maxWidth: "82%",
-    backgroundColor: COLORS.primary,
+    backgroundColor: ACCENT,
     borderRadius: 18,
     borderBottomRightRadius: 4,
     paddingHorizontal: 14,
@@ -864,7 +872,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.gray[400],
+    backgroundColor: ACCENT_SOFT,
   },
   cardsScroll: { gap: 10, paddingVertical: 10, paddingHorizontal: 2 },
   miniCard: {
@@ -882,12 +890,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   miniAvatarFallback: {
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: ACCENT_LIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
   miniAvatarCompany: { backgroundColor: "#EDE9FE" },
-  miniAvatarText: { fontSize: 14, fontWeight: "800", color: COLORS.primaryDark },
+  miniAvatarText: { fontSize: 14, fontWeight: "800", color: ACCENT_DARK },
   companyBadge: {
     alignSelf: "flex-start",
     backgroundColor: COLORS.roles.company + "22",
@@ -911,25 +919,27 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     fontWeight: "700",
-    color: COLORS.primary,
+    color: ACCENT,
   },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
   chipsRowRtl: { flexDirection: "row-reverse" },
   chip: {
     borderWidth: 1,
-    borderColor: COLORS.primary + "44",
-    backgroundColor: COLORS.primary + "10",
+    borderColor: ACCENT_BORDER,
+    backgroundColor: ACCENT_LIGHT,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
   },
-  chipText: { fontSize: 12, fontWeight: "600", color: COLORS.primaryDark },
+  chipText: { fontSize: 12, fontWeight: "600", color: ACCENT_DARK },
   welcome: { alignItems: "center", paddingVertical: 32, paddingHorizontal: 20 },
   welcomeIconWrap: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.primary + "18",
+    backgroundColor: ACCENT_LIGHT,
+    borderWidth: 1.5,
+    borderColor: ACCENT_BORDER,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -955,7 +965,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: ACCENT_BORDER,
     backgroundColor: COLORS.surface,
   },
   input: {
@@ -963,19 +973,19 @@ const styles = StyleSheet.create({
     minHeight: 44,
     maxHeight: 96,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: ACCENT_BORDER,
     borderRadius: 22,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 15,
     color: COLORS.text.primary,
-    backgroundColor: COLORS.gray[50],
+    backgroundColor: COLORS.surface,
   },
   sendBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.primary,
+    backgroundColor: ACCENT,
     alignItems: "center",
     justifyContent: "center",
   },
